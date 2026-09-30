@@ -46,6 +46,17 @@ class ApiResponseTest {
     }
 
     @Test
+    @DisplayName("onFailure(code)는 result를 null로 반환한다.")
+    void onFailure_withNullResult() {
+        ApiResponse<Void> response = ApiResponse.onFailure(GeneralErrorCode.INTERNAL_SERVER_ERROR);
+
+        assertThat(response.isSuccess()).isFalse();
+        assertThat(response.getCode()).isEqualTo(GeneralErrorCode.INTERNAL_SERVER_ERROR.getCode());
+        assertThat(response.getMessage()).isEqualTo(GeneralErrorCode.INTERNAL_SERVER_ERROR.getMessage());
+        assertThat(response.getResult()).isNull();
+    }
+
+    @Test
     @DisplayName("JSON 직렬화 시 키 순서가 고정되고 success 키는 중복으로 나오지 않는다.")
     void serialize_keyOrderAndNoDuplicateSuccess() {
         String json = jsonMapper.writeValueAsString(ApiResponse.onSuccess(GeneralSuccessCode.OK));

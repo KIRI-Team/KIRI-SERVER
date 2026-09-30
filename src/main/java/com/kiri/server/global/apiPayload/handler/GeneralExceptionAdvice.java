@@ -48,7 +48,7 @@ public class GeneralExceptionAdvice extends ResponseEntityExceptionHandler {
         }
 
         return ResponseEntity.status(errorCode.getHttpStatus())
-                .body(ApiResponse.onFailure(errorCode, null));
+                .body(ApiResponse.onFailure(errorCode));
     }
 
     // @Validated 경로/쿼리 파라미터 검증
@@ -76,7 +76,7 @@ public class GeneralExceptionAdvice extends ResponseEntityExceptionHandler {
         log.warn("[DataIntegrityViolationException] {}: {}", errorCode.getCode(), detail);
 
         return ResponseEntity.status(errorCode.getHttpStatus())
-                .body(ApiResponse.onFailure(errorCode, null));
+                .body(ApiResponse.onFailure(errorCode));
     }
 
     // 서버 내부 에러
@@ -86,7 +86,7 @@ public class GeneralExceptionAdvice extends ResponseEntityExceptionHandler {
 
         BaseErrorCode errorCode = GeneralErrorCode.INTERNAL_SERVER_ERROR;
         return ResponseEntity.status(errorCode.getHttpStatus())
-                .body(ApiResponse.onFailure(errorCode, null));
+                .body(ApiResponse.onFailure(errorCode));
 
     }
 
@@ -129,7 +129,7 @@ public class GeneralExceptionAdvice extends ResponseEntityExceptionHandler {
         BaseErrorCode errorCode = GeneralErrorCode.BAD_REQUEST;
         return ResponseEntity.status(errorCode.getHttpStatus())
                 .headers(headers)
-                .body(ApiResponse.onFailure(errorCode, null));
+                .body(ApiResponse.onFailure(errorCode));
     }
 
     // 잘못된 Content-Type
@@ -141,7 +141,7 @@ public class GeneralExceptionAdvice extends ResponseEntityExceptionHandler {
         BaseErrorCode errorCode = GeneralErrorCode.UNSUPPORTED_MEDIA_TYPE;
         return ResponseEntity.status(errorCode.getHttpStatus())
                 .headers(headers)
-                .body(ApiResponse.onFailure(errorCode, null));
+                .body(ApiResponse.onFailure(errorCode));
     }
 
     // 잘못된 Http 메소드
@@ -153,7 +153,7 @@ public class GeneralExceptionAdvice extends ResponseEntityExceptionHandler {
         BaseErrorCode errorCode = GeneralErrorCode.METHOD_NOT_ALLOWED;
         return ResponseEntity.status(errorCode.getHttpStatus())
                 .headers(headers)
-                .body(ApiResponse.onFailure(errorCode, null));
+                .body(ApiResponse.onFailure(errorCode));
     }
 
     // 타입 불일치
@@ -171,7 +171,7 @@ public class GeneralExceptionAdvice extends ResponseEntityExceptionHandler {
         BaseErrorCode errorCode = GeneralErrorCode.BAD_REQUEST;
         return ResponseEntity.status(errorCode.getHttpStatus())
                 .headers(headers)
-                .body(ApiResponse.onFailure(errorCode, null));
+                .body(ApiResponse.onFailure(errorCode));
     }
 
     // 존재하지 않는 엔드포인트
@@ -183,7 +183,7 @@ public class GeneralExceptionAdvice extends ResponseEntityExceptionHandler {
         BaseErrorCode errorCode = GeneralErrorCode.NOT_FOUND;
         return ResponseEntity.status(errorCode.getHttpStatus())
                 .headers(headers)
-                .body(ApiResponse.onFailure(errorCode, null));
+                .body(ApiResponse.onFailure(errorCode));
     }
 
     // 컨트롤러 파라미터 검증 (클래스 레벨 @Validated 없을 때 스프링 기본 메소드 검증)
@@ -197,7 +197,7 @@ public class GeneralExceptionAdvice extends ResponseEntityExceptionHandler {
             BaseErrorCode errorCode = GeneralErrorCode.INTERNAL_SERVER_ERROR;
             return ResponseEntity.status(errorCode.getHttpStatus())
                     .headers(headers)
-                    .body(ApiResponse.onFailure(errorCode, null));
+                    .body(ApiResponse.onFailure(errorCode));
         }
 
         // 입력값 검증 실패
@@ -230,7 +230,7 @@ public class GeneralExceptionAdvice extends ResponseEntityExceptionHandler {
             log.error("[{}] {} - {}", ex.getClass().getSimpleName(), statusCode, ex.getMessage(), ex);
         }
 
-        ApiResponse<Object> response = new ApiResponse<>(
+        ApiResponse<Void> response = new ApiResponse<>(
                 false,
                 "UNHANDLED_" + ex.getClass().getSimpleName(),
                 "요청을 처리할 수 없습니다.",
