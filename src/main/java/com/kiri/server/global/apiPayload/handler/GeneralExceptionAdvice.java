@@ -35,6 +35,8 @@ import java.util.Map;
 @RestControllerAdvice
 public class GeneralExceptionAdvice extends ResponseEntityExceptionHandler {
 
+    private static final String GLOBAL_ERROR_KEY = "global";
+
     // 프로젝트에서 발생한 에러
     @ExceptionHandler(ProjectException.class)
     public ResponseEntity<ApiResponse<Void>> handleProjectException(ProjectException ex) {
@@ -99,6 +101,10 @@ public class GeneralExceptionAdvice extends ResponseEntityExceptionHandler {
         Map<String, String> errors = new HashMap<>();
         ex.getBindingResult().getFieldErrors().forEach(error -> {
             errors.put(error.getField(), error.getDefaultMessage());
+        });
+
+        ex.getBindingResult().getGlobalErrors().forEach(error -> {
+            errors.put(GLOBAL_ERROR_KEY, error.getDefaultMessage());
         });
 
         BaseErrorCode errorCode = GeneralErrorCode.BAD_REQUEST;
@@ -207,6 +213,8 @@ public class GeneralExceptionAdvice extends ResponseEntityExceptionHandler {
             if (result instanceof ParameterErrors parameterErrors) {
                 parameterErrors.getFieldErrors().forEach(error ->
                         errors.put(error.getField(), error.getDefaultMessage()));
+                parameterErrors.getGlobalErrors().forEach(error ->
+                        errors.put(GLOBAL_ERROR_KEY, error.getDefaultMessage()));
             } else {
                 String parameterName = result.getMethodParameter().getParameterName();
                 result.getResolvableErrors().forEach(error ->

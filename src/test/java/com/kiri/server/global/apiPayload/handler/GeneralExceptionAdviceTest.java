@@ -36,7 +36,8 @@ class GeneralExceptionAdviceTest {
                         .content("{\"name\":\"\"}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("COMMON400_1"))
-                .andExpect(jsonPath("$.result.name").value("이름은 필수입니다."));
+                .andExpect(jsonPath("$.result.name").value("이름은 필수입니다."))
+                .andExpect(jsonPath("$.result.global").doesNotExist());
     }
 
     @Test
@@ -47,6 +48,17 @@ class GeneralExceptionAdviceTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("COMMON400_1"))
                 .andExpect(jsonPath("$.result.name").value("이름은 필수입니다."));
+    }
+
+    @Test
+    @DisplayName("@RequestBody @Valid 클래스 레벨 제약 실패 시 global 키로 에러 메시지를 담는다.")
+    void methodArgumentNotValid_globalError() throws Exception {
+        mockMvc.perform(post("/test/global-error")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"a\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("COMMON400_1"))
+                .andExpect(jsonPath("$.result.global").value("객체 검증에 실패했습니다."));
     }
 
     @Test
@@ -91,6 +103,18 @@ class GeneralExceptionAdviceTest {
                 .andExpect(status().isInternalServerError())
                 .andExpect(jsonPath("$.code").value("COMMON500_1"))
                 .andExpect(jsonPath("$.result").doesNotExist());
+    }
+
+    @Test
+    @DisplayName("메서드 검증에서 DTO 클래스 레벨 제약 실패 시 global 키로 에러 메시지를 담는다.")
+    void handlerMethodValidation_globalError() throws Exception {
+        mockMvc.perform(post("/test/method-validation/global-error")
+                        .param("page", "1")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"a\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("COMMON400_1"))
+                .andExpect(jsonPath("$.result.global").value("객체 검증에 실패했습니다."));
     }
 
     @Test
