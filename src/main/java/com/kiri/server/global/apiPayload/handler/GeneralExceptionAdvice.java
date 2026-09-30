@@ -14,7 +14,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
-import org.springframework.validation.BindException;
+import org.springframework.validation.method.ParameterErrors;
 import org.springframework.web.HttpMediaTypeNotSupportedException;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -190,13 +190,28 @@ public class GeneralExceptionAdvice extends ResponseEntityExceptionHandler {
     @Override
     protected @Nullable ResponseEntity<Object> handleHandlerMethodValidationException(
             HandlerMethodValidationException ex, HttpHeaders headers, HttpStatusCode status, WebRequest request) {
+
+        // 반환값 검증 실패
+        if (ex.isForReturnValue()) {
+            log.error("[HandlerMethodValidationException] 컨트롤러 반환값 검증 실패: {}", ex.getMessage(), ex);
+            BaseErrorCode errorCode = GeneralErrorCode.INTERNAL_SERVER_ERROR;
+            return ResponseEntity.status(errorCode.getHttpStatus())
+                    .headers(headers)
+                    .body(ApiResponse.onFailure(errorCode, null));
+        }
+
+        // 입력값 검증 실패
         log.warn("[HandlerMethodValidationException] 컨트롤러 파라미터 검증 실패: {}", ex.getMessage());
         Map<String, String> errors = new HashMap<>();
         ex.getParameterValidationResults().forEach(result -> {
-            String parameterName = result.getMethodParameter().getParameterName();
-            result.getResolvableErrors().forEach(error -> {
-                errors.put(parameterName, error.getDefaultMessage());
-            });
+            if (result instanceof ParameterErrors parameterErrors) {
+                parameterErrors.getFieldErrors().forEach(error ->
+                        errors.put(error.getField(), error.getDefaultMessage()));
+            } else {
+                String parameterName = result.getMethodParameter().getParameterName();
+                result.getResolvableErrors().forEach(error ->
+                        errors.put(parameterName, error.getDefaultMessage()));
+            }
         });
 
         BaseErrorCode errorCode = GeneralErrorCode.BAD_REQUEST;

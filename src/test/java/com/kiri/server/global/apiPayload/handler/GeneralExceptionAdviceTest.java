@@ -70,6 +70,30 @@ class GeneralExceptionAdviceTest {
     }
 
     @Test
+    @DisplayName("메서드 검증에서 단일 파라미터 에러는 파라미터명으로, DTO 필드 에러는 필드명으로 담는다.")
+    void handlerMethodValidation_parameterAndDtoField() throws Exception {
+        mockMvc.perform(post("/test/method-validation")
+                        .param("page", "0")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"\", \"email\":\"abc\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("COMMON400_1"))
+                .andExpect(jsonPath("$.result.page").value("1 이상이어야 합니다."))
+                .andExpect(jsonPath("$.result.name").value("이름은 필수입니다."))
+                .andExpect(jsonPath("$.result.email").value("이메일 형식이 아닙니다."))
+                .andExpect(jsonPath("$.result.request").doesNotExist());
+    }
+
+    @Test
+    @DisplayName("컨트롤러 반환값 검증 실패는 서버 에러이므로 500으로 응답한다.")
+    void handlerMethodValidation_returnValue() throws Exception {
+        mockMvc.perform(get("/test/return-value"))
+                .andExpect(status().isInternalServerError())
+                .andExpect(jsonPath("$.code").value("COMMON500_1"))
+                .andExpect(jsonPath("$.result").doesNotExist());
+    }
+
+    @Test
     @DisplayName("JSON 형식이 잘못되면 400과 안내 메시지를 반환한다.")
     void httpMessageNotReadable() throws Exception {
         mockMvc.perform(post("/test/valid")
