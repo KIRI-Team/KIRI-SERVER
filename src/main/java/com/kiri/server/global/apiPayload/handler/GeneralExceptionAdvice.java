@@ -79,19 +79,6 @@ public class GeneralExceptionAdvice extends ResponseEntityExceptionHandler {
                 .body(ApiResponse.onFailure(errorCode, null));
     }
 
-    // ModelAttribute 검증 실패
-    @ExceptionHandler(BindException.class)
-    public ResponseEntity<Object> handleBindException(BindException ex) {
-        log.warn("[BindException] ModelAttribute 바인딩 혹은 검증 실패: {}", ex.getMessage());
-        Map<String, String> errors = new HashMap<>();
-        ex.getBindingResult().getFieldErrors().forEach(error ->
-                errors.put(error.getField(), error.getDefaultMessage()));
-
-        BaseErrorCode errorCode = GeneralErrorCode.BAD_REQUEST;
-        return ResponseEntity.status(errorCode.getHttpStatus())
-                .body(ApiResponse.onFailure(errorCode, errors));
-    }
-
     // 서버 내부 에러
     @ExceptionHandler(Exception.class)
     public ResponseEntity<Object> handleUnexpectedException(Exception ex) {
