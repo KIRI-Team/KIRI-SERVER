@@ -42,7 +42,7 @@ public class JwtAuthFilter extends OncePerRequestFilter {
                 log.debug("[JwtAuthFilter] 만료된 토큰: uri={}", request.getRequestURI());
                 request.setAttribute(EXCEPTION_ATTRIBUTE, AuthErrorCode.EXPIRED_TOKEN);
             } catch (JwtException | IllegalArgumentException e) {
-                log.warn("[JwtAuthFilter] 유효하지 않은 토큰: uri={}, reason={}", request.getRequestURI(), e.getMessage());
+                log.warn("[JwtAuthFilter] 유효하지 않은 토큰: uri={}, reason={}", request.getRequestURI(), e.getClass().getSimpleName());
                 request.setAttribute(EXCEPTION_ATTRIBUTE, AuthErrorCode.INVALID_TOKEN);
             }
         }
