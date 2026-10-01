@@ -17,11 +17,11 @@ class JwtProviderTest {
     private final JwtProvider jwtProvider = createProvider(SECRET, Duration.ofMinutes(30));
 
     @Test
-    @DisplayName("생성한 토큰에서 userId를 꺼낼 수 있다.")
+    @DisplayName("생성한 토큰에서 memberId를 꺼낼 수 있다.")
     void createAndParse() {
         String token = jwtProvider.createAccessToken(1L);
 
-        assertThat(jwtProvider.getUserIdFromAccessToken(token)).isEqualTo(1L);
+        assertThat(jwtProvider.getMemberIdFromAccessToken(token)).isEqualTo(1L);
     }
 
     @Test
@@ -30,7 +30,7 @@ class JwtProviderTest {
         JwtProvider expiredProvider = createProvider(SECRET, Duration.ofSeconds(-1));
         String token = expiredProvider.createAccessToken(1L);
 
-        assertThatThrownBy(() -> jwtProvider.getUserIdFromAccessToken(token))
+        assertThatThrownBy(() -> jwtProvider.getMemberIdFromAccessToken(token))
                 .isInstanceOf(ExpiredJwtException.class);
     }
 
@@ -40,7 +40,7 @@ class JwtProviderTest {
         JwtProvider otherProvider = createProvider("other-secret-key-for-jwt-must-be-at-least-32-bytes", Duration.ofMinutes(30));
         String token = otherProvider.createAccessToken(1L);
 
-        assertThatThrownBy(() -> jwtProvider.getUserIdFromAccessToken(token))
+        assertThatThrownBy(() -> jwtProvider.getMemberIdFromAccessToken(token))
                 .isInstanceOf(JwtException.class);
     }
 
@@ -49,14 +49,14 @@ class JwtProviderTest {
     void refreshTokenRejected() {
         String token = jwtProvider.createRefreshToken(1L);
 
-        assertThatThrownBy(() -> jwtProvider.getUserIdFromAccessToken(token))
+        assertThatThrownBy(() -> jwtProvider.getMemberIdFromAccessToken(token))
                 .isInstanceOf(JwtException.class);
     }
 
     @Test
     @DisplayName("JWT 형식이 아닌 토큰은 JwtException이 발생한다.")
     void malformedToken() {
-        assertThatThrownBy(() -> jwtProvider.getUserIdFromAccessToken("not-a-jwt"))
+        assertThatThrownBy(() -> jwtProvider.getMemberIdFromAccessToken("not-a-jwt"))
                 .isInstanceOf(JwtException.class);
     }
 

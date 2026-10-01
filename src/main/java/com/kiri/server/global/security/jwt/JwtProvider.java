@@ -27,15 +27,15 @@ public class JwtProvider {
         this.secretKey = Keys.hmacShaKeyFor(jwtProperties.secret().getBytes(StandardCharsets.UTF_8));
     }
 
-    public String createAccessToken(Long userId) {
-        return createToken(userId, ACCESS_TYPE, jwtProperties.accessTokenExpiration());
+    public String createAccessToken(Long memberId) {
+        return createToken(memberId, ACCESS_TYPE, jwtProperties.accessTokenExpiration());
     }
 
-    public String createRefreshToken(Long userId) {
-        return createToken(userId, REFRESH_TYPE, jwtProperties.refreshTokenExpiration());
+    public String createRefreshToken(Long memberId) {
+        return createToken(memberId, REFRESH_TYPE, jwtProperties.refreshTokenExpiration());
     }
 
-    public Long getUserIdFromAccessToken(String token) {
+    public Long getMemberIdFromAccessToken(String token) {
         Claims claims=parseClaims(token);
         if(!ACCESS_TYPE.equals(claims.get(TOKEN_TYPE_CLAIM, String.class))){
             throw new JwtException("access 토큰이 아닙니다.");
@@ -43,10 +43,10 @@ public class JwtProvider {
         return Long.valueOf(claims.getSubject());
     }
 
-    private String createToken(Long userId, String type, Duration expiration) {
+    private String createToken(Long memberId, String type, Duration expiration) {
         Date now = new Date();
         return Jwts.builder()
-                .subject(String.valueOf(userId))
+                .subject(String.valueOf(memberId))
                 .claim(TOKEN_TYPE_CLAIM, type)
                 .issuedAt(now)
                 .expiration(new Date(now.getTime() + expiration.toMillis()))

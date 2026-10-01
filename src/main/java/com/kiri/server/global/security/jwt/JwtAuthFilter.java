@@ -32,8 +32,8 @@ public class JwtAuthFilter extends OncePerRequestFilter {
 
         if (token != null) {
             try {
-                Long userId = jwtProvider.getUserIdFromAccessToken(token);
-                Authentication authentication = UsernamePasswordAuthenticationToken.authenticated(userId, null, List.of());
+                Long memberId = jwtProvider.getMemberIdFromAccessToken(token);
+                Authentication authentication = UsernamePasswordAuthenticationToken.authenticated(memberId, null, List.of());
 
                 SecurityContextHolder.getContext().setAuthentication(authentication);
             } catch (ExpiredJwtException e) {
