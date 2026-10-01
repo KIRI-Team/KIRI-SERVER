@@ -21,7 +21,7 @@ class JwtProviderTest {
     void createAndParse() {
         String token = jwtProvider.createAccessToken(1L);
 
-        assertThat(jwtProvider.getUserId(token)).isEqualTo(1L);
+        assertThat(jwtProvider.getUserIdFromAccessToken(token)).isEqualTo(1L);
     }
 
     @Test
@@ -30,7 +30,7 @@ class JwtProviderTest {
         JwtProvider expiredProvider = createProvider(SECRET, Duration.ofSeconds(-1));
         String token = expiredProvider.createAccessToken(1L);
 
-        assertThatThrownBy(() -> jwtProvider.getUserId(token))
+        assertThatThrownBy(() -> jwtProvider.getUserIdFromAccessToken(token))
                 .isInstanceOf(ExpiredJwtException.class);
     }
 
@@ -40,14 +40,23 @@ class JwtProviderTest {
         JwtProvider otherProvider = createProvider("other-secret-key-for-jwt-must-be-at-least-32-bytes", Duration.ofMinutes(30));
         String token = otherProvider.createAccessToken(1L);
 
-        assertThatThrownBy(() -> jwtProvider.getUserId(token))
+        assertThatThrownBy(() -> jwtProvider.getUserIdFromAccessToken(token))
+                .isInstanceOf(JwtException.class);
+    }
+
+    @Test
+    @DisplayName("refresh 토큰은 access 토큰으로 사용할 수 없다.")
+    void refreshTokenRejected() {
+        String token = jwtProvider.createRefreshToken(1L);
+
+        assertThatThrownBy(() -> jwtProvider.getUserIdFromAccessToken(token))
                 .isInstanceOf(JwtException.class);
     }
 
     @Test
     @DisplayName("JWT 형식이 아닌 토큰은 JwtException이 발생한다.")
     void malformedToken() {
-        assertThatThrownBy(() -> jwtProvider.getUserId("not-a-jwt"))
+        assertThatThrownBy(() -> jwtProvider.getUserIdFromAccessToken("not-a-jwt"))
                 .isInstanceOf(JwtException.class);
     }
 

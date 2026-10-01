@@ -82,6 +82,17 @@ class SecurityConfigTest {
     }
 
     @Test
+    @DisplayName("refresh 토큰으로 요청하면 AUTH401_1로 응답한다.")
+    void refreshToken() throws Exception {
+        String token = jwtProvider.createRefreshToken(1L);
+
+        mockMvc.perform(get("/test/security")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("AUTH401_1"));
+    }
+
+    @Test
     @DisplayName("Bearer 형식이 아니면 토큰 없음으로 처리한다.")
     void notBearer() throws Exception {
         String token = jwtProvider.createAccessToken(1L);
