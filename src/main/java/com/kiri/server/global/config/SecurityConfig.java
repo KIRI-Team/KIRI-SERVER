@@ -2,23 +2,30 @@ package com.kiri.server.global.config;
 
 import com.kiri.server.global.security.handler.CustomAccessDeniedHandler;
 import com.kiri.server.global.security.handler.CustomAuthenticationEntryPoint;
+import com.kiri.server.global.security.jwt.JwtAuthFilter;
+import com.kiri.server.global.security.jwt.JwtProperties;
+import com.kiri.server.global.security.jwt.JwtProvider;
 import lombok.RequiredArgsConstructor;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
 @Configuration
 @RequiredArgsConstructor
+@EnableConfigurationProperties(JwtProperties.class)
 public class SecurityConfig {
 
     private final CustomAuthenticationEntryPoint authenticationEntryPoint;
     private final CustomAccessDeniedHandler accessDeniedHandler;
+    private final JwtProvider jwtProvider;
 
     // 인증 없이 접근 가능한 경로
-    private final static String[] PUBLIC_URLS={
+    private final static String[] PUBLIC_URLS = {
             // 처리되지 않은 예외 포워딩
             "/error",
             // Swagger
@@ -28,7 +35,7 @@ public class SecurityConfig {
     };
 
     @Bean
-    public SecurityFilterChain springFilterChain(HttpSecurity http){
+    public SecurityFilterChain springFilterChain(HttpSecurity http) {
         http
                 // JWT 기반 인증이라 세션, 쿠키를 쓰지 않으므로 비활성화
                 .csrf(AbstractHttpConfigurer::disable)
@@ -42,7 +49,8 @@ public class SecurityConfig {
                         .requestMatchers(PUBLIC_URLS).permitAll()
                         .anyRequest().authenticated())
                 .exceptionHandling(ex -> ex.authenticationEntryPoint(authenticationEntryPoint)
-                        .accessDeniedHandler(accessDeniedHandler));
+                        .accessDeniedHandler(accessDeniedHandler))
+                .addFilterBefore(new JwtAuthFilter(jwtProvider), UsernamePasswordAuthenticationFilter.class);
         return http.build();
     }
 }
