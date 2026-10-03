@@ -8,7 +8,14 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "family")
+@Table(
+        name = "family",
+        uniqueConstraints = {
+                @UniqueConstraint(name = "uk_family_name", columnNames = { "name" }),
+                @UniqueConstraint(name = "uk_family_invite_code", columnNames = {"invite_code"}),
+                @UniqueConstraint(name = "uk_family_invite_token", columnNames = { "invite_token" })
+        }
+)
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @Builder
