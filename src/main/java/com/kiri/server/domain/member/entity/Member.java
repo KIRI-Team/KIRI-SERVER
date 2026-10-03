@@ -46,4 +46,8 @@ public class Member extends BaseEntity {
 
     @Column(name = "last_access_at")
     private LocalDateTime lastAccessAt;
+
+    public void updateRefreshTokenToHash(String refreshTokenHash) {
+        this.refreshTokenHash = refreshTokenHash;
+    }
 }

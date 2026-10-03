@@ -1,6 +1,6 @@
 package com.kiri.server.domain.member.oauth;
 
-import com.kiri.server.domain.member.exception.code.AuthErrorCode;
+import com.kiri.server.global.apiPayload.code.AuthErrorCode;
 import com.kiri.server.global.apiPayload.exception.ProjectException;
 import com.nimbusds.jose.jwk.JWK;
 import com.nimbusds.jose.jwk.JWKMatcher;
