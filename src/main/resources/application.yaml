@@ -43,3 +43,8 @@ springdoc:
   default-produces-media-type: application/json
   paths-to-match: /api/**
   override-with-generic-response: false
+
+jwt:
+  secret: ${JWT_SECRET}
+  access-token-expiration: 30m
+  refresh-token-expiration: 14d
