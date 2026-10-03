@@ -26,3 +26,20 @@ spring:
         query:
           fail_on_pagination_over_collection_fetch: true
 
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false
+    persist-authorization: true
+    display-request-duration: true
+    tags-sorter: alpha
+    operations-sorter: method
+    doc-expansion: none
+    filter: true
+    default-models-expand-depth: -1
+    try-it-out-enabled: true
+    default-model-rendering: example
+  default-produces-media-type: application/json
+  paths-to-match: /api/**
+  override-with-generic-response: false
