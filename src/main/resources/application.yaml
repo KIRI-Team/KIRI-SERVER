@@ -26,6 +26,24 @@ spring:
         query:
           fail_on_pagination_over_collection_fetch: true
 
+  lifecycle:
+    timeout-per-shutdown-phase: 30s
+
+server:
+  shutdown: graceful
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, info
+  endpoint:
+    health:
+      show-details: never
+  info:
+    git:
+      mode: full
+
 springdoc:
   api-docs:
     enabled: false
