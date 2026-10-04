@@ -17,7 +17,7 @@ spring:
     database: postgresql
     open-in-view: false
     hibernate:
-      ddl-auto: none
+      ddl-auto: validate
     properties:
       hibernate:
         default_batch_fetch_size: 100
