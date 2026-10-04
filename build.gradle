@@ -70,7 +70,7 @@ tasks.named('test') {
 // /actuator/info에 노출할 빌드 정보, git 정보 생성
 springBoot {
     buildInfo{
-        excludes=['group', 'name', 'artifact']
+        excludes=['group', 'name', 'artifact', 'time']
     }
 }
 
