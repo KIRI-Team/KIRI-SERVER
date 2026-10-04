@@ -93,5 +93,30 @@ public class RequestLoggingFilterTest {
         assertThat(response.getHeader(TRACE_ID_HEADER)).isNull();
     }
 
+    @Test
+    @DisplayName("context path가 있어도 /actuator 요청은 traceId를 발급하지 않는다.")
+    void doFilter_skipsActuatorWithContextPath() throws Exception {
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/kiri/actuator/health");
+        request.setContextPath("/kiri");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        filter.doFilter(request, response, (req, res) -> {
+        });
+
+        assertThat(response.getHeader(TRACE_ID_HEADER)).isNull();
+    }
+
+    @Test
+    @DisplayName("context path가 있는 일반 요청은 traceId를 발급한다.")
+    void doFilter_setsTraceIdWithContextPath() throws Exception {
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/kiri/api/test");
+        request.setContextPath("/kiri");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        filter.doFilter(request, response, (req, res) -> {
+        });
+
+        assertThat(response.getHeader(TRACE_ID_HEADER)).isNotBlank();
+    }
 
 }
