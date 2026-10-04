@@ -156,8 +156,25 @@ EC2를 경유하는 포트 포워딩으로 로컬 `15432` 포트를 RDS `5432`�
 aws ssm start-session --target <ec2_instance_id> --document-name AWS-StartPortForwardingSessionToRemoteHost --parameters host=<rds_address>,portNumber=5432,localPortNumber=15432 --profile kiri
 ```
 
-세션이 열려 있는 동안 DB 클라이언트(DataGrip, DBeaver 등)에서 `localhost:15432`로 접속합니다.
 `rds_address`는 `terraform output rds_address`로 확인합니다.
+`Waiting for connections...`가 출력되면 터널이 열린 상태입니다. 이 창을 닫으면 연결이 끊기므로 열어 둔 채로 접속합니다.
+
+DB 클라이언트(DataGrip, DBeaver 등) 접속 정보:
+
+| 항목 | 값 |
+|---|---|
+| Host | `localhost` |
+| Port | `15432` |
+| User | `kiri` |
+| Database | `kiri` |
+| Password | 아래 명령으로 조회 |
+| SSL | `require` (호스트가 `localhost`라 `verify-full`은 실패함) |
+
+비밀번호는 새 터미널에서 Parameter Store로 조회합니다.
+
+```bash
+aws ssm get-parameter --name /kiri/dev/DB_PW --with-decryption --query Parameter.Value --output text --profile kiri
+```
 
 ## 접속 정보 (Parameter Store)
 
