@@ -35,12 +35,7 @@ resource "aws_budgets_budget" "monthly" {
 }
 
 # Cost Anomaly Detection
-
-import {
-  to = aws_ce_anomaly_monitor.services
-  id = "arn:aws:ce::100024219481:anomalymonitor/9ecfc9f4-6e56-462a-9223-28519de500a0"
-}
-
+# 기본 모니터를 import하여 관리
 resource "aws_ce_anomaly_monitor" "services" {
   name              = "Default-Services-Monitor"
   monitor_type      = "DIMENSIONAL"
