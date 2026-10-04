@@ -72,7 +72,7 @@ data "aws_iam_policy_document" "app" {
         "s3:GetObject",
         "s3:PutObject",
         "s3:DeleteObject",
-        "s3:ListObject"
+        "s3:ListBucket"
       ]
       resources = concat(var.s3_bucket_arns, [for arn in var.s3_bucket_arns : "${arn}/*"])
     }
