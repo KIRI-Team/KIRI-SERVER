@@ -21,3 +21,26 @@ module "ec2" {
   parameter_path     = local.parameter_path
   log_retention_days = 7
 }
+
+module "rds" {
+  source = "../../modules/rds"
+
+  name_prefix = local.name_prefix
+
+  subnet_ids        = module.network.private_subnet_ids
+  security_group_id = module.network.rds_sg_id
+  availability_zone = local.azs[0]
+
+  instance_class = "db.t4g.micro"
+  engine_version = "18"
+
+  db_name     = "kiri"
+  db_username = "kiri"
+
+  backup_retention_days = 1
+  deletion_protection   = false
+  skip_final_snapshot   = true
+  apply_immediately     = true
+
+  parameter_path = local.parameter_path
+}
