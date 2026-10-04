@@ -3,7 +3,10 @@ package com.kiri.server.global.logging;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.slf4j.MDC;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 
@@ -12,6 +15,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+@ExtendWith(OutputCaptureExtension.class)
 public class RequestLoggingFilterTest {
 
     private static final String TRACE_ID_HEADER = "X-Trace-Id";
@@ -60,6 +64,21 @@ public class RequestLoggingFilterTest {
         })).isInstanceOf(RuntimeException.class);
 
         assertThat(MDC.get(RequestLoggingFilter.TRACE_ID)).isNull();
+    }
+
+    @Test
+    @DisplayName("예외가 전파되면 200이 아닌 실패로 기록한다.")
+    void doFilter_logsFailureWhenExceptionThrown(CapturedOutput output) {
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/test");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        assertThatThrownBy(() -> filter.doFilter(request, response, (req, res) -> {
+            throw new IllegalStateException("test");
+        })).isInstanceOf(IllegalStateException.class);
+
+        assertThat(output).contains("GET /api/test FAILED");
+        assertThat(output).contains("IllegalStateException");
+        assertThat(output).doesNotContain("GET /api/test 200");
     }
 
     @Test

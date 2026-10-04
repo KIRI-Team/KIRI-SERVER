@@ -31,11 +31,20 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
         MDC.put(TRACE_ID, traceId);
         response.setHeader(TRACE_ID_HEADER, traceId);
 
+        boolean failed = false;
+
         try {
             filterChain.doFilter(request, response);
-        } finally {
+        } catch (Exception e) {
+            failed = true;
             long duration = System.currentTimeMillis() - startTime;
-            log.info("{} {} {} ({}ms)", request.getMethod(), request.getRequestURI(), response.getStatus(), duration);
+            log.error("{} {} FAILED ({}ms) - {}", request.getMethod(), request.getRequestURI(), duration, e.getClass().getSimpleName());
+            throw e;
+        } finally {
+            if (!failed) {
+                long duration = System.currentTimeMillis() - startTime;
+                log.info("{} {} {} ({}ms)", request.getMethod(), request.getRequestURI(), response.getStatus(), duration);
+            }
             MDC.remove(TRACE_ID);
         }
     }
