@@ -7,7 +7,7 @@ provider "aws" {
   default_tags {
     tags = {
       Project     = "kiri"
-      Environment = "global"
+      Environment = "bootstrap"
       ManagedBy   = "terraform"
     }
   }
