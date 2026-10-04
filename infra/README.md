@@ -101,3 +101,6 @@ cp terraform.tfvars.example terraform.tfvars
   - 크레딧을 제외한 실제 사용량 기준(`include_credit = false`)
 - **Cost Anomaly Detection**: AWS 기본 서비스 모니터(`Default-Services-Monitor`)를 import하여 사용
   - 이상 비용 5 USD 이상 시 일 단위 이메일 알림
+
+> 이메일 수신자는 AWS가 보내는 확인 메일을 승인해야 알림을 받을 수 있습니다.
+> `alert_emails`에 주소를 추가한 뒤에는 수신자가 확인 메일을 승인했는지, 콘솔에서 Active 상태인지 확인합니다.
