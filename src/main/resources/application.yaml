@@ -17,7 +17,7 @@ spring:
     database: postgresql
     open-in-view: false
     hibernate:
-      ddl-auto: none
+      ddl-auto: validate
     properties:
       hibernate:
         default_batch_fetch_size: 100
@@ -25,6 +25,28 @@ spring:
           time_zone: Asia/Seoul
         query:
           fail_on_pagination_over_collection_fetch: true
+
+  lifecycle:
+    timeout-per-shutdown-phase: 30s
+
+server:
+  shutdown: graceful
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, info
+  endpoint:
+    health:
+      show-details: never
+  info:
+    git:
+      mode: full
+
+logging:
+  pattern:
+    correlation: "[%X{traceId:-}] "
 
 springdoc:
   api-docs:
