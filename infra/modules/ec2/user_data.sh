@@ -17,10 +17,12 @@ systemctl enable --now docker
 usermod -aG docker ec2-user
 
 # Docker Compose 플러그인
-ARCH=$(uname -m)
+COMPOSE_VERSION="v5.6.0"
+COMPOSE_SHA256="733ec76717ceb59052a9609b9dadfb523b2df8eab57a54212872d10a58078ea2"
 mkdir -p /usr/local/lib/docker/cli-plugins
-curl -fsSL "https://github.com/docker/compose/releases/latest/download/docker-compose-linux-${ARCH}" \
+curl -fsSL "https://github.com/docker/compose/releases/download/${COMPOSE_VERSION}/docker-compose-linux-aarch64" \
   -o /usr/local/lib/docker/cli-plugins/docker-compose
+echo "${COMPOSE_SHA256}  /usr/local/lib/docker/cli-plugins/docker-compose" | sha256sum -c -
 chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
 
 systemctl enable --now nginx
