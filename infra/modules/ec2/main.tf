@@ -125,7 +125,7 @@ resource "aws_instance" "this" {
   tags = { Name = "${var.name_prefix}-api" }
 
   lifecycle {
-    ignore_changes = [ami]
+    ignore_changes = [ami, user_data]
   }
 }
 
