@@ -43,7 +43,7 @@ out/
 ### Terraform ###
 **/.terraform/*
 *.tfstate
-*.tfstate/*
+*.tfstate.*
 *.tfvars
 !*.tfvars.example
 crash.log
