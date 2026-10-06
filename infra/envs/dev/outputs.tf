@@ -13,3 +13,7 @@ output "log_group_name" {
 output "rds_address" {
   value = module.rds.address
 }
+
+output "github_deploy_role_arn" {
+  value = module.github_deploy.role_arn
+}

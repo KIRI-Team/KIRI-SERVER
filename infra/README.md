@@ -13,13 +13,14 @@ infra/
 ├── bootstrap/   # tfstate 저장용 S3 버킷
 ├── global/      # 계정 공통 설정 (Budgets, Cost Anomaly Detection 등)
 ├── envs/
-│   ├── shared/  # 환경 간 공용 리소스 (ECR)
+│   ├── shared/  # 환경 간 공용 리소스 (ECR, GitHub OIDC Provider)
 │   ├── dev/     # dev 환경 리소스
 │   └── prod/    # prod 환경 리소스
 └── modules/     # 환경 간 공통으로 쓰는 모듈
     ├── network/ # VPC, Subnet, IGW, S3 Gateway Endpoint, Security Group
     ├── ec2/     # EC2, IAM Role, Elastic IP, CloudWatch Log Group
-    └── rds/     # RDS PostgreSQL, 접속 정보 Parameter Store 저장
+    ├── rds/     # RDS PostgreSQL, 접속 정보 Parameter Store 저장
+    └── github_deploy/ # GitHub Actions 배포용 IAM Role (OIDC)
 ```
 
 `modules/`는 단독으로 실행하지 않고, `envs/{env}/main.tf`에서 호출해서 사용합니다.
@@ -87,6 +88,7 @@ cp terraform.tfvars.example terraform.tfvars
 - **레포 코드와 실제 AWS 상태를 항상 일치시킵니다.**
   - 코드를 수정했다면 apply 후 PR을 올리고, 리뷰로 코드가 바뀌면 다시 apply합니다.
   - Terraform으로 관리하는 리소스는 콘솔에서 직접 수정하지 않습니다. (`ManagedBy = terraform` 태그로 구분)
+  - 환경별 state는 브랜치와 상관없이 하나입니다. 다른 브랜치에서 apply한 변경이 현재 브랜치 코드에 없으면 plan에 삭제로 나타나므로, apply한 브랜치는 빨리 머지합니다.
 - 다음 파일은 커밋하지 않습니다: `.terraform/`, `*.tfstate`, `*.tfvars`
 - `.terraform.lock.hcl`은 provider 버전 고정용이므로 커밋합니다.
 
@@ -115,11 +117,31 @@ cp terraform.tfvars.example terraform.tfvars
 
 ## shared 환경
 
-dev와 prod가 함께 쓰는 리소스를 관리합니다.
+dev와 prod가 함께 쓰는 배포 관련 리소스를 관리합니다. (`global`에는 비용·계정 설정만 둡니다)
+`envs/dev`, `envs/prod`보다 **먼저 apply**합니다. 각 환경의 배포 Role이 이 리소스들을 조회합니다.
 
-- ECR 저장소: 이미지 하나를 태그(`dev-*`, `prod-*`)로 구분해서 공유
+### ECR
 
-`global`은 비용·계정 설정만 두고, 배포와 관련된 공용 리소스는 `shared`에 둡니다.
+| 항목 | 값 |
+|---|---|
+| 저장소 | `kiri-server` (dev/prod 공용, 태그로 구분) |
+| 태그 | `dev-<commit sha>`, `prod-<commit sha>` |
+| 스캔 | push 시 기본 스캔 |
+
+이미지 보관 정책:
+
+- `dev-*`: 최신 5개 유지
+- `prod-*`: 최신 10개 유지
+- 태그 없는 이미지: push 1일 후 삭제
+
+> 보관 개수를 넘어 삭제된 이미지로는 롤백할 수 없습니다.
+
+### GitHub OIDC Provider
+
+GitHub Actions가 Access Key 없이 AWS Role을 assume하기 위한 인증 연결입니다.
+
+- 같은 URL로는 계정당 1개만 만들 수 있어 shared에 둡니다.
+- Provider는 GitHub이 발급한 토큰인지만 검증합니다. 어떤 레포·환경이 Role을 쓸 수 있는지는 각 배포 Role의 trust 정책에서 제한합니다.
 
 ## dev 환경 구성
 
@@ -232,6 +254,30 @@ sudo tail -n 40 /var/log/cloud-init-output.log
 > 기존 서버에 반영하려면 SSM으로 접속해서 직접 실행합니다.
 >
 > `user_data.sh`는 줄바꿈이 **LF**여야 합니다. (CRLF면 스크립트가 실행되지 않음)
+
+## GitHub Actions 배포 Role
+
+`modules/github_deploy`로 환경별 배포 Role을 만듭니다.
+
+| 환경 | Role | assume 가능한 주체 |
+|---|---|---|
+| dev | `kiri-dev-github-deploy` | `KIRI-Team/KIRI-SERVER` 레포의 GitHub Environment `dev` |
+
+권한:
+
+- ECR `kiri-server`에 이미지 push
+- 배포 대상 EC2 1대에 SSM Run Command(`AWS-RunShellScript`)로 명령 실행
+- Name 태그로 인스턴스 조회, 명령 실행 결과 조회
+
+trust 정책은 GitHub OIDC 토큰의 `sub`가 `repo:KIRI-Team/KIRI-SERVER:environment:<환경>`인지 검사합니다.
+**브랜치 제한은 AWS가 아니라 GitHub Environment 설정에서 합니다.**
+
+- 배포 job에는 `environment: <환경>`을 지정해야 assume할 수 있습니다.
+- GitHub Settings › Environments에서 `dev`의 Deployment branches를 `develop`으로 제한합니다.
+- Role ARN은 해당 Environment의 Variables에 `AWS_ROLE_ARN`으로 등록합니다. (`terraform output github_deploy_role_arn`)
+
+> 워크플로가 존재하지 않는 Environment를 참조하면 GitHub이 보호 규칙 없이 자동 생성합니다.
+> Environment를 먼저 만들고 브랜치 제한을 설정한 뒤 워크플로를 실행합니다.
 
 ## 주의 사항
 
