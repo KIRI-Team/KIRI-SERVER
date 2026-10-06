@@ -13,6 +13,7 @@ infra/
 ├── bootstrap/   # tfstate 저장용 S3 버킷
 ├── global/      # 계정 공통 설정 (Budgets, Cost Anomaly Detection 등)
 ├── envs/
+│   ├── shared/  # 환경 간 공용 리소스 (ECR)
 │   ├── dev/     # dev 환경 리소스
 │   └── prod/    # prod 환경 리소스
 └── modules/     # 환경 간 공통으로 쓰는 모듈
@@ -30,6 +31,7 @@ infra/
 |---|---|
 | `bootstrap` | `bootstrap/terraform.tfstate` |
 | `global` | `global/terraform.tfstate` |
+| `envs/shared` | `shared/terraform.tfstate` |
 | `envs/dev` | `dev/terraform.tfstate` |
 | `envs/prod` | `prod/terraform.tfstate` |
 
@@ -96,7 +98,7 @@ cp terraform.tfvars.example terraform.tfvars
 | 태그 | 값 |
 |---|---|
 | `Project` | `kiri` |
-| `Environment` | `bootstrap` / `global` / `dev` / `prod` |
+| `Environment` | `bootstrap` / `global` / `shared` / `dev` / `prod` |
 | `ManagedBy` | `terraform` |
 
 ## 비용 알람 (global)
@@ -110,6 +112,14 @@ cp terraform.tfvars.example terraform.tfvars
 
 > 이메일 수신자는 AWS가 보내는 확인 메일을 승인해야 알림을 받을 수 있습니다.
 > `alert_emails`에 주소를 추가한 뒤에는 수신자가 확인 메일을 승인했는지, 콘솔에서 Active 상태인지 확인합니다.
+
+## shared 환경
+
+dev와 prod가 함께 쓰는 리소스를 관리합니다.
+
+- ECR 저장소: 이미지 하나를 태그(`dev-*`, `prod-*`)로 구분해서 공유
+
+`global`은 비용·계정 설정만 두고, 배포와 관련된 공용 리소스는 `shared`에 둡니다.
 
 ## dev 환경 구성
 
