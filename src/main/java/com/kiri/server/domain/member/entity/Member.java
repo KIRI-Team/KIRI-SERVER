@@ -1,24 +1,14 @@
 package com.kiri.server.domain.member.entity;
 
 import com.kiri.server.domain.member.enums.FamilyRole;
-import com.kiri.server.domain.member.enums.Gender;
 import com.kiri.server.domain.member.enums.SocialProvider;
 import com.kiri.server.global.entity.BaseEntity;
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.Table;
+import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 // family_id(가족 FK)는 Family 엔티티 생성 시 연관관계로 추가 예정
@@ -27,7 +17,13 @@ import java.time.LocalDateTime;
 @Builder
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
-@Table(name = "member")
+@Table(
+        name = "member",
+        uniqueConstraints = @UniqueConstraint(
+                name = "uk_member_social",
+                columnNames = {"social_provider", "social_provider_uid"}
+        )
+)
 public class Member extends BaseEntity {
 
     @Id
@@ -47,15 +43,6 @@ public class Member extends BaseEntity {
     // 소셜 UID (OAuth UID)
     @Column(name = "social_provider_uid")
     private String socialProviderUid;
-
-    // 성별
-    @Enumerated(EnumType.STRING)
-    @Column(name = "gender", length = 20)
-    private Gender gender;
-
-    // 생년월일
-    @Column(name = "birth_date")
-    private LocalDate birthDate;
 
     // 이메일
     @Column(name = "email")
