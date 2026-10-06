@@ -10,6 +10,27 @@ resource "aws_db_subnet_group" "this" {
   tags       = { Name = "${var.name_prefix}-db-subnet" }
 }
 
+# Parameter Group
+locals {
+  pg_major = split(".", var.engine_version)[0]
+}
+
+resource "aws_db_parameter_group" "this" {
+  name   = "${var.name_prefix}-pg${local.pg_major}"
+  family = "postgres${local.pg_major}"
+
+  parameter {
+    name  = "timezone"
+    value = "Asia/Seoul"
+  }
+
+  tags = { Name = "${var.name_prefix}-pg${local.pg_major}" }
+
+  lifecycle {
+    create_before_destroy = true
+  }
+}
+
 # DB 인스턴스
 resource "aws_db_instance" "this" {
   identifier     = "${var.name_prefix}-db"
@@ -33,6 +54,9 @@ resource "aws_db_instance" "this" {
   availability_zone      = var.availability_zone
   publicly_accessible    = false
   multi_az               = false
+
+  # 파라미터
+  parameter_group_name = aws_db_parameter_group.this.name
 
   # 백업
   backup_retention_period    = var.backup_retention_days
