@@ -9,6 +9,7 @@ public class TermReqDTO {
 
 
     public record Agree(
+            @NotNull(message = "agreements는 필수입니다.")
             @Valid
             List<@NotNull(message = "약관 동의 항목은 null일 수 없습니다.") Agreement> agreements
     ) {
