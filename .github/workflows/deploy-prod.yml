@@ -1,0 +1,23 @@
+name: Deploy prod
+
+on:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - "infra/**"
+      - "**.md"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  deploy:
+    uses: ./.github/workflows/_deploy.yml
+    with:
+      environment: prod
+      # t4g.small(2GB) 기준: 컨테이너 1.2GB, 힙은 약 720MB
+      memory-limit: 1200m
+      java-opts: -XX:MaxRAMPercentage=60.0
