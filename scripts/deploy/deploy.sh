@@ -101,8 +101,15 @@ print_recent_logs(){
 }
 
 cleanup_images(){
-  docker images "$REPOSITORY" --format '{{.Repository}}:{{.Tag}}' |
-    tail -n +$(( KEEP_IMAGES + 1 )) |
+  local previous="$1"
+  local extra=$(( KEEP_IMAGES - 2 ))
+
+  docker images "$REPOSITORY" --filter dangling=false \
+      --format '{{.CreatedAt}}\t{{.Repository}}:{{.Tag}}' |
+    sort -r |
+    cut -f2 |
+    grep -vxF -e "$IMAGE" -e "${previous:-<none>}" |
+    tail -n +$(( extra + 1 )) |
     xargs -r docker rmi > /dev/null 2>&1 || true
 
   docker image prune -f > /dev/null || true
@@ -171,7 +178,7 @@ main(){
     rollback "$previous"
   fi
 
-  cleanup_images
+  cleanup_images "$previous"
   log "배포 성공: ${TAG}"
 }
 
