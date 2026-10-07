@@ -1,12 +1,7 @@
 name: Deploy prod
 
 on:
-  push:
-    branches:
-      - main
-    paths-ignore:
-      - "infra/**"
-      - "**.md"
+  # prod는 관리자가 직접 배포
   workflow_dispatch:
 
 permissions:
