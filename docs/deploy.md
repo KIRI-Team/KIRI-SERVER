@@ -53,12 +53,18 @@ develop 머지
 
 앱에 새 환경변수가 필요하면 Parameter Store `/kiri/dev/` 아래에 추가합니다. 다음 배포부터 컨테이너에 주입됩니다.
 
-```bash
-aws ssm put-parameter --name /kiri/dev/<변수명> --type SecureString --value "<값>" --profile kiri --region ap-northeast-2
+PowerShell:
+
+```powershell
+$value = Read-Host "값 입력"
+aws ssm put-parameter --name /kiri/dev/<변수명> --type SecureString --value $value --profile kiri --region ap-northeast-2
 ```
 
-- 이름의 마지막 부분이 그대로 환경변수 이름이 됩니다. (`/kiri/dev/JWT_SECRET` → `JWT_SECRET`)
+- 값을 명령에 직접 쓰지 않고 `Read-Host`로 입력받습니다. 직접 쓰면 명령 히스토리에 시크릿이 남습니다.
+- 이름의 마지막 부분이 그대로 환경변수 이름이 됩니다. (`/kiri/dev/API_KEY` → `API_KEY`)
 - 값은 **한 줄**이어야 합니다.
+- 이미 있는 값을 바꿀 때는 `--overwrite`를 붙이고 재배포합니다.
+- Git Bash에서는 `/kiri/...`가 Windows 경로로 바뀌어 실패하므로 명령 앞에 `MSYS_NO_PATHCONV=1`을 붙입니다.
 
 ## 참고: 구성
 

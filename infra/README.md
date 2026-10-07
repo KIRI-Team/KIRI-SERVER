@@ -201,21 +201,16 @@ DB 접속 정보는 Terraform이 생성해서 Parameter Store에 SecureString으
 | `/kiri/dev/DB_URL` | `jdbc:postgresql://<rds_endpoint>/kiri` |
 | `/kiri/dev/DB_USER` | DB 사용자 이름 |
 | `/kiri/dev/DB_PW` | DB 비밀번호 |
+| `/kiri/dev/JWT_SECRET` | JWT 서명 키 (Terraform 관리 아님, 수동 등록) |
 
-이름은 `application.yaml`의 환경변수(`DB_URL`, `DB_USER`, `DB_PW`)와 같습니다.
+이름은 `application.yaml`의 환경변수(`DB_URL`, `DB_USER`, `DB_PW`, `JWT_SECRET`)와 같습니다.
 
 ```bash
 aws ssm get-parameter --name /kiri/dev/DB_PW --with-decryption --query Parameter.Value --output text --profile kiri
 ```
 
 - EC2의 IAM Role은 `/kiri/dev/*` 경로만 읽을 수 있습니다.
-- `JWT_SECRET` 등 Terraform이 만들지 않는 값도 같은 경로에 추가합니다.
-
-  ```bash
-  aws ssm put-parameter --name /kiri/dev/JWT_SECRET --type SecureString --value "$(openssl rand -hex 32)" --profile kiri --region ap-northeast-2
-  ```
-
-  값은 한 줄이어야 합니다. (배포 시 컨테이너 환경변수로 그대로 주입됨)
+- 이 경로의 값은 배포 시 모두 컨테이너 환경변수로 주입됩니다. 새 값을 추가하는 방법은 [docs/deploy.md](../docs/deploy.md#환경변수-추가)를 참고합니다.
 
 ## EC2 초기 설정 (user_data)
 
