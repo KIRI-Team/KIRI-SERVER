@@ -50,12 +50,20 @@ EOF
 
 wait_for_result(){
   local command_id="$1" instance_id="$2"
-  local status="Pending" elapsed=0
+  local output status elapsed=0
 
   while (( elapsed < WAIT_LIMIT )); do
-    status=$(aws ssm get-command-invocation \
+    if output=$(aws ssm get-command-invocation \
           --command-id "$command_id" --instance-id "$instance_id" \
-          --query 'Status' --output text 2>/dev/null || echo "Pending")
+          --query 'Status' --output text 2>&1); then
+      status="$output"
+    elif [[ "$output" == *InvocationDoesNotExist* ]]; then
+      status="Pending"
+    else
+      echo "::error::SSM 실행 결과 조회 실패: ${output}" >&2
+      echo "QueryFailed"
+      return
+    fi
 
     case "$status" in
       Pending|InProgress|Delayed)
@@ -63,12 +71,14 @@ wait_for_result(){
         elapsed=$(( elapsed + 5 ))
         ;;
       *)
-        break
+        echo "$status"
+        return
         ;;
     esac
   done
 
-  echo "$status"
+  echo "::error::${WAIT_LIMIT}초 동안 배포가 끝나지 않았습니다. AWS 콘솔 › Systems Manager › Run Command에서 확인" >&2
+  echo "TimedOut"
 }
 
 print_output(){
@@ -91,7 +101,10 @@ main(){
   echo "SSM CommandId: ${command_id}"
 
   status=$(wait_for_result "$command_id" "$instance_id")
-  print_output "$command_id" "$instance_id"
+
+  if [[ "$status" != "QueryFailed" ]]; then
+    print_output "$command_id" "$instance_id"
+  fi
 
   echo "최종 상태: ${status}"
   if [[ "$status" != "Success" ]]; then
