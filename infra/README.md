@@ -117,31 +117,12 @@ cp terraform.tfvars.example terraform.tfvars
 
 ## shared 환경
 
-dev와 prod가 함께 쓰는 배포 관련 리소스를 관리합니다. (`global`에는 비용·계정 설정만 둡니다)
-`envs/dev`, `envs/prod`보다 **먼저 apply**합니다. 각 환경의 배포 Role이 이 리소스들을 조회합니다.
+dev와 prod가 함께 쓰는 배포 리소스입니다. `envs/dev`, `envs/prod`보다 **먼저 apply**합니다.
 
-### ECR
-
-| 항목 | 값 |
+| 리소스 | 내용 |
 |---|---|
-| 저장소 | `kiri-server` (dev/prod 공용, 태그로 구분) |
-| 태그 | `dev-<commit sha>`, `prod-<commit sha>` |
-| 스캔 | push 시 기본 스캔 |
-
-이미지 보관 정책:
-
-- `dev-*`: 최신 5개 유지
-- `prod-*`: 최신 10개 유지
-- 태그 없는 이미지: push 1일 후 삭제
-
-> 보관 개수를 넘어 삭제된 이미지로는 롤백할 수 없습니다.
-
-### GitHub OIDC Provider
-
-GitHub Actions가 Access Key 없이 AWS Role을 assume하기 위한 인증 연결입니다.
-
-- 같은 URL로는 계정당 1개만 만들 수 있어 shared에 둡니다.
-- Provider는 GitHub이 발급한 토큰인지만 검증합니다. 어떤 레포·환경이 Role을 쓸 수 있는지는 각 배포 Role의 trust 정책에서 제한합니다.
+| ECR `kiri-server` | 앱 이미지 저장소. 태그 `dev-<sha>`(최신 5개 보관), `prod-<sha>`(최신 10개 보관) |
+| GitHub OIDC Provider | GitHub Actions가 Access Key 없이 AWS에 인증하기 위한 연결 (계정당 1개) |
 
 ## dev 환경 구성
 
@@ -155,9 +136,9 @@ GitHub Actions가 Access Key 없이 AWS Role을 assume하기 위한 인증 연�
 | CloudWatch Logs | `/kiri/dev/app`, 보관 7일 |
 
 - **보안 그룹**
-  - EC2: 80, 443만 허용 (22번 포트는 닫혀 있음)
-    - 8080 임시 허용 (도메인 확보 전까지 앱 직접 접근용)
-    - nginx 리버스 프록시 + HTTPS 구성 후 `app_ingress_cidrs`를 비워서 제거합니다.
+  - EC2: 80, 443 허용 (22번 포트는 닫혀 있음)
+  - EC2: 8080 임시 허용 (도메인 확보 전까지 앱 직접 접근용)
+    - 도메인 확보 후 nginx + HTTPS 구성 시 `envs/dev/main.tf`의 `app_ingress_cidrs`를 삭제해서 닫습니다.
   - RDS: 5432는 EC2 보안 그룹에서 오는 요청만 허용
 - **24시간 운영**: 야간·주말에도 작업이 있어 자동 중지 스케줄은 적용하지 않았습니다.
 
@@ -231,8 +212,10 @@ aws ssm get-parameter --name /kiri/dev/DB_PW --with-decryption --query Parameter
 - `JWT_SECRET` 등 Terraform이 만들지 않는 값도 같은 경로에 추가합니다.
 
   ```bash
-  aws ssm put-parameter --name /kiri/dev/JWT_SECRET --type SecureString --value "<값>" --profile kiri
+  aws ssm put-parameter --name /kiri/dev/JWT_SECRET --type SecureString --value "$(openssl rand -hex 32)" --profile kiri --region ap-northeast-2
   ```
+
+  값은 한 줄이어야 합니다. (배포 시 컨테이너 환경변수로 그대로 주입됨)
 
 ## EC2 초기 설정 (user_data)
 
@@ -252,34 +235,28 @@ sudo tail -n 40 /var/log/cloud-init-output.log
 ```
 
 > **user_data는 최초 부팅 시 1회만 실행됩니다.**
-> 스크립트를 수정해도 기존 인스턴스에는 반영되지 않고, apply 시 인스턴스가 재부팅만 됩니다.
+> 스크립트를 수정해도 기존 인스턴스에는 반영되지 않습니다. (`ignore_changes = [user_data]`로 재부팅·재생성도 일어나지 않음)
 > 기존 서버에 반영하려면 SSM으로 접속해서 직접 실행합니다.
 >
 > `user_data.sh`는 줄바꿈이 **LF**여야 합니다. (CRLF면 스크립트가 실행되지 않음)
 
-## GitHub Actions 배포 Role
+## GitHub Actions 배포 설정
 
-`modules/github_deploy`로 환경별 배포 Role을 만듭니다.
+GitHub Actions는 `modules/github_deploy`로 만든 환경별 Role(dev: `kiri-dev-github-deploy`)로 배포합니다.
+이 Role은 ECR push와 해당 환경 EC2 1대에 대한 SSM 명령 실행만 할 수 있습니다.
 
-| 환경 | Role | assume 가능한 주체 |
-|---|---|---|
-| dev | `kiri-dev-github-deploy` | `KIRI-Team/KIRI-SERVER` 레포의 GitHub Environment `dev` |
+환경을 새로 만들 때 한 번 설정합니다.
 
-권한:
+1. `envs/shared` → `envs/{env}` 순서로 apply
+2. GitHub › Settings › Environments에서 `{env}` 생성
+   - Deployment branches and tags: **Selected branches and tags** → dev는 `develop`, prod는 `main`
+   - Environment variables: `AWS_ROLE_ARN` = `terraform output github_deploy_role_arn`
+3. Parameter Store에 Terraform이 만들지 않는 값 등록 (예: `JWT_SECRET`, [접속 정보](#접속-정보-parameter-store) 참고)
 
-- ECR `kiri-server`에 이미지 push
-- 배포 대상 EC2 1대에 SSM Run Command(`AWS-RunShellScript`)로 명령 실행
-- Name 태그로 인스턴스 조회, 명령 실행 결과 조회
+> **브랜치 제한은 AWS가 아니라 GitHub Environment 설정이 담당합니다.** Role은 "해당 Environment에서 실행된 job"인지만 확인합니다.
+> Environment를 만들기 전에 워크플로가 실행되면 GitHub이 제한 없는 Environment를 자동 생성하므로, 반드시 먼저 만듭니다.
 
-trust 정책은 GitHub OIDC 토큰의 `sub`가 `repo:KIRI-Team/KIRI-SERVER:environment:<환경>`인지 검사합니다.
-**브랜치 제한은 AWS가 아니라 GitHub Environment 설정에서 합니다.**
-
-- 배포 job에는 `environment: <환경>`을 지정해야 assume할 수 있습니다.
-- GitHub Settings › Environments에서 `dev`의 Deployment branches를 `develop`으로 제한합니다.
-- Role ARN은 해당 Environment의 Variables에 `AWS_ROLE_ARN`으로 등록합니다. (`terraform output github_deploy_role_arn`)
-
-> 워크플로가 존재하지 않는 Environment를 참조하면 GitHub이 보호 규칙 없이 자동 생성합니다.
-> Environment를 먼저 만들고 브랜치 제한을 설정한 뒤 워크플로를 실행합니다.
+배포 흐름, 결과 확인, 롤백은 [docs/deploy.md](../docs/deploy.md)를 참고합니다.
 
 ## 주의 사항
 

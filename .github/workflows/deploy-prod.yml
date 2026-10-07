@@ -1,3 +1,7 @@
+# TODO: prod 인프라 구성 후 사용
+#   - prod EC2 (Name: kiri-prod-api), /kiri/prod 파라미터, 로그 그룹 /kiri/prod/app
+#   - modules/github_deploy로 kiri-prod-github-deploy Role 생성 (github_environment = "prod")
+#   - Environment "prod" Variables에 AWS_ROLE_ARN 등록
 name: Deploy prod
 
 on:

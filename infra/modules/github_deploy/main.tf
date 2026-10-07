@@ -10,7 +10,8 @@ data "aws_ecr_repository" "app" {
 }
 
 # Trust 정책
-# GitHub 토큰의 aud, sub 값을 검사하여 KIRI-SERVER 레포의 develop 브랜치만 허용
+# GitHub 토큰의 aud, sub 값을 검사하여 지정한 레포의 GitHub Environment에서 실행된 job만 허용
+# (브랜치 제한은 GitHub Environment의 Deployment branches 설정에서 관리)
 data "aws_iam_policy_document" "github_deploy_assume" {
   statement {
     actions = ["sts:AssumeRoleWithWebIdentity"]
@@ -71,7 +72,7 @@ data "aws_iam_policy_document" "github_deploy" {
     resources = ["*"]
   }
 
-  # dev EC2에서 AWS-RunShellScript로만 명령 실행
+  # 배포 대상 EC2 1대에서 AWS-RunShellScript로만 명령 실행
   # 두 리소스를 모두 허용해야 SendCommand가 동작
   statement {
     sid     = "RunDeployCommand"
