@@ -121,7 +121,7 @@ dev와 prod가 함께 쓰는 배포 리소스입니다. `envs/dev`, `envs/prod`�
 
 | 리소스 | 내용 |
 |---|---|
-| ECR `kiri-server` | 앱 이미지 저장소. 태그 `dev-<sha>`(최신 5개 보관), `prod-<sha>`(최신 10개 보관) |
+| ECR `kiri-server-dev`, `kiri-server-prod` | 환경별 앱 이미지 저장소 (dev 최신 5개, prod 최신 10개 보관) |
 | GitHub OIDC Provider | GitHub Actions가 Access Key 없이 AWS에 인증하기 위한 연결 (계정당 1개) |
 
 ## dev 환경 구성

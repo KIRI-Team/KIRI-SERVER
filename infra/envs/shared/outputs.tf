@@ -1,9 +1,5 @@
-output "ecr_repository_url" {
-  value = aws_ecr_repository.app.repository_url
-}
-
-output "ecr_repository_arn" {
-  value = aws_ecr_repository.app.arn
+output "ecr_repository_urls" {
+  value = { for env, repo in aws_ecr_repository.app : env => repo.repository_url }
 }
 
 output "github_oidc_provider_arn" {

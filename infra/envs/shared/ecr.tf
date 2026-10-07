@@ -1,5 +1,14 @@
+locals {
+  ecr_repositories = {
+    dev  = 5
+    prod = 10
+  }
+}
+
 resource "aws_ecr_repository" "app" {
-  name = "kiri-server"
+  for_each = local.ecr_repositories
+
+  name = "kiri-server-${each.key}"
 
   image_tag_mutability = "MUTABLE"
 
@@ -9,7 +18,9 @@ resource "aws_ecr_repository" "app" {
 }
 
 resource "aws_ecr_lifecycle_policy" "app" {
-  repository = aws_ecr_repository.app.name
+  for_each = aws_ecr_repository.app
+
+  repository = each.value.name
 
   policy = jsonencode({
     rules = [
@@ -26,23 +37,11 @@ resource "aws_ecr_lifecycle_policy" "app" {
       },
       {
         rulePriority = 2
-        description  = "dev 이미지 최신 5개 유지"
+        description  = "최신 ${local.ecr_repositories[each.key]}개 유지"
         selection = {
-          tagStatus     = "tagged"
-          tagPrefixList = ["dev-"]
-          countType     = "imageCountMoreThan"
-          countNumber   = 5
-        }
-        action = { type = "expire" }
-      },
-      {
-        rulePriority = 3
-        description  = "prod 이미지 최신 10개 유지"
-        selection = {
-          tagStatus     = "tagged"
-          tagPrefixList = ["prod-"]
-          countType     = "imageCountMoreThan"
-          countNumber   = 10
+          tagStatus   = "any"
+          countType   = "imageCountMoreThan"
+          countNumber = local.ecr_repositories[each.key]
         }
         action = { type = "expire" }
       }
