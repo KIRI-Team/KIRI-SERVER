@@ -6,7 +6,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 INSTANCE_NAME="kiri-${DEPLOY_ENV}-api"
-WAIT_LIMIT=900
+WAIT_LIMIT=1200
 
 find_instance(){
   local ids count
@@ -32,9 +32,10 @@ send_deploy_command(){
   script_b64=$(base64 -w0 "${SCRIPT_DIR}/deploy.sh")
 
   remote_cmd=$(cat <<EOF
-echo '${script_b64}' | base64 -d > /tmp/kiri-deploy.sh
-DEPLOY_ENV='${DEPLOY_ENV}' IMAGE='${IMAGE}' MEMORY_LIMIT='${MEMORY_LIMIT}' APP_JAVA_OPTS='${APP_JAVA_OPTS}' bash /tmp/kiri-deploy.sh; rc=\$?
-rm -f /tmp/kiri-deploy.sh
+script=\$(mktemp /tmp/kiri-deploy.XXXXXX)
+echo '${script_b64}' | base64 -d > "\$script"
+DEPLOY_ENV='${DEPLOY_ENV}' IMAGE='${IMAGE}' MEMORY_LIMIT='${MEMORY_LIMIT}' APP_JAVA_OPTS='${APP_JAVA_OPTS}' bash "\$script"; rc=\$?
+rm -f "\$script"
 exit \$rc
 EOF
 )
@@ -43,7 +44,7 @@ EOF
       --instance-ids "$instance_id" \
       --document-name AWS-RunShellScript \
       --comment "deploy ${IMAGE##*:}" \
-      --parameters "$(jq -n --arg cmd "$remote_cmd" '{commands: [$cmd], executionTimeout: ["900"]}')" \
+      --parameters "$(jq -n --arg cmd "$remote_cmd" --arg timeout "$WAIT_LIMIT" '{commands: [$cmd], executionTimeout: [$timeout]}')" \
       --query 'Command.CommandId' \
       --output text
 }

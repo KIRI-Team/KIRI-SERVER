@@ -33,6 +33,13 @@ log(){
   echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*"
 }
 
+LOCK_FILE="/var/lock/kiri-deploy.lock"
+exec 9> "$LOCK_FILE"
+if ! flock -w 600 9; then
+  log "다른 배포가 10분 이상 진행 중입니다. 배포 중단"
+  exit 1
+fi
+
 # 함수
 write_env_file(){
   umask 077
