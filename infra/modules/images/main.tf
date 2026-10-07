@@ -184,3 +184,21 @@ resource "aws_cloudfront_distribution" "this" {
   }
 }
 
+# 앱 설정값
+resource "aws_ssm_parameter" "bucket" {
+  name  = "${var.parameter_path}/S3_IMAGE_BUCKET"
+  type  = "String"
+  value = aws_s3_bucket.this.bucket
+}
+
+resource "aws_ssm_parameter" "cdn_base_url" {
+  name  = "${var.parameter_path}/CDN_BASE_URL"
+  type  = "String"
+  value = "https://${aws_cloudfront_distribution.this.domain_name}"
+}
+
+resource "aws_ssm_parameter" "key_pair_id" {
+  name  = "${var.parameter_path}/CLOUDFRONT_KEY_PAIR_ID"
+  type  = "String"
+  value = aws_cloudfront_public_key.this.id
+}

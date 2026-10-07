@@ -13,3 +13,11 @@ output "log_group_name" {
 output "rds_address" {
   value = module.rds.address
 }
+
+output "images_bucket_name" {
+  value = module.images.bucket_name
+}
+
+output "cdn_domain" {
+  value = module.images.cdn_domain
+}

@@ -20,6 +20,8 @@ module "ec2" {
 
   parameter_path     = local.parameter_path
   log_retention_days = 7
+
+  s3_bucket_arns = [module.images.bucket_arn]
 }
 
 module "rds" {
@@ -41,6 +43,17 @@ module "rds" {
   deletion_protection   = false
   skip_final_snapshot   = true
   apply_immediately     = true
+
+  parameter_path = local.parameter_path
+}
+
+module "images" {
+  source = "../../modules/images"
+
+  name_prefix   = local.name_prefix
+  force_destroy = true
+
+  signing_public_key = file("${path.module}/keys/cloudfront-public.pem")
 
   parameter_path = local.parameter_path
 }

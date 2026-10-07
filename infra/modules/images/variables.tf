@@ -37,3 +37,8 @@ variable "cache_ttl_seconds" {
   type        = number
   default     = 31536000
 }
+
+variable "parameter_path" {
+  description = "앱이 읽을 Parameter Store 경로"
+  type        = string
+}
