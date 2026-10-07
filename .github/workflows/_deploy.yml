@@ -1,0 +1,109 @@
+name: Deploy
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        description: "배포 환경"
+        type: string
+        required: true
+      memory-limit:
+        description: "컨테이너 메모리 한도"
+        type: string
+        required: true
+      java-opts:
+        description: "환경별 JVM 옵션"
+        type: string
+        required: true
+
+env:
+  AWS_REGION: ap-northeast-2
+  ECR_REPOSITORY: kiri-server
+
+jobs:
+  # test
+  test:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_DB: kiri
+          POSTGRES_USER: kiri
+          POSTGRES_PASSWORD: kiri
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U kiri"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "25"
+
+      - uses: gradle/actions/setup-gradle@v6
+
+      - name: Test
+        run: ./gradlew test
+        env:
+          DB_URL: jdbc:postgresql://localhost:5432/kiri
+          DB_USER: kiri
+          DB_PW: kiri
+          JWT_SECRET: ci-test-jwt-secret-must-be-at-least-32-bytes
+
+  # 빌드 및 배포
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+
+    environment: ${{ inputs.environment }}
+
+    concurrency:
+      group: deploy-${{ inputs.environment }}
+      cancel-in-progress: false
+
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "25"
+
+      - uses: gradle/actions/setup-gradle@v6
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to ECR
+        id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Set image
+        run: echo "IMAGE=${{ steps.ecr.outputs.registry }}/${ECR_REPOSITORY}:${{ inputs.environment }}-${GITHUB_SHA}" >> "$GITHUB_ENV"
+
+      - name: Build and push image
+        run: ./gradlew jib --image="$IMAGE"
+
+      - name: Deploy to EC2
+        run: bash scripts/deploy/ssm-deploy.sh
+        env:
+          DEPLOY_ENV: ${{ inputs.environment }}
+          MEMORY_LIMIT: ${{ inputs.memory-limit }}
+          APP_JAVA_OPTS: ${{ inputs.java-opts }}
