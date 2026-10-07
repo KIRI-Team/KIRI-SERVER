@@ -131,8 +131,12 @@ resource "aws_cloudfront_cache_policy" "immutable" {
 
 # Signed URL 키
 resource "aws_cloudfront_public_key" "this" {
-  name        = "${var.name_prefix}-images-signer"
+  name_prefix = "${var.name_prefix}-images-signer-"
   encoded_key = var.signing_public_key
+
+  lifecycle {
+    create_before_destroy = true
+  }
 }
 
 resource "aws_cloudfront_key_group" "this" {
