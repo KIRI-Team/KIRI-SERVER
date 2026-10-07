@@ -142,9 +142,8 @@ rollback(){
 
   log "이전 이미지로 롤백: ${previous##*:}"
   remove_container
-  run_container "$previous"
 
-  if wait_for_healthy; then
+  if run_container "$previous" && wait_for_healthy; then
     log "롤백 성공. 배포는 실패로 처리"
   else
     print_recent_logs
@@ -167,9 +166,8 @@ main(){
   write_env_file
   remove_container
   log "새 컨테이너 실행"
-  run_container "$IMAGE"
 
-  if ! wait_for_healthy; then
+  if ! run_container "$IMAGE" || ! wait_for_healthy; then
     rollback "$previous"
   fi
 
