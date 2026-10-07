@@ -9,7 +9,11 @@ permissions:
   id-token: write
 
 jobs:
+  test:
+    uses: ./.github/workflows/_test.yml
+
   deploy:
+    needs: test
     uses: ./.github/workflows/_deploy.yml
     with:
       environment: prod
