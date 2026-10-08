@@ -4,6 +4,8 @@ import com.kiri.server.domain.member.enums.SocialProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
+import java.util.List;
+
 @Component
 public class KakaoOidcProvider extends AbstractOidcProvider{
 
@@ -12,20 +14,20 @@ public class KakaoOidcProvider extends AbstractOidcProvider{
     private final String issuer;
 
     public KakaoOidcProvider(
-            @Value("${kakao.client-id}") String clientId,
+            @Value("${kakao.client-id}") String clientIds,
             @Value("${kakao.jwks-uri}") String jwksUri,
             @Value("${kakao.issuer}") String issuer,
             OidcJwksClient oidcJwksClient
     ) {
         super(oidcJwksClient);
-        this.clientId = clientId;
+        this.clientId = clientIds;
         this.jwksUri = jwksUri;
         this.issuer = issuer;
     }
 
     @Override
-    protected String getClientId() {
-        return clientId;
+    protected List<String> getClientIds() {
+        return List.of(clientId);
     }
 
     @Override

@@ -11,6 +11,9 @@ public class MemberReqDTO {
             String socialProvider,
 
             @NotBlank(message = "socialProviderToken은 필수입니다.")
-            String socialProviderToken
+            String socialProviderToken,
+
+            @NotBlank(message = "nonce는 필수입니다.")
+            String nonce
     ) {}
 }

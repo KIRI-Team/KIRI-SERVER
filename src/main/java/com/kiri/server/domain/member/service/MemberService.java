@@ -33,7 +33,7 @@ public class MemberService {
         }
 
         AbstractOidcProvider oidcProvider = oidcProviderFactory.getSocialProvider(socialProvider);
-        OidcUserInfo oidcUserInfo = oidcProvider.verify(dto.socialProviderToken());
+        OidcUserInfo oidcUserInfo = oidcProvider.verify(dto.socialProviderToken(), dto.nonce());
 
         // DB에 회원 저장
         MemberResDTO.Login result = memberWriter.persist(socialProvider, oidcUserInfo);

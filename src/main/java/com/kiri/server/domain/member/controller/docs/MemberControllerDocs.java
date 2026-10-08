@@ -18,7 +18,7 @@ public interface MemberControllerDocs {
             summary = "소셜 로그인 API",
             description = """
                     # 소셜 로그인
-                    카카오/구글 ID Token(OIDC)을 검증해 회원을 확인하고, 신규 회원이면 계정을 생성한 뒤 서버 토큰(access·refresh)을 발급합니다.
+                    카카오/구글 ID Token(OIDC)와 nonce를 검증해 회원을 확인하고, 신규 회원이면 계정을 생성한 뒤 서버 토큰(access·refresh)을 발급합니다.
                     
                     ## 요청 형식
                     - **Header**
@@ -26,9 +26,10 @@ public interface MemberControllerDocs {
                     - **Body**
                         - socialProvider : 소셜 로그인 제공자 ('KAKAO' / 'GOOGLE' / 'APPLE')
                         - socialProviderToken : Google 또는 Kakao에서 발급한 ID Token(OIDC)
+                        - nonce : 소셜 로그인 요청 시 사용한 nonce
                     
                     ## 동작 방식
-                    1. socialProviderToken을 검증합니다.
+                    1. socialProviderToken의 서명, issuer, audience, expiration, nonce를 검증합니다.
                     2. socialProvider와 socialProviderToken로 기존 회원을 조회합니다.
                     3. 기존 회원이면 로그인을 진행합니다.
                     4. 회원이 없으면 신규 회원을 생성한 후 로그인합니다.
@@ -85,6 +86,19 @@ public interface MemberControllerDocs {
                                                         "message": "잘못된 요청입니다.",
                                                         "result": {
                                                             "socialProviderToken": "socialProviderToken은 필수입니다."
+                                                        }
+                                                    }
+                                                    """
+                                    ),
+                                    @ExampleObject(
+                                            name = "nonce 누락",
+                                            value = """
+                                                    {
+                                                        "isSuccess": false,
+                                                        "code": "COMMON400_1",
+                                                        "message": "잘못된 요청입니다.",
+                                                        "result": {
+                                                            "socialProviderToken": "nonce는 필수입니다."
                                                         }
                                                     }
                                                     """

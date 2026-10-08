@@ -4,28 +4,30 @@ import com.kiri.server.domain.member.enums.SocialProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
+import java.util.List;
+
 @Component
 public class GoogleOidcProvider extends AbstractOidcProvider{
 
-    private final String clientId;
+    private final List<String> clientIds;
     private final String jwksUri;
     private final String issuer;
 
     public GoogleOidcProvider(
-            @Value("${google.client-id}") String clientId,
+            @Value("${google.client-ids}") List<String> clientIds,
             @Value("${google.jwks-uri}") String jwksUri,
             @Value("${google.issuer}") String issuer,
             OidcJwksClient oidcJwksClient
     ) {
         super(oidcJwksClient);
-        this.clientId = clientId;
+        this.clientIds = clientIds;
         this.jwksUri = jwksUri;
         this.issuer = issuer;
     }
 
     @Override
-    protected String getClientId() {
-        return clientId;
+    protected List<String> getClientIds() {
+        return clientIds;
     }
 
     @Override

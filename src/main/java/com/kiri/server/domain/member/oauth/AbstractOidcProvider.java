@@ -11,6 +11,7 @@ import lombok.extern.slf4j.Slf4j;
 
 import java.security.interfaces.RSAPublicKey;
 import java.util.Date;
+import java.util.List;
 
 @Slf4j
 public abstract class AbstractOidcProvider {
@@ -21,7 +22,7 @@ public abstract class AbstractOidcProvider {
         this.oidcJwksClient = oidcJwksClient;
     }
 
-    protected abstract String getClientId();
+    protected abstract List<String> getClientIds();
 
     protected abstract String getIssuer();
 
@@ -33,9 +34,14 @@ public abstract class AbstractOidcProvider {
         return getIssuer().equals(issuer);
     }
 
-    public final OidcUserInfo verify(String providerToken) {
+    protected boolean isValidAudience(List<String> audience) {
+        return audience != null &&
+                audience.stream().anyMatch(getClientIds()::contains);
+    }
+
+    public final OidcUserInfo verify(String socialProviderToken, String nonce) {
         try {
-            SignedJWT signedJWT = SignedJWT.parse(providerToken);
+            SignedJWT signedJWT = SignedJWT.parse(socialProviderToken);
             String kid = signedJWT.getHeader().getKeyID();
 
             if (kid == null) {
@@ -58,7 +64,7 @@ public abstract class AbstractOidcProvider {
                 throw new ProjectException(AuthErrorCode.INVALID_PROVIDER_TOKEN);
             }
 
-            if (claims.getAudience() == null || !claims.getAudience().contains(getClientId())) {
+            if (!isValidAudience(claims.getAudience())) {
                 log.warn("[OidcVerify] socialProvider={} 검증 실패: audience 불일치", getSocialProvider());
                 throw new ProjectException(AuthErrorCode.INVALID_PROVIDER_TOKEN);
             }
@@ -67,6 +73,13 @@ public abstract class AbstractOidcProvider {
 
             if (expiration == null || expiration.before(new Date())) {
                 log.warn("[OidcVerify] socialProvider={} 검증 실패: 토큰 만료", getSocialProvider());
+                throw new ProjectException(AuthErrorCode.INVALID_PROVIDER_TOKEN);
+            }
+
+            String tokenNonce = claims.getStringClaim("nonce");
+
+            if (tokenNonce == null || !tokenNonce.equals(nonce)) {
+                log.warn("[OidcVerify] socialProvider={} 검증 실패: nonce 불일치", getSocialProvider());
                 throw new ProjectException(AuthErrorCode.INVALID_PROVIDER_TOKEN);
             }
 
