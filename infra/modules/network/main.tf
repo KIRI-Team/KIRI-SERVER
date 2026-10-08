@@ -76,6 +76,17 @@ resource "aws_security_group" "ec2" {
   tags        = { Name = "${var.name_prefix}-ec2-sg" }
 }
 
+# 앱 포트 직접 접근(도메인 확보 전 임시)
+resource "aws_vpc_security_group_ingress_rule" "ec2_app" {
+  for_each = toset(var.app_ingress_cidrs)
+
+  security_group_id = aws_security_group.ec2.id
+  cidr_ipv4         = each.value
+  ip_protocol       = "tcp"
+  from_port         = var.app_port
+  to_port           = var.app_port
+}
+
 resource "aws_vpc_security_group_ingress_rule" "ec2_http" {
   security_group_id = aws_security_group.ec2.id
   cidr_ipv4         = "0.0.0.0/0"

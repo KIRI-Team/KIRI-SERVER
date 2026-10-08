@@ -13,13 +13,15 @@ infra/
 ├── bootstrap/   # tfstate 저장용 S3 버킷
 ├── global/      # 계정 공통 설정 (Budgets, Cost Anomaly Detection 등)
 ├── envs/
+│   ├── shared/  # 환경 간 공용 리소스 (ECR, GitHub OIDC Provider)
 │   ├── dev/     # dev 환경 리소스
 │   └── prod/    # prod 환경 리소스
 └── modules/     # 환경 간 공통으로 쓰는 모듈
     ├── network/ # VPC, Subnet, IGW, S3 Gateway Endpoint, Security Group
     ├── ec2/     # EC2, IAM Role, Elastic IP, CloudWatch Log Group
     ├── rds/     # RDS PostgreSQL, 접속 정보 Parameter Store 저장
-    └── images/  # 이미지 S3 버킷, CloudFront, Signed URL 키 그룹
+    ├── images/  # 이미지 S3 버킷, CloudFront, Signed URL 키 그룹
+    └── github_deploy/ # GitHub Actions 배포용 IAM Role (OIDC)
 ```
 
 `modules/`는 단독으로 실행하지 않고, `envs/{env}/main.tf`에서 호출해서 사용합니다.
@@ -31,6 +33,7 @@ infra/
 |---|---|
 | `bootstrap` | `bootstrap/terraform.tfstate` |
 | `global` | `global/terraform.tfstate` |
+| `envs/shared` | `shared/terraform.tfstate` |
 | `envs/dev` | `dev/terraform.tfstate` |
 | `envs/prod` | `prod/terraform.tfstate` |
 
@@ -86,6 +89,7 @@ cp terraform.tfvars.example terraform.tfvars
 - **레포 코드와 실제 AWS 상태를 항상 일치시킵니다.**
   - 코드를 수정했다면 apply 후 PR을 올리고, 리뷰로 코드가 바뀌면 다시 apply합니다.
   - Terraform으로 관리하는 리소스는 콘솔에서 직접 수정하지 않습니다. (`ManagedBy = terraform` 태그로 구분)
+  - 환경별 state는 브랜치와 상관없이 하나입니다. 다른 브랜치에서 apply한 변경이 현재 브랜치 코드에 없으면 plan에 삭제로 나타나므로, apply한 브랜치는 빨리 머지합니다.
 - 다음 파일은 커밋하지 않습니다: `.terraform/`, `*.tfstate`, `*.tfvars`
 - `.terraform.lock.hcl`은 provider 버전 고정용이므로 커밋합니다.
 
@@ -97,7 +101,7 @@ cp terraform.tfvars.example terraform.tfvars
 | 태그 | 값 |
 |---|---|
 | `Project` | `kiri` |
-| `Environment` | `bootstrap` / `global` / `dev` / `prod` |
+| `Environment` | `bootstrap` / `global` / `shared` / `dev` / `prod` |
 | `ManagedBy` | `terraform` |
 
 ## 비용 알람 (global)
@@ -111,6 +115,15 @@ cp terraform.tfvars.example terraform.tfvars
 
 > 이메일 수신자는 AWS가 보내는 확인 메일을 승인해야 알림을 받을 수 있습니다.
 > `alert_emails`에 주소를 추가한 뒤에는 수신자가 확인 메일을 승인했는지, 콘솔에서 Active 상태인지 확인합니다.
+
+## shared 환경
+
+dev와 prod가 함께 쓰는 배포 리소스입니다. `envs/dev`, `envs/prod`보다 **먼저 apply**합니다.
+
+| 리소스 | 내용 |
+|---|---|
+| ECR `kiri-server-dev`, `kiri-server-prod` | 환경별 앱 이미지 저장소 (dev 최신 5개, prod 최신 10개 보관) |
+| GitHub OIDC Provider | GitHub Actions가 Access Key 없이 AWS에 인증하기 위한 연결 (계정당 1개) |
 
 ## dev 환경 구성
 
@@ -126,7 +139,9 @@ cp terraform.tfvars.example terraform.tfvars
 | CloudFront | `terraform output cdn_domain`, PriceClass_200 (한국 엣지 포함) |
 
 - **보안 그룹**
-  - EC2: 80, 443만 허용 (22번 포트는 닫혀 있음)
+  - EC2: 80, 443 허용 (22번 포트는 닫혀 있음)
+  - EC2: 8080 임시 허용 (도메인 확보 전까지 앱 직접 접근용)
+    - 도메인 확보 후 nginx + HTTPS 구성 시 `envs/dev/main.tf`의 `app_ingress_cidrs`를 삭제해서 닫습니다.
   - RDS: 5432는 EC2 보안 그룹에서 오는 요청만 허용
 - **24시간 운영**: 야간·주말에도 작업이 있어 자동 중지 스케줄은 적용하지 않았습니다.
 
@@ -199,11 +214,7 @@ aws ssm get-parameter --name /kiri/dev/DB_PW --with-decryption --query Parameter
 ```
 
 - EC2의 IAM Role은 `/kiri/dev/*` 경로만 읽을 수 있습니다.
-- `JWT_SECRET` 등 Terraform이 만들지 않는 값도 같은 경로에 추가합니다.
-
-  ```bash
-  aws ssm put-parameter --name /kiri/dev/JWT_SECRET --type SecureString --value "<값>" --profile kiri
-  ```
+- 이 경로의 값은 배포 시 모두 컨테이너 환경변수로 주입됩니다. 새 값을 추가하는 방법은 [docs/deploy.md](../docs/deploy.md#환경변수-추가)를 참고합니다.
 
 
 ## 이미지 저장소 (S3 + CloudFront)
@@ -256,10 +267,28 @@ sudo tail -n 40 /var/log/cloud-init-output.log
 ```
 
 > **user_data는 최초 부팅 시 1회만 실행됩니다.**
-> 스크립트를 수정해도 기존 인스턴스에는 반영되지 않고, apply 시 인스턴스가 재부팅만 됩니다.
+> 스크립트를 수정해도 기존 인스턴스에는 반영되지 않습니다. (`ignore_changes = [user_data]`로 재부팅·재생성도 일어나지 않음)
 > 기존 서버에 반영하려면 SSM으로 접속해서 직접 실행합니다.
 >
 > `user_data.sh`는 줄바꿈이 **LF**여야 합니다. (CRLF면 스크립트가 실행되지 않음)
+
+## GitHub Actions 배포 설정
+
+GitHub Actions는 `modules/github_deploy`로 만든 환경별 Role(dev: `kiri-dev-github-deploy`)로 배포합니다.
+이 Role은 ECR push와 해당 환경 EC2 1대에 대한 SSM 명령 실행만 할 수 있습니다.
+
+환경을 새로 만들 때 한 번 설정합니다.
+
+1. `envs/shared` → `envs/{env}` 순서로 apply
+2. GitHub › Settings › Environments에서 `{env}` 생성
+   - Deployment branches and tags: **Selected branches and tags** → dev는 `develop`, prod는 `main`
+   - Environment variables: `AWS_ROLE_ARN` = `terraform output github_deploy_role_arn`
+3. Parameter Store에 Terraform이 만들지 않는 값 등록 (예: `JWT_SECRET`, [접속 정보](#접속-정보-parameter-store) 참고)
+
+> **브랜치 제한은 AWS가 아니라 GitHub Environment 설정이 담당합니다.** Role은 "해당 Environment에서 실행된 job"인지만 확인합니다.
+> Environment를 만들기 전에 워크플로가 실행되면 GitHub이 제한 없는 Environment를 자동 생성하므로, 반드시 먼저 만듭니다.
+
+배포 흐름, 결과 확인, 롤백은 [docs/deploy.md](../docs/deploy.md)를 참고합니다.
 
 ## 주의 사항
 

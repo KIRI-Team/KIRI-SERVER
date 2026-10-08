@@ -1,0 +1,43 @@
+name: Test
+
+on:
+  workflow_call:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_DB: kiri
+          POSTGRES_USER: kiri
+          POSTGRES_PASSWORD: kiri
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U kiri"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "25"
+
+      - uses: gradle/actions/setup-gradle@v6
+
+      - name: Test
+        run: ./gradlew test
+        env:
+          DB_URL: jdbc:postgresql://localhost:5432/kiri
+          DB_USER: kiri
+          DB_PW: kiri
+          JWT_SECRET: ci-test-jwt-secret-must-be-at-least-32-bytes
