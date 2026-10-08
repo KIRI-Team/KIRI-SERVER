@@ -4,6 +4,7 @@ set -euo pipefail
 # 입력값
 DEPLOY_ENV="${DEPLOY_ENV:?DEPLOY_ENV가 필요합니다 (dev/prod)}"
 IMAGE="${IMAGE:?IMAGE가 필요합니다 (<registry>/kiri-server:<tag>)}"
+NGINX_BUNDLE="${NGINX_BUNDLE:-}"
 
 MEMORY_LIMIT="${MEMORY_LIMIT:-1200m}"
 APP_JAVA_OPTS="${APP_JAVA_OPTS:--XX:MaxRAMPercentage=60.0}"
@@ -12,6 +13,10 @@ APP_JAVA_OPTS="${APP_JAVA_OPTS:--XX:MaxRAMPercentage=60.0}"
 REGION="ap-northeast-2"
 CONTAINER_NAME="kiri-server"
 APP_PORT=8080
+
+NGINX_DIR="/opt/kiri/nginx"
+NGINX_CONTAINER="kiri-nginx"
+NGINX_CHECK_NAME="kiri-nginx-check"
 
 PARAMETER_PATH="/kiri/${DEPLOY_ENV}"
 LOG_GROUP="/kiri/${DEPLOY_ENV}/app"
@@ -27,7 +32,8 @@ KEEP_IMAGES=3
 export HOME="${HOME:-/root}"
 
 ENV_FILE="$(mktemp)"
-trap 'rm -f "$ENV_FILE"' EXIT
+NGINX_STAGING=""
+trap 'rm -f "$ENV_FILE"; [[ -n "$NGINX_STAGING" ]] && rm -rf "$NGINX_STAGING"' EXIT
 
 log(){
   echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*"
@@ -165,6 +171,68 @@ rollback(){
   exit 1
 }
 
+nginx_running(){
+  [[ "$(docker inspect -f '{{.State.Running}}' "$NGINX_CONTAINER" 2>/dev/null)" == "true" ]]
+}
+
+nginx_checksum(){
+  (cd "$1" 2>/dev/null && cat compose.yml .env conf.d/kiri.conf 2>/dev/null | sha256sum) || true
+}
+
+apply_nginx(){
+  if [[ -z "$NGINX_BUNDLE" ]]; then
+    log "nginx 설정 묶음 없음. nginx 반영 건너뜀"
+    return 0
+  fi
+
+  # 압축 풀기
+  NGINX_STAGING="$(mktemp -d)"
+  tar -xzf "$NGINX_BUNDLE" -C "$NGINX_STAGING"
+
+  local conf="${NGINX_STAGING}/${DEPLOY_ENV}.conf"
+  if [[ ! -f "$conf" ]]; then
+    log "${DEPLOY_ENV}.conf 없음. nginx 반영 건너뜀"
+    return 0
+  fi
+
+  # 서버 구조로 정리
+  mkdir -p "${NGINX_STAGING}/conf.d"
+  mv "$conf" "${NGINX_STAGING}/conf.d/kiri.conf"
+  echo "DEPLOY_ENV=${DEPLOY_ENV}" > "${NGINX_STAGING}/.env"
+
+  # 설정 검사
+  if [[ "$(nginx_checksum "$NGINX_STAGING")" == "$(nginx_checksum "$NGINX_DIR")" ]] && nginx_running; then
+    log "nginx 설정 변경 없음"
+    return 0
+  fi
+
+  log "nginx 새 설정 검사"
+  docker rm -f "$NGINX_CHECK_NAME" > /dev/null 2>&1 || true
+  if ! (cd "$NGINX_STAGING" && docker compose -p "$NGINX_CHECK_NAME" run --rm -T --name "$NGINX_CHECK_NAME" nginx nginx -t); then
+    log "nginx 설정 검사 실패. 기존 nginx 설정을 유지하고 배포를 실패 처리"
+    return 1
+  fi
+
+  local compose_changed=true
+  cmp -s "${NGINX_STAGING}/compose.yml" "${NGINX_DIR}/compose.yml" \
+    && cmp -s "${NGINX_STAGING}/.env" "${NGINX_DIR}/.env" \
+    && compose_changed=false
+
+  # 서버로 복사
+  install -d -m 755 "$NGINX_DIR" "${NGINX_DIR}/conf.d" /var/www/certbot
+  install -m 644 "${NGINX_STAGING}/compose.yml" "${NGINX_STAGING}/.env" "$NGINX_DIR/"
+  install -m 644 "${NGINX_STAGING}/conf.d/kiri.conf" "${NGINX_DIR}/conf.d/kiri.conf"
+
+  # 반영
+  if nginx_running && [[ "$compose_changed" == false ]]; then
+    docker exec "$NGINX_CONTAINER" nginx -s reload
+    log "nginx 설정 다시 읽기 완료"
+  else
+    (cd "$NGINX_DIR" && docker compose up -d)
+    log "nginx 컨테이너 실행 완료"
+  fi
+}
+
 # 배포
 main(){
   log "배포 시작: env=${DEPLOY_ENV}, image=${TAG}, memory=${MEMORY_LIMIT}"
@@ -183,6 +251,8 @@ main(){
   if ! run_container "$IMAGE" || ! wait_for_healthy; then
     rollback "$previous"
   fi
+
+  apply_nginx
 
   cleanup_images "$previous"
   log "배포 성공: ${TAG}"

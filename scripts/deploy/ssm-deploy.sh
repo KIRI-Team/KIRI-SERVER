@@ -5,6 +5,8 @@ set -euo pipefail
 : "${DEPLOY_ENV:?}" "${IMAGE:?}" "${MEMORY_LIMIT:?}" "${APP_JAVA_OPTS:?}" "${AWS_REGION:?}"
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+NGINX_SRC="${REPO_ROOT}/infra/nginx"
 INSTANCE_NAME="kiri-${DEPLOY_ENV}-api"
 WAIT_LIMIT=1200
 
@@ -27,15 +29,19 @@ find_instance(){
 
 send_deploy_command(){
   local instance_id="$1"
-  local script_b64 remote_cmd
+  local script_b64 nginx_64 remote_cmd
 
   script_b64=$(base64 -w0 "${SCRIPT_DIR}/deploy.sh")
+  nginx_64=$(tar -czf - -C "$NGINX_SRC" . | base64 -w0)
 
   remote_cmd=$(cat <<EOF
 script=\$(mktemp /tmp/kiri-deploy.XXXXXX)
+bundle=\$(mktemp /tmp/kiri-nginx.XXXXXX)
 echo '${script_b64}' | base64 -d > "\$script"
-DEPLOY_ENV='${DEPLOY_ENV}' IMAGE='${IMAGE}' MEMORY_LIMIT='${MEMORY_LIMIT}' APP_JAVA_OPTS='${APP_JAVA_OPTS}' bash "\$script"; rc=\$?
-rm -f "\$script"
+echo '${nginx_64}' | base64 -d > "\$bundle"
+DEPLOY_ENV='${DEPLOY_ENV}' IMAGE='${IMAGE}' MEMORY_LIMIT='${MEMORY_LIMIT}' APP_JAVA_OPTS='${APP_JAVA_OPTS}' NGINX_BUNDLE="\$bundle" bash "\$script";
+rc=\$?
+rm -f "\$script" "\$bundle"
 exit \$rc
 EOF
 )

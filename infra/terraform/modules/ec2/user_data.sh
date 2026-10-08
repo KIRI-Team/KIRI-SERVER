@@ -10,8 +10,8 @@ if [ ! -f /swapfile ]; then
   echo '/swapfile swap swap defaults 0 0' >> /etc/fstab
 fi
 
-# Docker, Nginx
-dnf install -y docker nginx python3
+# Docker
+dnf install -y docker
 
 systemctl enable --now docker
 usermod -aG docker ec2-user
@@ -24,14 +24,6 @@ curl -fsSL "https://github.com/docker/compose/releases/download/${COMPOSE_VERSIO
   -o /usr/local/lib/docker/cli-plugins/docker-compose
 echo "${COMPOSE_SHA256}  /usr/local/lib/docker/cli-plugins/docker-compose" | sha256sum -c -
 chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
-
-systemctl enable --now nginx
-
-# certbot
-python3 -m venv /opt/certbot
-/opt/certbot/bin/pip install --upgrade pip
-/opt/certbot/bin/pip install certbot certbot-nginx
-ln -sf /opt/certbot/bin/certbot /usr/bin/certbot
 
 #psql
 dnf install -y postgresql16 || true
