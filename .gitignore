@@ -52,5 +52,8 @@ override.tf
 *_override.tf
 
 ### Keys ###
-*private*.pem
-*private*.b64
+*.pem
+*.key
+*.b64
+**/keys/*
+!*-public.pem
