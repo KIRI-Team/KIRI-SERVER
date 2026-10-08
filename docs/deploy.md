@@ -8,7 +8,7 @@
 | develop에 머지될 때 | 테스트 → dev 서버 자동 배포 (`Deploy dev`) |
 | prod 배포 | 현재 미구성 (prod 인프라 구성 후 main에서 수동 실행) |
 
-> `infra/**`, `*.md`만 바뀐 경우에는 테스트와 배포를 건너뜁니다.
+> `infra/terraform/**`, `*.md`만 바뀐 경우에는 테스트와 배포를 건너뜁니다.
 
 dev 배포 흐름:
 

@@ -10,32 +10,33 @@ Terraform으로 KIRI의 AWS 인프라를 관리합니다.
 
 ```
 infra/
-├── bootstrap/   # tfstate 저장용 S3 버킷
-├── global/      # 계정 공통 설정 (Budgets, Cost Anomaly Detection 등)
-├── envs/
-│   ├── shared/  # 환경 간 공용 리소스 (ECR, GitHub OIDC Provider)
-│   ├── dev/     # dev 환경 리소스
-│   └── prod/    # prod 환경 리소스
-└── modules/     # 환경 간 공통으로 쓰는 모듈
-    ├── network/ # VPC, Subnet, IGW, S3 Gateway Endpoint, Security Group
-    ├── ec2/     # EC2, IAM Role, Elastic IP, CloudWatch Log Group
-    ├── rds/     # RDS PostgreSQL, 접속 정보 Parameter Store 저장
-    ├── images/  # 이미지 S3 버킷, CloudFront, Signed URL 키 그룹
-    └── github_deploy/ # GitHub Actions 배포용 IAM Role (OIDC)
+└── terraform/
+    ├── bootstrap/   # tfstate 저장용 S3 버킷
+    ├── global/      # 계정 공통 설정 (Budgets, Cost Anomaly Detection 등)
+    ├── envs/
+    │   ├── shared/  # 환경 간 공용 리소스 (ECR, GitHub OIDC Provider)
+    │   ├── dev/     # dev 환경 리소스
+    │   └── prod/    # prod 환경 리소스
+    └── modules/     # 환경 간 공통으로 쓰는 모듈
+        ├── network/ # VPC, Subnet, IGW, S3 Gateway Endpoint, Security Group
+        ├── ec2/     # EC2, IAM Role, Elastic IP, CloudWatch Log Group
+        ├── rds/     # RDS PostgreSQL, 접속 정보 Parameter Store 저장
+        ├── images/  # 이미지 S3 버킷, CloudFront, Signed URL 키 그룹
+        └── github_deploy/ # GitHub Actions 배포용 IAM Role (OIDC)
 ```
 
-`modules/`는 단독으로 실행하지 않고, `envs/{env}/main.tf`에서 호출해서 사용합니다.
-환경별 값(인스턴스 타입, 삭제 보호 등)은 `envs/{env}/main.tf`의 모듈 호출부에서 주입합니다.
+`terraform/modules/`는 단독으로 실행하지 않고, `terraform/envs/{env}/main.tf`에서 호출해서 사용합니다.
+환경별 값(인스턴스 타입, 삭제 보호 등)은 `terraform/envs/{env}/main.tf`의 모듈 호출부에서 주입합니다.
 
 각 디렉터리는 독립된 Terraform 루트이며, state도 따로 관리됩니다.
 
 | 디렉터리 | state key |
 |---|---|
-| `bootstrap` | `bootstrap/terraform.tfstate` |
-| `global` | `global/terraform.tfstate` |
-| `envs/shared` | `shared/terraform.tfstate` |
-| `envs/dev` | `dev/terraform.tfstate` |
-| `envs/prod` | `prod/terraform.tfstate` |
+| `terraform/bootstrap` | `bootstrap/terraform.tfstate` |
+| `terraform/global` | `global/terraform.tfstate` |
+| `terraform/envs/shared` | `shared/terraform.tfstate` |
+| `terraform/envs/dev` | `dev/terraform.tfstate` |
+| `terraform/envs/prod` | `prod/terraform.tfstate` |
 
 state는 모두 S3 버킷 `kiri-tfstate-100024219481`에 저장되며, `use_lockfile`로 동시 apply를 막습니다.
 
@@ -63,7 +64,7 @@ state는 모두 S3 버킷 `kiri-tfstate-100024219481`에 저장되며, `use_lock
 작업할 디렉터리로 이동해서 실행합니다.
 
 ```bash
-cd infra/envs/dev
+cd infra/terraform/envs/dev
 terraform init      # 처음 한 번, 또는 provider/backend 변경 시
 terraform fmt       # 코드 정렬
 terraform plan      # 변경 사항 미리 보기
@@ -81,7 +82,7 @@ cp terraform.tfvars.example terraform.tfvars
 # 값 채우기
 ```
 
-`global/terraform.tfvars`의 실제 값은 인프라 담당자에게 받습니다.
+`terraform/global/terraform.tfvars`의 실제 값은 인프라 담당자에게 받습니다.
 
 ## 운영 규칙
 
@@ -118,7 +119,7 @@ cp terraform.tfvars.example terraform.tfvars
 
 ## shared 환경
 
-dev와 prod가 함께 쓰는 배포 리소스입니다. `envs/dev`, `envs/prod`보다 **먼저 apply**합니다.
+dev와 prod가 함께 쓰는 배포 리소스입니다. `terraform/envs/dev`, `terraform/envs/prod`보다 **먼저 apply**합니다.
 
 | 리소스 | 내용 |
 |---|---|
@@ -141,7 +142,7 @@ dev와 prod가 함께 쓰는 배포 리소스입니다. `envs/dev`, `envs/prod`�
 - **보안 그룹**
   - EC2: 80, 443 허용 (22번 포트는 닫혀 있음)
   - EC2: 8080 임시 허용 (도메인 확보 전까지 앱 직접 접근용)
-    - 도메인 확보 후 nginx + HTTPS 구성 시 `envs/dev/main.tf`의 `app_ingress_cidrs`를 삭제해서 닫습니다.
+    - 도메인 확보 후 nginx + HTTPS 구성 시 `terraform/envs/dev/main.tf`의 `app_ingress_cidrs`를 삭제해서 닫습니다.
   - RDS: 5432는 EC2 보안 그룹에서 오는 요청만 허용
 - **24시간 운영**: 야간·주말에도 작업이 있어 자동 중지 스케줄은 적용하지 않았습니다.
 
@@ -155,7 +156,7 @@ SSH 대신 SSM Session Manager로 접속합니다. 키 파일이 필요 없고, 
 2. 인스턴스 ID 확인
 
    ```bash
-   cd infra/envs/dev
+   cd infra/terraform/envs/dev
    terraform output ec2_instance_id
    ```
 
@@ -242,7 +243,7 @@ aws s3 cp banner.jpg s3://kiri-dev-images-100024219481/public/<uuid>.jpg --conte
 
 ### Signed URL 키
 
-- 공개키: `envs/{env}/keys/cloudfront-public.pem` (Terraform이 CloudFront에 등록)
+- 공개키: `terraform/envs/{env}/keys/cloudfront-public.pem` (Terraform이 CloudFront에 등록)
 - 개인키: Parameter Store `CLOUDFRONT_PRIVATE_KEY`에 수동 등록, git에 올리지 않음
   - **한 줄 base64(PKCS#8 DER)** 로 저장합니다. 여러 줄 PEM은 배포 시 환경변수로 주입되지 않습니다.
 - 환경마다 키를 따로 만듭니다.
@@ -251,7 +252,7 @@ aws s3 cp banner.jpg s3://kiri-dev-images-100024219481/public/<uuid>.jpg --conte
 
 ## EC2 초기 설정 (user_data)
 
-EC2가 처음 부팅될 때 `modules/ec2/user_data.sh`가 실행되어 다음을 설치합니다.
+EC2가 처음 부팅될 때 `terraform/modules/ec2/user_data.sh`가 실행되어 다음을 설치합니다.
 
 - swap 2GB
 - Docker, Docker Compose 플러그인
@@ -274,12 +275,12 @@ sudo tail -n 40 /var/log/cloud-init-output.log
 
 ## GitHub Actions 배포 설정
 
-GitHub Actions는 `modules/github_deploy`로 만든 환경별 Role(dev: `kiri-dev-github-deploy`)로 배포합니다.
+GitHub Actions는 `terraform/modules/github_deploy`로 만든 환경별 Role(dev: `kiri-dev-github-deploy`)로 배포합니다.
 이 Role은 ECR push와 해당 환경 EC2 1대에 대한 SSM 명령 실행만 할 수 있습니다.
 
 환경을 새로 만들 때 한 번 설정합니다.
 
-1. `envs/shared` → `envs/{env}` 순서로 apply
+1. `terraform/envs/shared` → `terraform/envs/{env}` 순서로 apply
 2. GitHub › Settings › Environments에서 `{env}` 생성
    - Deployment branches and tags: **Selected branches and tags** → dev는 `develop`, prod는 `main`
    - Environment variables: `AWS_ROLE_ARN` = `terraform output github_deploy_role_arn`

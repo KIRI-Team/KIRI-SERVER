@@ -6,7 +6,7 @@ on:
       - develop
       - main
     paths-ignore:
-      - "infra/**"
+      - "infra/terraform/**"
       - "**.md"
 
 concurrency:
