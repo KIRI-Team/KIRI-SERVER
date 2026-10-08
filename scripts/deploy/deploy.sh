@@ -47,7 +47,6 @@ write_env_file(){
   aws ssm get-parameters-by-path \
     --region "$REGION" \
     --path "$PARAMETER_PATH" \
-    --recursive \
     --with-decryption \
     --query 'Parameters[*].[Name, Value]' \
     --output text |
