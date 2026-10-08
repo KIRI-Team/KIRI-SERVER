@@ -18,7 +18,8 @@ infra/
 └── modules/     # 환경 간 공통으로 쓰는 모듈
     ├── network/ # VPC, Subnet, IGW, S3 Gateway Endpoint, Security Group
     ├── ec2/     # EC2, IAM Role, Elastic IP, CloudWatch Log Group
-    └── rds/     # RDS PostgreSQL, 접속 정보 Parameter Store 저장
+    ├── rds/     # RDS PostgreSQL, 접속 정보 Parameter Store 저장
+    └── images/  # 이미지 S3 버킷, CloudFront, Signed URL 키 그룹
 ```
 
 `modules/`는 단독으로 실행하지 않고, `envs/{env}/main.tf`에서 호출해서 사용합니다.
@@ -121,6 +122,8 @@ cp terraform.tfvars.example terraform.tfvars
 | EC2 | `t4g.small` (arm64), Amazon Linux 2023, gp3 20GB, Elastic IP, CPU 크레딧 `standard` |
 | RDS | PostgreSQL 18, `db.t4g.micro`, Single-AZ, gp3 20GB, private subnet |
 | CloudWatch Logs | `/kiri/dev/app`, 보관 7일 |
+| S3 (이미지) | `kiri-dev-images-100024219481`, 퍼블릭 차단, SSE-S3 |
+| CloudFront | `terraform output cdn_domain`, PriceClass_200 (한국 엣지 포함) |
 
 - **보안 그룹**
   - EC2: 80, 443만 허용 (22번 포트는 닫혀 있음)
@@ -178,16 +181,18 @@ aws ssm get-parameter --name /kiri/dev/DB_PW --with-decryption --query Parameter
 
 ## 접속 정보 (Parameter Store)
 
-DB 접속 정보는 Terraform이 생성해서 Parameter Store에 SecureString으로 저장합니다.
-비밀번호는 `random_password`로 생성되며, 코드나 git에는 남지 않습니다.
+앱 설정값은 Parameter Store `/kiri/{env}/`에 저장하며, 배포 시 이름 그대로 환경변수로 주입됩니다.
 
-| 이름 | 값 |
-|---|---|
-| `/kiri/dev/DB_URL` | `jdbc:postgresql://<rds_endpoint>/kiri` |
-| `/kiri/dev/DB_USER` | DB 사용자 이름 |
-| `/kiri/dev/DB_PW` | DB 비밀번호 |
-
-이름은 `application.yaml`의 환경변수(`DB_URL`, `DB_USER`, `DB_PW`)와 같습니다.
+| 이름 | 값 | 생성 |
+|---|---|---|
+| `/kiri/dev/DB_URL` | `jdbc:postgresql://<rds_endpoint>/kiri` | Terraform |
+| `/kiri/dev/DB_USER` | DB 사용자 이름 | Terraform |
+| `/kiri/dev/DB_PW` | DB 비밀번호 (`random_password`) | Terraform |
+| `/kiri/dev/S3_IMAGE_BUCKET` | 이미지 버킷 이름 | Terraform |
+| `/kiri/dev/CDN_BASE_URL` | `https://<cdn_domain>` | Terraform |
+| `/kiri/dev/CLOUDFRONT_KEY_PAIR_ID` | Signed URL `Key-Pair-Id` | Terraform |
+| `/kiri/dev/CLOUDFRONT_PRIVATE_KEY` | Signed URL 서명용 개인키 | 수동 ([이미지 저장소](#이미지-저장소-s3--cloudfront) 참고) |
+| `/kiri/dev/JWT_SECRET` | JWT 서명 키 | 수동 |
 
 ```bash
 aws ssm get-parameter --name /kiri/dev/DB_PW --with-decryption --query Parameter.Value --output text --profile kiri
@@ -199,6 +204,39 @@ aws ssm get-parameter --name /kiri/dev/DB_PW --with-decryption --query Parameter
   ```bash
   aws ssm put-parameter --name /kiri/dev/JWT_SECRET --type SecureString --value "<값>" --profile kiri
   ```
+
+
+## 이미지 저장소 (S3 + CloudFront)
+
+이미지는 S3에 저장하고 CloudFront로만 조회합니다. S3 URL로 직접 접근하면 403입니다.
+
+### key 구조와 접근 규칙
+
+| 경로 | 용도 | 조회 |
+|---|---|---|
+| `public/{uuid}.{ext}` | 공용 이미지 | 공개 |
+| `pending/user/{memberId}/{uuid}.{ext}` | 업로드 직후 임시 파일, **1일 후 자동 삭제** | 불가 |
+| `user/original/{memberId}/{uuid}.{ext}` | 확정된 사용자 이미지 | Signed URL 필요 |
+| `user/resized/...` | 리사이징 결과 (예정) | Signed URL 필요 |
+
+- `public/*` 외의 모든 경로는 Signed URL이 필요합니다. 새 경로를 만들어도 기본은 비공개입니다.
+- 이미지 key는 덮어쓰지 않고 항상 새 UUID로 만듭니다. CloudFront와 앱에서 1년 캐시하므로, 같은 key의 내용을 바꾸면 반영되지 않습니다.
+- 업로드 시 `Cache-Control: public, max-age=31536000, immutable`을 붙입니다. 서버는 presigned PUT URL에 이 헤더를 포함해 서명합니다.
+
+공용 이미지(배너, 기본 이미지 등)는 업로드 API가 없으므로 직접 올립니다. Content-Type과 Cache-Control을 빠뜨리지 않습니다.
+
+```bash
+aws s3 cp banner.jpg s3://kiri-dev-images-100024219481/public/<uuid>.jpg --content-type image/jpeg --cache-control "public, max-age=31536000, immutable" --profile kiri
+```
+
+### Signed URL 키
+
+- 공개키: `envs/{env}/keys/cloudfront-public.pem` (Terraform이 CloudFront에 등록)
+- 개인키: Parameter Store `CLOUDFRONT_PRIVATE_KEY`에 수동 등록, git에 올리지 않음
+  - **한 줄 base64(PKCS#8 DER)** 로 저장합니다. 여러 줄 PEM은 배포 시 환경변수로 주입되지 않습니다.
+- 환경마다 키를 따로 만듭니다.
+
+> **키를 교체하면 이미 발급된 Signed URL은 모두 무효가 됩니다.** 공개키 교체 apply와 개인키 갱신, 앱 재배포를 함께 진행합니다.
 
 ## EC2 초기 설정 (user_data)
 
