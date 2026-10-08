@@ -1,0 +1,28 @@
+name: Deploy dev
+
+on:
+  push:
+    branches:
+      - develop
+    paths-ignore:
+      - "infra/**"
+      - "**.md"
+
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  test:
+    uses: ./.github/workflows/_test.yml
+
+  deploy:
+    needs: test
+    uses: ./.github/workflows/_deploy.yml
+    with:
+      environment: dev
+      # t4g.small(2GB) 기준: 컨테이너 1.2GB, 힙은 약 720MB
+      memory-limit: 1200m
+      java-opts: -XX:MaxRAMPercentage=60.0

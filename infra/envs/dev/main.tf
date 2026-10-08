@@ -7,6 +7,9 @@ module "network" {
   name_prefix = local.name_prefix
   vpc_cidr    = "10.0.0.0/16"
   azs         = local.azs
+
+  # 도메인 확보 전까지 앱 포트 임시 개방
+  app_ingress_cidrs = ["0.0.0.0/0"]
 }
 
 module "ec2" {
@@ -56,4 +59,16 @@ module "images" {
   signing_public_key = file("${path.module}/keys/cloudfront-public.pem")
 
   parameter_path = local.parameter_path
+}
+
+module "github_deploy" {
+  source = "../../modules/github_deploy"
+
+  name_prefix = local.name_prefix
+
+  github_repo        = local.github_repo
+  github_environment = "dev"
+
+  ecr_repository_name = "kiri-server-dev"
+  instance_id         = module.ec2.instance_id
 }

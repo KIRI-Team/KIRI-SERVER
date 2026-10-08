@@ -1,0 +1,26 @@
+# TODO: prod 인프라 구성 후 사용
+#   - prod EC2 (Name: kiri-prod-api), /kiri/prod 파라미터, 로그 그룹 /kiri/prod/app
+#   - modules/github_deploy로 kiri-prod-github-deploy Role 생성 (github_environment = "prod")
+#   - Environment "prod" Variables에 AWS_ROLE_ARN 등록
+name: Deploy prod
+
+on:
+  # prod는 관리자가 직접 배포
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  test:
+    uses: ./.github/workflows/_test.yml
+
+  deploy:
+    needs: test
+    uses: ./.github/workflows/_deploy.yml
+    with:
+      environment: prod
+      # t4g.small(2GB) 기준: 컨테이너 1.2GB, 힙은 약 720MB
+      memory-limit: 1200m
+      java-opts: -XX:MaxRAMPercentage=60.0
