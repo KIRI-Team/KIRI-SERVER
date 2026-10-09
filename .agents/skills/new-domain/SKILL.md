@@ -66,5 +66,4 @@ NOT_FOUND(HttpStatus.NOT_FOUND, "QUESTION404_1", "존재하지 않는 질문입�
 - [ ] `./gradlew test --tests "com.kiri.server.ArchitectureTest"` 통과
 - [ ] 새 도메인 테스트 통과 (`./gradlew test --tests "com.kiri.server.domain.{domain}.*"`)
 - [ ] 마이그레이션 파일 추가 (DB를 띄울 수 있으면 전체 `./gradlew test`로 `ddl-auto: validate` 통과 확인)
-- [ ] `AGENTS.md`의 도메인 용어 표에 새 용어 추가
 - [ ] 커밋을 목적별로 나눔 (엔티티+마이그레이션+Repository / API / 테스트)
