@@ -13,6 +13,7 @@ services:
       - ./conf.d:/etc/nginx/conf.d:ro
       - /var/www/certbot:/var/www/certbot:ro
       - /etc/letsencrypt:/etc/letsencrypt:ro
+      - ./.htpasswd:/etc/nginx/.htpasswd:ro
 
     logging:
       driver: awslogs

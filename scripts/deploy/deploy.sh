@@ -17,6 +17,8 @@ APP_PORT=8080
 NGINX_DIR="/opt/kiri/nginx"
 NGINX_CONTAINER="kiri-nginx"
 NGINX_CHECK_NAME="kiri-nginx-check"
+NGINX_PARAMETER_PATH="/kiri/${DEPLOY_ENV}/nginx"
+NGINX_GID=101
 
 PARAMETER_PATH="/kiri/${DEPLOY_ENV}"
 LOG_GROUP="/kiri/${DEPLOY_ENV}/app"
@@ -176,7 +178,38 @@ nginx_running(){
 }
 
 nginx_checksum(){
-  (cd "$1" 2>/dev/null && cat compose.yml .env conf.d/kiri.conf 2>/dev/null | sha256sum) || true
+  (cd "$1" 2>/dev/null && cat compose.yml .env conf.d/kiri.conf .htpasswd 2>/dev/null | sha256sum) || true
+}
+
+get_parameter(){
+  aws ssm get-parameter \
+    --region "$REGION" \
+    --name "$1" \
+    --with-decryption \
+    --query 'Parameter.Value' \
+    --output text
+}
+
+write_htpasswd(){
+  local out="$1"
+  local user password
+  user="$(get_parameter "${NGINX_PARAMETER_PATH}/BASIC_AUTH_USER")"
+  password="$(get_parameter "${NGINX_PARAMETER_PATH}/BASIC_AUTH_PASSWORD")"
+
+  local existing="${NGINX_DIR}/.htpasswd"
+  if [[ -f "$existing" ]]; then
+    local old_user old_hash salt
+    IFS=: read -r old_user old_hash < "$existing"
+    salt="$(cut -d'$' -f3 <<< "$old_hash")"
+
+    if [[ "$old_user" == "$user" && "$(openssl passwd -6 -salt "$salt" -stdin <<< "$password")" == "$old_hash" ]]; then
+      cp "$existing" "$out"
+      return 0
+    fi
+  fi
+
+  printf '%s:%s\n' "$user" "$(openssl passwd -6 -stdin <<< "$password")" > "$out"
+  log "basic auth 계정 파일 갱신"
 }
 
 apply_nginx(){
@@ -199,6 +232,7 @@ apply_nginx(){
   mkdir -p "${NGINX_STAGING}/conf.d"
   mv "$conf" "${NGINX_STAGING}/conf.d/kiri.conf"
   echo "DEPLOY_ENV=${DEPLOY_ENV}" > "${NGINX_STAGING}/.env"
+  write_htpasswd "${NGINX_STAGING}/.htpasswd"
 
   # 설정 검사
   if [[ "$(nginx_checksum "$NGINX_STAGING")" == "$(nginx_checksum "$NGINX_DIR")" ]] && nginx_running; then
@@ -222,6 +256,7 @@ apply_nginx(){
   install -d -m 755 "$NGINX_DIR" "${NGINX_DIR}/conf.d" /var/www/certbot
   install -m 644 "${NGINX_STAGING}/compose.yml" "${NGINX_STAGING}/.env" "$NGINX_DIR/"
   install -m 644 "${NGINX_STAGING}/conf.d/kiri.conf" "${NGINX_DIR}/conf.d/kiri.conf"
+  install -m 640 -g "$NGINX_GID" "${NGINX_STAGING}/.htpasswd" "${NGINX_DIR}/.htpasswd"
 
   # 반영
   if nginx_running && [[ "$compose_changed" == false ]]; then
