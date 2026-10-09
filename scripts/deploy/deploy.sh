@@ -39,7 +39,8 @@ export HOME="${HOME:-/root}"
 
 ENV_FILE="$(mktemp)"
 NGINX_STAGING=""
-trap 'rm -f "$ENV_FILE"; [[ -n "$NGINX_STAGING" ]] && rm -rf "$NGINX_STAGING"' EXIT
+NGINX_BACKUP=""
+trap 'rm -f "$ENV_FILE"; [[ -n "$NGINX_STAGING" ]] && rm -rf "$NGINX_STAGING"; [[ -n "$NGINX_BACKUP" ]] && rm -rf "$NGINX_BACKUP"' EXIT
 
 log(){
   echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*"
@@ -300,6 +301,53 @@ UNIT
   log "인증서 갱신 timer 등록"
 }
 
+install_nginx_files(){
+  install -d -m 755 "$NGINX_DIR" "${NGINX_DIR}/conf.d" "${NGINX_DIR}/auth" /var/www/certbot \
+  && install -m 644 "${NGINX_STAGING}/compose.yml" "${NGINX_STAGING}/.env" "$NGINX_DIR/" \
+  && install -m 644 "${NGINX_STAGING}/conf.d/kiri.conf" "${NGINX_DIR}/conf.d/kiri.conf" \
+  && install -m 640 -g "$NGINX_GID" "${NGINX_STAGING}/auth/.htpasswd" "${NGINX_DIR}/auth/.htpasswd"
+}
+
+activate_nginx(){
+  local compose_changed="$1"
+
+  if nginx_running && [[ "$compose_changed" == false ]]; then
+    docker exec "$NGINX_CONTAINER" nginx -s reload || return 1
+    log "nginx 설정 다시 읽기 완료"
+  else
+    (cd "$NGINX_DIR" && docker compose up -d) || return 1
+    sleep 3
+    if ! nginx_running; then
+      log "nginx 컨테이너가 실행 직후 종료됨"
+      docker logs --tail 20 "$NGINX_CONTAINER" 2>&1 || true
+      return 1
+    fi
+    log "nginx 컨테이너 실행 완료"
+  fi
+}
+
+backup_nginx(){
+  NGINX_BACKUP="$(mktemp -d)"
+  if [[ -d "$NGINX_DIR" ]]; then
+    cp -a "${NGINX_DIR}/." "${NGINX_BACKUP}/"
+  fi
+}
+
+restore_nginx(){
+  if [[ -z "$(ls -A "$NGINX_BACKUP")" ]]; then
+    log "첫 nginx 반영이라 복구할 이전 설정 없음"
+    return 0
+  fi
+
+  cp -a "${NGINX_BACKUP}/." "${NGINX_DIR}/"
+
+  if (cd "$NGINX_DIR" && docker compose up -d --force-recreate) && sleep 3 && nginx_running; then
+    log "이전 nginx 설정으로 복구 완료"
+  else
+    log "nginx 복구도 실패. 서버에서 확인 필요"
+  fi
+}
+
 apply_nginx(){
   if [[ -z "$NGINX_BUNDLE" ]]; then
     log "nginx 설정 묶음 없음. nginx 반영 건너뜀"
@@ -345,19 +393,12 @@ apply_nginx(){
     && cmp -s "${NGINX_STAGING}/.env" "${NGINX_DIR}/.env" \
     && compose_changed=false
 
-  # 서버로 복사
-  install -d -m 755 "$NGINX_DIR" "${NGINX_DIR}/conf.d" "${NGINX_DIR}/auth" /var/www/certbot
-  install -m 644 "${NGINX_STAGING}/compose.yml" "${NGINX_STAGING}/.env" "$NGINX_DIR/"
-  install -m 644 "${NGINX_STAGING}/conf.d/kiri.conf" "${NGINX_DIR}/conf.d/kiri.conf"
-  install -m 640 -g "$NGINX_GID" "${NGINX_STAGING}/auth/.htpasswd" "${NGINX_DIR}/auth/.htpasswd"
+  backup_nginx
 
-  # 반영
-  if nginx_running && [[ "$compose_changed" == false ]]; then
-    docker exec "$NGINX_CONTAINER" nginx -s reload
-    log "nginx 설정 다시 읽기 완료"
-  else
-    (cd "$NGINX_DIR" && docker compose up -d)
-    log "nginx 컨테이너 실행 완료"
+  if ! install_nginx_files || ! activate_nginx "$compose_changed"; then
+    log "nginx 반영 실패. 이전 nginx 설정으로 복구하고 배포를 실패 처리"
+    restore_nginx
+    return 1
   fi
 }
 

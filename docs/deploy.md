@@ -43,6 +43,7 @@ develop 머지
 | `Not authorized to perform sts:AssumeRoleWithWebIdentity` | GitHub Environment 설정 또는 `AWS_ROLE_ARN` 변수 확인 |
 | `배포 대상이 1대가 아닙니다` | dev EC2가 중지되어 있는지 확인 |
 | `nginx 설정 검사 실패` | `infra/nginx/dev.conf` 문법 오류. 출력의 `nginx: [emerg]` 줄에서 원인 확인. 기존 nginx 설정은 그대로 유지됨 |
+| `nginx 반영 실패` | 출력의 nginx 로그에서 원인 확인. 이전 nginx 설정으로 자동 복구됨 |
 | `인증서 발급 실패` | 도메인 DNS가 EC2를 가리키는지, 80 포트가 열려 있는지 확인. 같은 도메인으로 1시간에 5번까지만 재시도 가능 |
 | `ParameterNotFound` (nginx) | `/kiri/dev/nginx/` basic auth 계정이 없음. `terraform/envs/dev`에서 apply |
 
