@@ -17,8 +17,12 @@ import com.tngtech.archunit.core.domain.JavaAnnotation;
 import com.tngtech.archunit.core.domain.JavaClass;
 import com.tngtech.archunit.core.domain.JavaClasses;
 import com.tngtech.archunit.core.domain.JavaEnumConstant;
+import com.tngtech.archunit.core.domain.JavaMethod;
 import com.tngtech.archunit.core.importer.ClassFileImporter;
 import com.tngtech.archunit.core.importer.ImportOption;
+import com.tngtech.archunit.lang.ArchCondition;
+import com.tngtech.archunit.lang.ConditionEvents;
+import com.tngtech.archunit.lang.SimpleConditionEvent;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
@@ -26,6 +30,7 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToOne;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.transaction.annotation.Transactional;
 
 class ArchitectureTest {
 
@@ -116,6 +121,32 @@ class ArchitectureTest {
                 .callMethodWhere(
                         target(name("builder")).and(target(owner(resideInAnyPackage("..dto..", "..entity..")))))
                 .check(CLASSES);
+    }
+
+    @Test
+    @DisplayName("@Transactional 메서드에서 외부 API 클라이언트를 직접 호출하지 않는다.")
+    void transactionalMethodsDoNotCallExternalClients() {
+        // 외부 응답을 기다리는 동안 DB 커넥션을 점유하지 않도록 외부 호출은 트랜잭션 밖에서
+        // ..client.. 에는 우리 외부 연동 클래스와 RestClient, RestTemplate, WebClient 패키지가 모두 포함됨
+        noMethods()
+                .that()
+                .areAnnotatedWith(Transactional.class)
+                .or()
+                .areDeclaredInClassesThat()
+                .areAnnotatedWith(Transactional.class)
+                .should(callExternalClient())
+                .check(CLASSES);
+    }
+
+    private static ArchCondition<JavaMethod> callExternalClient() {
+        return new ArchCondition<>("call classes in ..client..") {
+            @Override
+            public void check(JavaMethod method, ConditionEvents events) {
+                method.getMethodCallsFromSelf().stream()
+                        .filter(call -> resideInAnyPackage("..client..").test(call.getTargetOwner()))
+                        .forEach(call -> events.add(SimpleConditionEvent.satisfied(call, call.getDescription())));
+            }
+        };
     }
 
     private static DescribedPredicate<JavaAnnotation<?>> lazyToOneRelation() {

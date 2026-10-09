@@ -70,7 +70,9 @@ global/               # 공통 설정, 응답 포맷, 예외 처리, 보안, 로
 **Service / 트랜잭션**
 - 의존성은 생성자 주입만 (`@RequiredArgsConstructor` + `private final`). 필드 `@Autowired` 금지
 - DB를 쓰는 메서드는 `@Transactional`, 조회만 하면 `@Transactional(readOnly = true)`
-- 외부 API 호출은 트랜잭션 밖에서 합니다. 외부 응답을 기다리는 동안 DB 커넥션을 점유하지 않기 위함
+- 외부 API 호출은 트랜잭션 밖에서 합니다 (검사). 외부 응답을 기다리는 동안 DB 커넥션을 점유하지 않기 위함
+  - 외부 연동 클래스는 `client` 패키지에 둠 (예: `domain/auth/client/KakaoClient`). `@Transactional` 메서드에서 `..client..` 패키지(RestClient, WebClient 포함) 호출 시 실패
+  - 로그인처럼 외부 검증 후 DB에 저장하는 흐름은 트랜잭션 없는 메서드에서 외부 호출 → `@Transactional` Service 호출 순서로
   - 간단하면 트랜잭션 없는 메서드에서 조회 → 외부 호출 → 저장 (이때 dirty checking이 안 되므로 `save()` 명시)
   - 여러 쓰기를 묶어야 하면 `TransactionTemplate`으로 DB 구간만 감싸거나, 외부 호출용 클래스와 `@Transactional` Service를 분리
   - 커밋 후에 해도 되는 호출(알림 등)은 `@TransactionalEventListener(phase = AFTER_COMMIT)` + `@Async`
