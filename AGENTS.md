@@ -152,6 +152,18 @@ global/               # 공통 설정, 응답 포맷, 예외 처리, 보안, 로
 - 로컬이 아닌 DB(dev/prod)에 접속하거나 명령 실행
 - 테스트를 통과시키려고 테스트나 `ArchitectureTest` 규칙을 지우거나 약화하기
 
+## 스킬
+
+작업 종류별 상세 절차는 스킬로 분리했습니다. 해당 작업을 시작할 때 읽습니다.
+
+| 스킬 | 언제 |
+|---|---|
+| [new-domain](.agents/skills/new-domain/SKILL.md) | 새 도메인·API 추가 |
+| [flyway-migration](.agents/skills/flyway-migration/SKILL.md) | 엔티티 변경으로 스키마를 바꿀 때 |
+| [write-tests](.agents/skills/write-tests/SKILL.md) | 테스트 작성·수정 |
+
+원본은 `.agents/skills/`(Codex가 읽는 위치)에 두고, `.claude/skills/`에는 원본을 가리키는 파일만 둡니다. 스킬을 고칠 때는 원본만 수정하고, `description`을 바꿨다면 `.claude/skills/`의 같은 파일도 맞춥니다.
+
 ## 이 문서 관리
 
 - 새 도메인·엔티티를 추가한 PR에서 아래 도메인 용어 표에 용어를 함께 추가
