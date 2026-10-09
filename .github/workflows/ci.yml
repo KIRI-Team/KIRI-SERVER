@@ -19,3 +19,22 @@ permissions:
 jobs:
   test:
     uses: ./.github/workflows/_test.yml
+
+  migration-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Check Applied Migrations Unchanged
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          # M: 수정, D: 삭제, R: 이름 변경 (A: 새 파일 추가는 허용)
+          changed=$(git diff --name-only --diff-filter=MDR "origin/${BASE_REF}...HEAD" -- src/main/resources/db/migration)
+          if [ -n "$changed" ]; then
+            echo "::error::이미 적용된 마이그레이션 파일은 수정/삭제/이름 변경할 수 없습니다. 다음 버전 파일을 새로 추가하세요."
+            echo "$changed"
+            exit 1
+          fi
