@@ -19,6 +19,10 @@ NGINX_CONTAINER="kiri-nginx"
 NGINX_CHECK_NAME="kiri-nginx-check"
 NGINX_PARAMETER_PATH="/kiri/${DEPLOY_ENV}/nginx"
 NGINX_GID=101
+LETSENCRYPT_DIR="/etc/letsencrypt"
+CERTBOT_WEBROOT="/var/www/certbot"
+CERTBOT_PROJECT="kiri-certbot"
+SYSTEMD_DIR="/etc/systemd/system"
 
 PARAMETER_PATH="/kiri/${DEPLOY_ENV}"
 LOG_GROUP="/kiri/${DEPLOY_ENV}/app"
@@ -212,6 +216,90 @@ write_htpasswd(){
   log "basic auth 계정 파일 갱신"
 }
 
+cert_domains(){
+  sed -n 's#^[[:space:]]*ssl_certificate[[:space:]]\+/etc/letsencrypt/live/\([^/]\+\)/fullchain\.pem;.*#\1#p' "$1" | sort -u
+}
+
+run_certbot(){
+  (cd "$NGINX_STAGING" && docker compose -p "$CERTBOT_PROJECT" run --rm -T "$@")
+}
+
+ensure_certificates(){
+  local conf="$1"
+  local domain
+
+  local -a issue=(certonly --non-interactive --agree-tos --register-unsafely-without-email)
+
+  for domain in $(cert_domains "$conf"); do
+    if [[ -f "${LETSENCRYPT_DIR}/live/${domain}/fullchain.pem" ]]; then
+      continue
+    fi
+
+    if nginx_running; then
+      log "인증서 없음: ${domain}. webroot 방식으로 발급"
+      install -d -m 755 "$CERTBOT_WEBROOT"
+      if ! run_certbot certbot "${issue[@]}" --webroot -w "$CERTBOT_WEBROOT" -d "$domain"; then
+        log "인증서 발급 실패: ${domain}. DNS가 이 서버를 가리키는지, 80 포트가 열려 있는지 확인"
+        return 1
+      fi
+    else
+      log "인증서 없음: ${domain}. standalone 방식으로 발급"
+      if ! run_certbot --publish 80:80 certbot "${issue[@]}" --standalone -d "$domain"; then
+        log "인증서 발급 실패: ${domain}. DNS가 이 서버를 가리키는지, 80 포트가 비어 있는지 확인"
+        return 1
+      fi
+    fi
+
+    log "인증서 발급 완료: ${domain}"
+  done
+}
+
+install_renew_timer(){
+  local new_service new_timer
+  new_service="$(mktemp)"
+  new_timer="$(mktemp)"
+
+  cat > "$new_service" <<UNIT
+[Unit]
+Description=Renew Let's Encrypt certificates (certbot container)
+Requires=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=${NGINX_DIR}
+ExecStart=/usr/bin/docker compose run --rm -T certbot renew --webroot -w ${CERTBOT_WEBROOT} --quiet
+ExecStartPost=/usr/bin/docker exec ${NGINX_CONTAINER} nginx -s reload
+UNIT
+
+  cat > "$new_timer" <<'UNIT'
+[Unit]
+Description=Run certbot renew twice a day
+
+[Timer]
+OnCalendar=*-*-* 00,12:00:00
+RandomizedDelaySec=1h
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+UNIT
+
+  if cmp -s "$new_service" "${SYSTEMD_DIR}/certbot-renew.service" \
+    && cmp -s "$new_timer" "${SYSTEMD_DIR}/certbot-renew.timer"; then
+    rm -f "$new_service" "$new_timer"
+    return 0
+  fi
+
+  install -m 644 "$new_service" "${SYSTEMD_DIR}/certbot-renew.service"
+  install -m 644 "$new_timer" "${SYSTEMD_DIR}/certbot-renew.timer"
+  rm -f "$new_service" "$new_timer"
+
+  systemctl daemon-reload
+  systemctl enable --now certbot-renew.timer
+  log "인증서 갱신 timer 등록"
+}
+
 apply_nginx(){
   if [[ -z "$NGINX_BUNDLE" ]]; then
     log "nginx 설정 묶음 없음. nginx 반영 건너뜀"
@@ -233,6 +321,10 @@ apply_nginx(){
   mv "$conf" "${NGINX_STAGING}/conf.d/kiri.conf"
   echo "DEPLOY_ENV=${DEPLOY_ENV}" > "${NGINX_STAGING}/.env"
   write_htpasswd "${NGINX_STAGING}/.htpasswd"
+
+  # 인증서 발급
+  ensure_certificates "${NGINX_STAGING}/conf.d/kiri.conf"
+  install_renew_timer
 
   # 설정 검사
   if [[ "$(nginx_checksum "$NGINX_STAGING")" == "$(nginx_checksum "$NGINX_DIR")" ]] && nginx_running; then
