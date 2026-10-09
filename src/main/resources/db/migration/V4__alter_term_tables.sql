@@ -1,0 +1,5 @@
+ALTER TABLE term
+    ALTER COLUMN updated_at DROP DEFAULT;
+
+ALTER TABLE member_term
+    ALTER COLUMN updated_at DROP DEFAULT;

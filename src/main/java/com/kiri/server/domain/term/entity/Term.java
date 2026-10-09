@@ -1,15 +1,24 @@
 package com.kiri.server.domain.term.entity;
 
 import com.kiri.server.global.entity.BaseEntity;
-import jakarta.persistence.*;
-import lombok.*;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.Table;
+import lombok.AccessLevel;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
 
 @Entity
-@Table(name = "term")
 @Getter
-@NoArgsConstructor(access = AccessLevel.PROTECTED)
 @Builder
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
+@Table(name = "term")
 public class Term extends BaseEntity {
 
     @Id
@@ -17,20 +26,20 @@ public class Term extends BaseEntity {
     @Column(name = "term_id")
     private Long id;
 
-    @Column(length = 50, nullable = false)
+    @Column(name = "title", length = 50, nullable = false)
     private String title;
 
     @Column(name = "short_description", length = 100, nullable = false)
     private String shortDescription;
 
-    @Column(columnDefinition = "TEXT", nullable = false)
+    @Column(name = "description", columnDefinition = "TEXT", nullable = false)
     private String description;
 
+    @Builder.Default
     @Column(name = "is_required", nullable = false)
-    @Builder.Default
-    private Boolean isRequired = true;
+    private Boolean isRequired = false;
 
-    @Column(name = "version", nullable = false)
     @Builder.Default
+    @Column(name = "version", nullable = false)
     private Integer version = 1;
 }
