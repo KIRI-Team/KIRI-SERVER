@@ -182,7 +182,7 @@ nginx_running(){
 }
 
 nginx_checksum(){
-  (cd "$1" 2>/dev/null && cat compose.yml .env conf.d/kiri.conf .htpasswd 2>/dev/null | sha256sum) || true
+  (cd "$1" 2>/dev/null && cat compose.yml .env conf.d/kiri.conf auth/.htpasswd 2>/dev/null | sha256sum) || true
 }
 
 get_parameter(){
@@ -200,7 +200,7 @@ write_htpasswd(){
   user="$(get_parameter "${NGINX_PARAMETER_PATH}/BASIC_AUTH_USER")"
   password="$(get_parameter "${NGINX_PARAMETER_PATH}/BASIC_AUTH_PASSWORD")"
 
-  local existing="${NGINX_DIR}/.htpasswd"
+  local existing="${NGINX_DIR}/auth/.htpasswd"
   if [[ -f "$existing" ]]; then
     local old_user old_hash salt
     IFS=: read -r old_user old_hash < "$existing"
@@ -320,7 +320,8 @@ apply_nginx(){
   mkdir -p "${NGINX_STAGING}/conf.d"
   mv "$conf" "${NGINX_STAGING}/conf.d/kiri.conf"
   echo "DEPLOY_ENV=${DEPLOY_ENV}" > "${NGINX_STAGING}/.env"
-  write_htpasswd "${NGINX_STAGING}/.htpasswd"
+  mkdir -p "${NGINX_STAGING}/auth"
+  write_htpasswd "${NGINX_STAGING}/auth/.htpasswd"
 
   # 인증서 발급
   ensure_certificates "${NGINX_STAGING}/conf.d/kiri.conf"
@@ -345,10 +346,10 @@ apply_nginx(){
     && compose_changed=false
 
   # 서버로 복사
-  install -d -m 755 "$NGINX_DIR" "${NGINX_DIR}/conf.d" /var/www/certbot
+  install -d -m 755 "$NGINX_DIR" "${NGINX_DIR}/conf.d" "${NGINX_DIR}/auth" /var/www/certbot
   install -m 644 "${NGINX_STAGING}/compose.yml" "${NGINX_STAGING}/.env" "$NGINX_DIR/"
   install -m 644 "${NGINX_STAGING}/conf.d/kiri.conf" "${NGINX_DIR}/conf.d/kiri.conf"
-  install -m 640 -g "$NGINX_GID" "${NGINX_STAGING}/.htpasswd" "${NGINX_DIR}/.htpasswd"
+  install -m 640 -g "$NGINX_GID" "${NGINX_STAGING}/auth/.htpasswd" "${NGINX_DIR}/auth/.htpasswd"
 
   # 반영
   if nginx_running && [[ "$compose_changed" == false ]]; then
