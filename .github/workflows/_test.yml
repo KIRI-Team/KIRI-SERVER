@@ -34,6 +34,9 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v6
 
+      - name: Format Check
+        run: ./gradlew spotlessCheck
+
       - name: Test
         run: ./gradlew test
         env:
