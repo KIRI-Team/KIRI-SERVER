@@ -25,5 +25,35 @@ curl -fsSL "https://github.com/docker/compose/releases/download/${COMPOSE_VERSIO
 echo "${COMPOSE_SHA256}  /usr/local/lib/docker/cli-plugins/docker-compose" | sha256sum -c -
 chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
 
+# 인증서 자동 갱신
+cat > /etc/systemd/system/certbot-renew.service << 'EOF'
+[Unit]
+Description=Renew Let's Encrypt certificates (certbot container)
+Requires=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/kiri/nginx
+ExecStart=/usr/bin/docker compose run --rm certbot renew --webroot -w /var/www/certbot --quiet
+ExecStartPost=/usr/bin/docker exec kiri-nginx nginx -s reload
+EOF
+
+cat > /etc/systemd/system/certbot-renew.timer << 'EOF'
+[Unit]
+Description=Run certbot renew twice a day
+
+[Timer]
+OnCalendar=*-*-* 00,12:00:00
+RandomizedDelaySec=1h
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+EOF
+
+systemctl daemon-reload
+systemctl enable --now certbot-renew.timer
+
 #psql
 dnf install -y postgresql16 || true
