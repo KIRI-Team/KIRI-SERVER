@@ -78,7 +78,7 @@ run_container(){
   docker run -d \
     --name "$CONTAINER_NAME" \
     --restart unless-stopped \
-    -p "${APP_PORT}:${APP_PORT}" \
+    -p "127.0.0.1:${APP_PORT}:${APP_PORT}" \
     --memory "$MEMORY_LIMIT" \
     --stop-timeout "$STOP_TIMEOUT" \
     --env-file "$ENV_FILE" \
@@ -99,7 +99,7 @@ wait_for_healthy(){
       return 1
     fi
 
-    if curl -fsS --max-time 3 "http://localhost:${APP_PORT}/actuator/health" 2>/dev/null | grep -q '"status":"UP"'; then
+    if curl -fsS --max-time 3 "http://127.0.0.1:${APP_PORT}/actuator/health" 2>/dev/null | grep -q '"status":"UP"'; then
       log "헬스체크 성공 (${elapsed}초)"
       return 0
     fi

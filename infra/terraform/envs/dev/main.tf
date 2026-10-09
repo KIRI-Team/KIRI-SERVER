@@ -7,9 +7,6 @@ module "network" {
   name_prefix = local.name_prefix
   vpc_cidr    = "10.0.0.0/16"
   azs         = local.azs
-
-  # 도메인 확보 전까지 앱 포트 임시 개방
-  app_ingress_cidrs = ["0.0.0.0/0"]
 }
 
 module "ec2" {
