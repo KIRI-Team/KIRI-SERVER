@@ -76,6 +76,18 @@ docker compose up -d
 
 > dev에 이미 반영된 마이그레이션 파일은 수정하지 말고 다음 버전 파일을 새로 추가하세요. PR에서 CI가 검사합니다.
 
+## Claude Code hooks
+
+`.claude/settings.json`에 아래 hook이 설정되어 있습니다.
+
+| 시점 | 동작 |
+|---|---|
+| Java 파일 수정 직후 | 수정한 파일만 Spotless 포맷 |
+| 응답을 마치기 전 | Java 파일이나 `build.gradle`을 바꿨다면 `spotlessCheck` + `ArchitectureTest` 실행, 실패하면 Claude가 이어서 수정 |
+
+- JDK 25는 `JAVA_HOME` → PATH → (Mac) `java_home` → IntelliJ가 받은 JDK(`~/.jdks`) 순으로 자동으로 찾습니다. `[hook] JDK 25를 찾지 못해...`가 보이면 `JAVA_HOME`을 JDK 25 경로로 설정하세요.
+- 개인 설정은 `.claude/settings.local.json`에 둡니다. (git에 올라가지 않음)
+
 ## 문제와 해결 방법
 
 ### `failed to connect to the docker API`
