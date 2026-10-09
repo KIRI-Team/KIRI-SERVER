@@ -4,6 +4,7 @@ plugins {
     id 'io.spring.dependency-management' version '1.1.7'
     id 'com.gorylenko.gradle-git-properties' version '4.0.1'
     id 'com.google.cloud.tools.jib' version '3.5.4'
+    id 'com.diffplug.spotless' version '8.10.4'
 }
 
 group = 'com.kiri'
@@ -78,6 +79,26 @@ springBoot {
 gitProperties {
     // 빌드한 사람의 이메일, 호스트 등은 제외
     keys = ['git.branch', 'git.commit.id', 'git.commit.id.abbrev', 'git.commit.time', 'git.dirty']
+}
+
+// 코드 포맷 설정
+// - ./gradlew spotlessApply : 규칙대로 자동 수정
+// - ./gradlew spotlessCheck : 규칙 위반 시 실패 (CI에서 사용)
+spotless {
+    java {
+        // src/main, src/test 의 모든 Java 파일 대상
+        target 'src/**/*.java'
+
+        // 4칸 들여쓰기 기반 포맷터 (IntelliJ 기본 스타일과 가장 가까움)
+        palantirJavaFormat('2.102.0')
+
+        // 사용하지 않는 import 제거
+        removeUnusedImports()
+
+        // 줄 끝 공백 제거, 파일 끝 개행 보장
+        trimTrailingWhitespace()
+        endWithNewline()
+    }
 }
 
 // 컨테이너 빌드 이미지 설정
