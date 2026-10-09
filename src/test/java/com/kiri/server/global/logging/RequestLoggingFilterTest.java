@@ -1,5 +1,9 @@
 package com.kiri.server.global.logging;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
+import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -9,11 +13,6 @@ import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
-
-import java.util.concurrent.atomic.AtomicReference;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 @ExtendWith(OutputCaptureExtension.class)
 public class RequestLoggingFilterTest {
@@ -38,7 +37,6 @@ public class RequestLoggingFilterTest {
 
         assertThat(traceIdInChain.get()).isNotBlank();
         assertThat(response.getHeader(TRACE_ID_HEADER)).isEqualTo(traceIdInChain.get());
-
     }
 
     @Test
@@ -47,8 +45,7 @@ public class RequestLoggingFilterTest {
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/test");
         MockHttpServletResponse response = new MockHttpServletResponse();
 
-        filter.doFilter(request, response, (req, res) -> {
-        });
+        filter.doFilter(request, response, (req, res) -> {});
 
         assertThat(MDC.get(RequestLoggingFilter.TRACE_ID)).isNull();
     }
@@ -60,8 +57,9 @@ public class RequestLoggingFilterTest {
         MockHttpServletResponse response = new MockHttpServletResponse();
 
         assertThatThrownBy(() -> filter.doFilter(request, response, (req, res) -> {
-            throw new RuntimeException("test");
-        })).isInstanceOf(RuntimeException.class);
+                    throw new RuntimeException("test");
+                }))
+                .isInstanceOf(RuntimeException.class);
 
         assertThat(MDC.get(RequestLoggingFilter.TRACE_ID)).isNull();
     }
@@ -73,8 +71,9 @@ public class RequestLoggingFilterTest {
         MockHttpServletResponse response = new MockHttpServletResponse();
 
         assertThatThrownBy(() -> filter.doFilter(request, response, (req, res) -> {
-            throw new IllegalStateException("test");
-        })).isInstanceOf(IllegalStateException.class);
+                    throw new IllegalStateException("test");
+                }))
+                .isInstanceOf(IllegalStateException.class);
 
         assertThat(output).contains("GET /api/test FAILED");
         assertThat(output).contains("IllegalStateException");
@@ -87,8 +86,7 @@ public class RequestLoggingFilterTest {
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/actuator/health");
         MockHttpServletResponse response = new MockHttpServletResponse();
 
-        filter.doFilter(request, response, (req, res) -> {
-        });
+        filter.doFilter(request, response, (req, res) -> {});
 
         assertThat(response.getHeader(TRACE_ID_HEADER)).isNull();
     }
@@ -100,8 +98,7 @@ public class RequestLoggingFilterTest {
         request.setContextPath("/kiri");
         MockHttpServletResponse response = new MockHttpServletResponse();
 
-        filter.doFilter(request, response, (req, res) -> {
-        });
+        filter.doFilter(request, response, (req, res) -> {});
 
         assertThat(response.getHeader(TRACE_ID_HEADER)).isNull();
     }
@@ -113,10 +110,8 @@ public class RequestLoggingFilterTest {
         request.setContextPath("/kiri");
         MockHttpServletResponse response = new MockHttpServletResponse();
 
-        filter.doFilter(request, response, (req, res) -> {
-        });
+        filter.doFilter(request, response, (req, res) -> {});
 
         assertThat(response.getHeader(TRACE_ID_HEADER)).isNotBlank();
     }
-
 }

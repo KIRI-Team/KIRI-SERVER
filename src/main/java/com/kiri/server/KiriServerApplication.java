@@ -10,5 +10,4 @@ public class KiriServerApplication {
     public static void main(String[] args) {
         SpringApplication.run(KiriServerApplication.class, args);
     }
-
 }

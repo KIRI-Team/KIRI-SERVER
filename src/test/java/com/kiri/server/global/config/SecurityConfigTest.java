@@ -1,10 +1,17 @@
 package com.kiri.server.global.config;
 
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
 import com.kiri.server.global.security.handler.CustomAccessDeniedHandler;
 import com.kiri.server.global.security.handler.CustomAuthenticationEntryPoint;
 import com.kiri.server.global.security.jwt.JwtProvider;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
+import java.nio.charset.StandardCharsets;
+import java.util.Date;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -15,16 +22,9 @@ import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 
-import java.nio.charset.StandardCharsets;
-import java.util.Date;
-
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
-
 @WebMvcTest(SecurityTestController.class)
-@Import({SecurityConfig.class, CustomAuthenticationEntryPoint.class, CustomAccessDeniedHandler.class, JwtProvider.class})
+@Import({SecurityConfig.class, CustomAuthenticationEntryPoint.class, CustomAccessDeniedHandler.class, JwtProvider.class
+})
 @TestPropertySource(properties = "jwt.secret=" + SecurityConfigTest.SECRET)
 class SecurityConfigTest {
 
@@ -52,8 +52,7 @@ class SecurityConfigTest {
     void validToken() throws Exception {
         String token = jwtProvider.createAccessToken(1L);
 
-        mockMvc.perform(get("/test/security")
-                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+        mockMvc.perform(get("/test/security").header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
                 .andExpect(status().isOk());
     }
 
@@ -66,8 +65,7 @@ class SecurityConfigTest {
                 .signWith(Keys.hmacShaKeyFor(SECRET.getBytes(StandardCharsets.UTF_8)))
                 .compact();
 
-        mockMvc.perform(get("/test/security")
-                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+        mockMvc.perform(get("/test/security").header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value("AUTH401_2"));
     }
@@ -75,8 +73,7 @@ class SecurityConfigTest {
     @Test
     @DisplayName("유효하지 않은 토큰이면 AUTH401_1로 응답한다.")
     void invalidToken() throws Exception {
-        mockMvc.perform(get("/test/security")
-                        .header(HttpHeaders.AUTHORIZATION, "Bearer not-a-jwt"))
+        mockMvc.perform(get("/test/security").header(HttpHeaders.AUTHORIZATION, "Bearer not-a-jwt"))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value("AUTH401_1"));
     }
@@ -86,8 +83,7 @@ class SecurityConfigTest {
     void refreshToken() throws Exception {
         String token = jwtProvider.createRefreshToken(1L);
 
-        mockMvc.perform(get("/test/security")
-                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+        mockMvc.perform(get("/test/security").header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value("AUTH401_1"));
     }
@@ -97,8 +93,7 @@ class SecurityConfigTest {
     void notBearer() throws Exception {
         String token = jwtProvider.createAccessToken(1L);
 
-        mockMvc.perform(get("/test/security")
-                        .header(HttpHeaders.AUTHORIZATION, token))
+        mockMvc.perform(get("/test/security").header(HttpHeaders.AUTHORIZATION, token))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value("COMMON401_1"));
     }
@@ -107,7 +102,6 @@ class SecurityConfigTest {
     @WithMockUser
     @DisplayName("CSRF가 비활성화되어 있어 토큰 없이 POST 요청이 가능하다.")
     void csrfDisabled() throws Exception {
-        mockMvc.perform(post("/test/security"))
-                .andExpect(status().isOk());
+        mockMvc.perform(post("/test/security")).andExpect(status().isOk());
     }
 }

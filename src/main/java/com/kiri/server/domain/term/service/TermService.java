@@ -13,15 +13,14 @@ import com.kiri.server.domain.term.exception.TermException;
 import com.kiri.server.domain.term.exception.code.TermErrorCode;
 import com.kiri.server.domain.term.repository.MemberTermRepository;
 import com.kiri.server.domain.term.repository.TermRepository;
-import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @RequiredArgsConstructor
@@ -42,8 +41,8 @@ public class TermService {
     @Transactional
     public void agree(Long memberId, TermReqDTO.Agree request) {
 
-        Member member = memberRepository.findById(memberId)
-                .orElseThrow(() -> new MemberException(MemberErrorCode.NOT_FOUND));
+        Member member =
+                memberRepository.findById(memberId).orElseThrow(() -> new MemberException(MemberErrorCode.NOT_FOUND));
 
         List<TermReqDTO.Agreement> agreements =
                 (request == null || request.agreements() == null) ? List.of() : request.agreements();
@@ -54,8 +53,7 @@ public class TermService {
         }
 
         List<Term> terms = termRepository.findAllByOrderByIdAsc();
-        Map<Long, Term> termMap = terms.stream()
-                .collect(Collectors.toMap(Term::getId, term -> term));
+        Map<Long, Term> termMap = terms.stream().collect(Collectors.toMap(Term::getId, term -> term));
 
         validateTermsExist(requested.keySet(), termMap);
         validateRequiredAgreed(terms, requested);
@@ -75,13 +73,11 @@ public class TermService {
     private void validateRequiredAgreed(List<Term> terms, Map<Long, Boolean> requested) {
 
         for (Term term : terms) {
-            if (Boolean.TRUE.equals(term.getIsRequired())
-                    && !Boolean.TRUE.equals(requested.get(term.getId()))) {
+            if (Boolean.TRUE.equals(term.getIsRequired()) && !Boolean.TRUE.equals(requested.get(term.getId()))) {
                 throw new TermException(TermErrorCode.REQUIRED_NOT_AGREED);
             }
         }
     }
-
 
     private void saveAgreements(Member member, Map<Long, Boolean> requested, Map<Long, Term> termMap) {
 
@@ -97,8 +93,8 @@ public class TermService {
             if (memberTerm != null) {
                 memberTerm.updateAgreement(entry.getValue(), termMap.get(entry.getKey()));
             } else {
-                memberTermRepository.save(TermConverter.toMemberTerm(
-                        member, termMap.get(entry.getKey()), entry.getValue()));
+                memberTermRepository.save(
+                        TermConverter.toMemberTerm(member, termMap.get(entry.getKey()), entry.getValue()));
             }
         }
     }
@@ -106,8 +102,8 @@ public class TermService {
     @Transactional(readOnly = true)
     public TermResDTO.AgreementStatus getAgreementStatus(Long memberId) {
 
-        Member member = memberRepository.findById(memberId)
-                .orElseThrow(() -> new MemberException(MemberErrorCode.NOT_FOUND));
+        Member member =
+                memberRepository.findById(memberId).orElseThrow(() -> new MemberException(MemberErrorCode.NOT_FOUND));
 
         boolean termsAgreed = memberTermRepository.areAllRequiredTermsAgreed(memberId);
 
@@ -116,7 +112,6 @@ public class TermService {
                         memberTerm -> memberTerm.getTerm().getId(),
                         memberTerm -> memberTerm,
                         (first, second) -> first));
-
 
         List<TermResDTO.AgreementInfo> agreements = termRepository.findAllByOrderByIdAsc().stream()
                 .map(term -> {

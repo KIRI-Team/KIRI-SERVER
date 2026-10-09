@@ -11,6 +11,10 @@ import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
@@ -20,23 +24,15 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.lang.annotation.ElementType;
-import java.lang.annotation.Retention;
-import java.lang.annotation.RetentionPolicy;
-import java.lang.annotation.Target;
-
 // GeneralExceptionAdviceTest용
 @RestController
 public class ExceptionTestController {
 
-    record TestRequest(@NotBlank(message = "이름은 필수입니다.") String name) {
-    }
+    record TestRequest(@NotBlank(message = "이름은 필수입니다.") String name) {}
 
     record MultiFieldRequest(
             @NotBlank(message = "이름은 필수입니다.") String name,
-            @Email(message = "이메일 형식이 아닙니다.") String email
-    ) {
-    }
+            @Email(message = "이메일 형식이 아닙니다.") String email) {}
 
     @Target(ElementType.TYPE)
     @Retention(RetentionPolicy.RUNTIME)
@@ -57,8 +53,7 @@ public class ExceptionTestController {
     }
 
     @AlwaysInvalid
-    record GlobalErrorRequest(String name) {
-    }
+    record GlobalErrorRequest(String name) {}
 
     @GetMapping("/test/project-exception")
     void projectException() {
@@ -66,25 +61,21 @@ public class ExceptionTestController {
     }
 
     @PostMapping("/test/valid")
-    void valid(@Valid @RequestBody TestRequest request) {
-    }
+    void valid(@Valid @RequestBody TestRequest request) {}
 
     @GetMapping("/test/model-attribute")
-    void modelAttribute(@Valid @ModelAttribute TestRequest request) {
-    }
+    void modelAttribute(@Valid @ModelAttribute TestRequest request) {}
 
     @PostMapping("/test/global-error")
-    void globalError(@Valid @RequestBody GlobalErrorRequest request) {
-    }
+    void globalError(@Valid @RequestBody GlobalErrorRequest request) {}
 
     @GetMapping("/test/param")
-    void param(@RequestParam @Min(value = 1, message = "1 이상이어야 합니다.") Integer page) {
-    }
+    void param(@RequestParam @Min(value = 1, message = "1 이상이어야 합니다.") Integer page) {}
 
     @PostMapping("/test/method-validation")
-    void methodValidation(@RequestParam @Min(value = 1, message = "1 이상이어야 합니다.") Integer page,
-                          @Valid @RequestBody MultiFieldRequest request) {
-    }
+    void methodValidation(
+            @RequestParam @Min(value = 1, message = "1 이상이어야 합니다.") Integer page,
+            @Valid @RequestBody MultiFieldRequest request) {}
 
     @GetMapping("/test/return-value")
     @NotNull
@@ -93,13 +84,12 @@ public class ExceptionTestController {
     }
 
     @PostMapping("/test/method-validation/global-error")
-    void methodValidationGlobalError(@RequestParam @Min(value = 1, message = "1 이상이어야 합니다.") Integer page,
-                                     @Valid @RequestBody GlobalErrorRequest request) {
-    }
+    void methodValidationGlobalError(
+            @RequestParam @Min(value = 1, message = "1 이상이어야 합니다.") Integer page,
+            @Valid @RequestBody GlobalErrorRequest request) {}
 
     @GetMapping("/test/header")
-    void header(@RequestHeader("X-Test") String header) {
-    }
+    void header(@RequestHeader("X-Test") String header) {}
 
     @GetMapping("/test/data-integrity")
     void dataIntegrity() {

@@ -1,18 +1,19 @@
 package com.kiri.server.global.security.handler;
 
+import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
+
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
-import tools.jackson.databind.json.JsonMapper;
 import org.springframework.security.access.AccessDeniedException;
-
-import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
+import tools.jackson.databind.json.JsonMapper;
 
 class CustomAccessDeniedHandlerTest {
 
-    private final CustomAccessDeniedHandler handler=new CustomAccessDeniedHandler(JsonMapper.builder().build());
+    private final CustomAccessDeniedHandler handler =
+            new CustomAccessDeniedHandler(JsonMapper.builder().build());
 
     @Test
     @DisplayName("권한이 없으면 403과 공통 응답 형식으로 응답한다.")

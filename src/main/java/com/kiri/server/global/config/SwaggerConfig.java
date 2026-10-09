@@ -17,17 +17,15 @@ public class SwaggerConfig {
     @Bean
     public OpenAPI kiriOpenAPI() {
         return new OpenAPI()
-                .info(new Info()
-                        .title("KIRI API")
-                        .description("KIRI 서버 API 문서")
-                        .version("v1")
-                )
+                .info(new Info().title("KIRI API").description("KIRI 서버 API 문서").version("v1"))
                 .addServersItem(new Server().url("/"))
                 .components(new Components()
-                        .addSecuritySchemes(JWT_SCHEME_NAME, new SecurityScheme()
-                                .type(SecurityScheme.Type.HTTP)
-                                .scheme("bearer")
-                                .bearerFormat("JWT")))
+                        .addSecuritySchemes(
+                                JWT_SCHEME_NAME,
+                                new SecurityScheme()
+                                        .type(SecurityScheme.Type.HTTP)
+                                        .scheme("bearer")
+                                        .bearerFormat("JWT")))
                 .addSecurityItem(new SecurityRequirement().addList(JWT_SCHEME_NAME));
     }
 }

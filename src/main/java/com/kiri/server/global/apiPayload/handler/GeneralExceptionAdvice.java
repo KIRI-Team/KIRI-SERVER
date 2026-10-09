@@ -5,6 +5,9 @@ import com.kiri.server.global.apiPayload.code.BaseErrorCode;
 import com.kiri.server.global.apiPayload.code.GeneralErrorCode;
 import com.kiri.server.global.apiPayload.exception.ProjectException;
 import jakarta.validation.ConstraintViolationException;
+import java.sql.SQLException;
+import java.util.HashMap;
+import java.util.Map;
 import lombok.extern.slf4j.Slf4j;
 import org.jspecify.annotations.Nullable;
 import org.springframework.beans.TypeMismatchException;
@@ -27,10 +30,6 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
-import java.sql.SQLException;
-import java.util.HashMap;
-import java.util.Map;
-
 @Slf4j
 @RestControllerAdvice
 public class GeneralExceptionAdvice extends ResponseEntityExceptionHandler {
@@ -44,13 +43,17 @@ public class GeneralExceptionAdvice extends ResponseEntityExceptionHandler {
         if (ex.getCause() == null) {
             log.warn("[{}] {}: {}", ex.getClass().getSimpleName(), errorCode.getCode(), errorCode.getMessage());
         } else if (errorCode.getHttpStatus().is4xxClientError()) {
-            log.warn("[{}] {}: {} (cause={})", ex.getClass().getSimpleName(), errorCode.getCode(), errorCode.getMessage(), causeDetail(ex.getCause()));
+            log.warn(
+                    "[{}] {}: {} (cause={})",
+                    ex.getClass().getSimpleName(),
+                    errorCode.getCode(),
+                    errorCode.getMessage(),
+                    causeDetail(ex.getCause()));
         } else {
             log.error("[{}] {}: {}", ex.getClass().getSimpleName(), errorCode.getCode(), errorCode.getMessage(), ex);
         }
 
-        return ResponseEntity.status(errorCode.getHttpStatus())
-                .body(ApiResponse.onFailure(errorCode));
+        return ResponseEntity.status(errorCode.getHttpStatus()).body(ApiResponse.onFailure(errorCode));
     }
 
     // @Validated 경로/쿼리 파라미터 검증
@@ -65,9 +68,7 @@ public class GeneralExceptionAdvice extends ResponseEntityExceptionHandler {
         });
 
         BaseErrorCode errorCode = GeneralErrorCode.BAD_REQUEST;
-        return ResponseEntity.status(errorCode.getHttpStatus())
-                .body(ApiResponse.onFailure(errorCode, errors));
-
+        return ResponseEntity.status(errorCode.getHttpStatus()).body(ApiResponse.onFailure(errorCode, errors));
     }
 
     // 유니크 제약
@@ -77,8 +78,7 @@ public class GeneralExceptionAdvice extends ResponseEntityExceptionHandler {
         String detail = ex.getCause() != null ? causeDetail(ex.getCause()) : "원인 없음";
         log.warn("[DataIntegrityViolationException] {}: {}", errorCode.getCode(), detail);
 
-        return ResponseEntity.status(errorCode.getHttpStatus())
-                .body(ApiResponse.onFailure(errorCode));
+        return ResponseEntity.status(errorCode.getHttpStatus()).body(ApiResponse.onFailure(errorCode));
     }
 
     // 서버 내부 에러
@@ -87,9 +87,7 @@ public class GeneralExceptionAdvice extends ResponseEntityExceptionHandler {
         log.error("[UnexpectedException] 서버 내부 에러: ", ex);
 
         BaseErrorCode errorCode = GeneralErrorCode.INTERNAL_SERVER_ERROR;
-        return ResponseEntity.status(errorCode.getHttpStatus())
-                .body(ApiResponse.onFailure(errorCode));
-
+        return ResponseEntity.status(errorCode.getHttpStatus()).body(ApiResponse.onFailure(errorCode));
     }
 
     // 오버라이드
@@ -118,7 +116,9 @@ public class GeneralExceptionAdvice extends ResponseEntityExceptionHandler {
     protected @Nullable ResponseEntity<Object> handleHttpMessageNotReadable(
             HttpMessageNotReadableException ex, HttpHeaders headers, HttpStatusCode status, WebRequest request) {
         Throwable cause = ex.getCause();
-        log.warn("[HttpMessageNotReadableException] JSON 파싱 실패: cause={}", cause != null ? cause.getClass().getSimpleName() : "unknown");
+        log.warn(
+                "[HttpMessageNotReadableException] JSON 파싱 실패: cause={}",
+                cause != null ? cause.getClass().getSimpleName() : "unknown");
 
         BaseErrorCode errorCode = GeneralErrorCode.BAD_REQUEST;
         return ResponseEntity.status(errorCode.getHttpStatus())
@@ -129,13 +129,14 @@ public class GeneralExceptionAdvice extends ResponseEntityExceptionHandler {
     // 쿼리 파라미터 누락
     @Override
     protected @Nullable ResponseEntity<Object> handleMissingServletRequestParameter(
-            MissingServletRequestParameterException ex, HttpHeaders headers, HttpStatusCode status, WebRequest request) {
+            MissingServletRequestParameterException ex,
+            HttpHeaders headers,
+            HttpStatusCode status,
+            WebRequest request) {
         log.warn("[MissingServletRequestParameterException] 필수 파라미터 누락: {}", ex.getMessage());
 
         BaseErrorCode errorCode = GeneralErrorCode.BAD_REQUEST;
-        return ResponseEntity.status(errorCode.getHttpStatus())
-                .headers(headers)
-                .body(ApiResponse.onFailure(errorCode));
+        return ResponseEntity.status(errorCode.getHttpStatus()).headers(headers).body(ApiResponse.onFailure(errorCode));
     }
 
     // 잘못된 Content-Type
@@ -145,9 +146,7 @@ public class GeneralExceptionAdvice extends ResponseEntityExceptionHandler {
         log.warn("[HttpMediaTypeNotSupportedException] 지원하지 않는 Content-Type: {}", ex.getMessage());
 
         BaseErrorCode errorCode = GeneralErrorCode.UNSUPPORTED_MEDIA_TYPE;
-        return ResponseEntity.status(errorCode.getHttpStatus())
-                .headers(headers)
-                .body(ApiResponse.onFailure(errorCode));
+        return ResponseEntity.status(errorCode.getHttpStatus()).headers(headers).body(ApiResponse.onFailure(errorCode));
     }
 
     // 잘못된 Http 메소드
@@ -157,9 +156,7 @@ public class GeneralExceptionAdvice extends ResponseEntityExceptionHandler {
         log.warn("[HttpRequestMethodNotSupportedException] 지원하지 않는 HTTP Method: {}", ex.getMessage());
 
         BaseErrorCode errorCode = GeneralErrorCode.METHOD_NOT_ALLOWED;
-        return ResponseEntity.status(errorCode.getHttpStatus())
-                .headers(headers)
-                .body(ApiResponse.onFailure(errorCode));
+        return ResponseEntity.status(errorCode.getHttpStatus()).headers(headers).body(ApiResponse.onFailure(errorCode));
     }
 
     // 타입 불일치
@@ -169,15 +166,16 @@ public class GeneralExceptionAdvice extends ResponseEntityExceptionHandler {
         if (ex instanceof MethodArgumentTypeMismatchException matEx) {
             Object value = matEx.getValue();
             String valueType = value != null ? value.getClass().getSimpleName() : "null";
-            log.warn("[MethodArgumentTypeMismatchException] 타입 불일치: parameter={}, valueType={}", matEx.getName(), valueType);
+            log.warn(
+                    "[MethodArgumentTypeMismatchException] 타입 불일치: parameter={}, valueType={}",
+                    matEx.getName(),
+                    valueType);
         } else {
             log.warn("[TypeMismatchException] 타입 불일치: property={}", ex.getPropertyName());
         }
 
         BaseErrorCode errorCode = GeneralErrorCode.BAD_REQUEST;
-        return ResponseEntity.status(errorCode.getHttpStatus())
-                .headers(headers)
-                .body(ApiResponse.onFailure(errorCode));
+        return ResponseEntity.status(errorCode.getHttpStatus()).headers(headers).body(ApiResponse.onFailure(errorCode));
     }
 
     // 존재하지 않는 엔드포인트
@@ -187,9 +185,7 @@ public class GeneralExceptionAdvice extends ResponseEntityExceptionHandler {
         log.warn("[NoResourceFoundException] 존재하지 않는 엔드포인트: {}", ex.getMessage());
 
         BaseErrorCode errorCode = GeneralErrorCode.NOT_FOUND;
-        return ResponseEntity.status(errorCode.getHttpStatus())
-                .headers(headers)
-                .body(ApiResponse.onFailure(errorCode));
+        return ResponseEntity.status(errorCode.getHttpStatus()).headers(headers).body(ApiResponse.onFailure(errorCode));
     }
 
     // 컨트롤러 파라미터 검증 (클래스 레벨 @Validated 없을 때 스프링 기본 메소드 검증)
@@ -211,14 +207,15 @@ public class GeneralExceptionAdvice extends ResponseEntityExceptionHandler {
         Map<String, String> errors = new HashMap<>();
         ex.getParameterValidationResults().forEach(result -> {
             if (result instanceof ParameterErrors parameterErrors) {
-                parameterErrors.getFieldErrors().forEach(error ->
-                        errors.put(error.getField(), error.getDefaultMessage()));
-                parameterErrors.getGlobalErrors().forEach(error ->
-                        errors.put(GLOBAL_ERROR_KEY, error.getDefaultMessage()));
+                parameterErrors
+                        .getFieldErrors()
+                        .forEach(error -> errors.put(error.getField(), error.getDefaultMessage()));
+                parameterErrors
+                        .getGlobalErrors()
+                        .forEach(error -> errors.put(GLOBAL_ERROR_KEY, error.getDefaultMessage()));
             } else {
                 String parameterName = result.getMethodParameter().getParameterName();
-                result.getResolvableErrors().forEach(error ->
-                        errors.put(parameterName, error.getDefaultMessage()));
+                result.getResolvableErrors().forEach(error -> errors.put(parameterName, error.getDefaultMessage()));
             }
         });
 
@@ -238,12 +235,8 @@ public class GeneralExceptionAdvice extends ResponseEntityExceptionHandler {
             log.error("[{}] {} - {}", ex.getClass().getSimpleName(), statusCode, ex.getMessage(), ex);
         }
 
-        ApiResponse<Void> response = new ApiResponse<>(
-                false,
-                "UNHANDLED_" + ex.getClass().getSimpleName(),
-                "요청을 처리할 수 없습니다.",
-                null
-        );
+        ApiResponse<Void> response =
+                new ApiResponse<>(false, "UNHANDLED_" + ex.getClass().getSimpleName(), "요청을 처리할 수 없습니다.", null);
 
         return super.handleExceptionInternal(ex, response, headers, statusCode, request);
     }
@@ -256,5 +249,4 @@ public class GeneralExceptionAdvice extends ResponseEntityExceptionHandler {
         }
         return root.getClass().getSimpleName();
     }
-
 }

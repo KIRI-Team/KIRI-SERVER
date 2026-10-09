@@ -1,14 +1,13 @@
 package com.kiri.server.domain.term.converter;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import com.kiri.server.domain.term.dto.TermResDTO;
 import com.kiri.server.domain.term.entity.Term;
+import java.time.LocalDateTime;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
-
-import java.time.LocalDateTime;
-
-import static org.assertj.core.api.Assertions.assertThat;
 
 class TermConverterTest {
 

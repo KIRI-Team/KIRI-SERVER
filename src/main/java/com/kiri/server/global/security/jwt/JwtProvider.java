@@ -4,12 +4,11 @@ import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
-import org.springframework.stereotype.Component;
-
-import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.Date;
+import javax.crypto.SecretKey;
+import org.springframework.stereotype.Component;
 
 // JWT 생성 및 파싱
 @Component
@@ -36,8 +35,8 @@ public class JwtProvider {
     }
 
     public Long getMemberIdFromAccessToken(String token) {
-        Claims claims=parseClaims(token);
-        if(!ACCESS_TYPE.equals(claims.get(TOKEN_TYPE_CLAIM, String.class))){
+        Claims claims = parseClaims(token);
+        if (!ACCESS_TYPE.equals(claims.get(TOKEN_TYPE_CLAIM, String.class))) {
             throw new JwtException("access 토큰이 아닙니다.");
         }
         return Long.valueOf(claims.getSubject());

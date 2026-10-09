@@ -9,12 +9,12 @@ import org.springframework.web.bind.annotation.RestController;
 class SecurityTestController {
 
     @GetMapping("/test/security")
-    public String get(){
+    public String get() {
         return "ok";
     }
 
     @PostMapping("/test/security")
-    public String post(){
+    public String post() {
         return "ok";
     }
 }

@@ -1,21 +1,30 @@
 package com.kiri.server.domain.term.entity;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import com.kiri.server.domain.member.entity.Member;
 import com.kiri.server.domain.term.converter.TermConverter;
+import java.time.LocalDateTime;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import static org.assertj.core.api.Assertions.assertThat;
-import java.time.LocalDateTime;
 
 class MemberTermTest {
 
     private final Member member = Member.builder().build();
     private final Term termV1 = Term.builder()
-            .title("서비스 이용약관").shortDescription("요약").description("본문")
-            .isRequired(true).version(1).build();
+            .title("서비스 이용약관")
+            .shortDescription("요약")
+            .description("본문")
+            .isRequired(true)
+            .version(1)
+            .build();
     private final Term termV2 = Term.builder()
-            .title("서비스 이용약관").shortDescription("요약").description("본문")
-            .isRequired(true).version(2).build();
+            .title("서비스 이용약관")
+            .shortDescription("요약")
+            .description("본문")
+            .isRequired(true)
+            .version(2)
+            .build();
 
     @Test
     @DisplayName("현재 버전에 동의한 기록이면 동의한 것으로 판단한다.")

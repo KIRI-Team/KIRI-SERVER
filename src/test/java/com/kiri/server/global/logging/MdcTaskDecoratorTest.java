@@ -1,13 +1,12 @@
 package com.kiri.server.global.logging;
 
+import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
+
+import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.slf4j.MDC;
-
-import java.util.concurrent.atomic.AtomicReference;
-
-import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
 
 public class MdcTaskDecoratorTest {
 
@@ -24,14 +23,12 @@ public class MdcTaskDecoratorTest {
         MDC.put(RequestLoggingFilter.TRACE_ID, "test-trace-id");
         AtomicReference<String> traceIdInSync = new AtomicReference<>();
 
-        Runnable decorated = decorator.decorate(() ->
-                traceIdInSync.set(MDC.get(RequestLoggingFilter.TRACE_ID)));
+        Runnable decorated = decorator.decorate(() -> traceIdInSync.set(MDC.get(RequestLoggingFilter.TRACE_ID)));
         Thread thread = new Thread(decorated);
         thread.start();
         thread.join();
 
         assertThat(traceIdInSync.get()).isEqualTo("test-trace-id");
-
     }
 
     @Test
@@ -40,8 +37,7 @@ public class MdcTaskDecoratorTest {
         MDC.put(RequestLoggingFilter.TRACE_ID, "test-trace-id");
         AtomicReference<String> traceIdAfterRun = new AtomicReference<>();
 
-        Runnable decorated = decorator.decorate(() -> {
-        });
+        Runnable decorated = decorator.decorate(() -> {});
         Thread thread = new Thread(() -> {
             decorated.run();
             traceIdAfterRun.set(MDC.get(RequestLoggingFilter.TRACE_ID));

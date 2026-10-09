@@ -2,18 +2,16 @@ package com.kiri.server.domain.term.repository;
 
 import com.kiri.server.domain.member.entity.Member;
 import com.kiri.server.domain.term.entity.MemberTerm;
+import java.util.List;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
-import java.util.List;
-
 @Repository
 public interface MemberTermRepository extends JpaRepository<MemberTerm, Long> {
 
     List<MemberTerm> findAllByMember(Member member);
-
 
     @Query("""
             SELECT CASE WHEN COUNT(t) = 0 THEN true ELSE false END

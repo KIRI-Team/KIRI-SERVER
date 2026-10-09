@@ -8,6 +8,7 @@ import com.kiri.server.domain.term.service.TermService;
 import com.kiri.server.global.apiPayload.ApiResponse;
 import com.kiri.server.global.apiPayload.code.BaseSuccessCode;
 import jakarta.validation.Valid;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -15,8 +16,6 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
-
-import java.util.List;
 
 @RestController
 @RequiredArgsConstructor
@@ -33,18 +32,14 @@ public class TermController implements TermControllerDocs {
 
     @PostMapping("/agreements")
     public ApiResponse<Void> agree(
-            @AuthenticationPrincipal Long memberId,
-            @Valid @RequestBody TermReqDTO.Agree request
-    ) {
+            @AuthenticationPrincipal Long memberId, @Valid @RequestBody TermReqDTO.Agree request) {
         termService.agree(memberId, request);
         BaseSuccessCode code = TermSuccessCode.AGREE_SUCCESS;
         return ApiResponse.onSuccess(code);
     }
 
     @GetMapping("/agreements")
-    public ApiResponse<TermResDTO.AgreementStatus> getAgreementStatus(
-            @AuthenticationPrincipal Long memberId
-    ) {
+    public ApiResponse<TermResDTO.AgreementStatus> getAgreementStatus(@AuthenticationPrincipal Long memberId) {
         BaseSuccessCode code = TermSuccessCode.AGREEMENT_STATUS_SUCCESS;
         return ApiResponse.onSuccess(code, termService.getAgreementStatus(memberId));
     }

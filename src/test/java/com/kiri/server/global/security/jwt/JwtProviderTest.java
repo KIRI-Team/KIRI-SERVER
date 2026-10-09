@@ -1,14 +1,13 @@
 package com.kiri.server.global.security.jwt;
 
-import io.jsonwebtoken.ExpiredJwtException;
-import io.jsonwebtoken.JwtException;
-import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Test;
-
-import java.time.Duration;
-
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
+import io.jsonwebtoken.ExpiredJwtException;
+import io.jsonwebtoken.JwtException;
+import java.time.Duration;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
 
 class JwtProviderTest {
 
@@ -30,18 +29,17 @@ class JwtProviderTest {
         JwtProvider expiredProvider = createProvider(SECRET, Duration.ofSeconds(-1));
         String token = expiredProvider.createAccessToken(1L);
 
-        assertThatThrownBy(() -> jwtProvider.getMemberIdFromAccessToken(token))
-                .isInstanceOf(ExpiredJwtException.class);
+        assertThatThrownBy(() -> jwtProvider.getMemberIdFromAccessToken(token)).isInstanceOf(ExpiredJwtException.class);
     }
 
     @Test
     @DisplayName("다른 키로 서명된 토큰은 JwtException이 발생한다.")
     void invalidSignature() {
-        JwtProvider otherProvider = createProvider("other-secret-key-for-jwt-must-be-at-least-32-bytes", Duration.ofMinutes(30));
+        JwtProvider otherProvider =
+                createProvider("other-secret-key-for-jwt-must-be-at-least-32-bytes", Duration.ofMinutes(30));
         String token = otherProvider.createAccessToken(1L);
 
-        assertThatThrownBy(() -> jwtProvider.getMemberIdFromAccessToken(token))
-                .isInstanceOf(JwtException.class);
+        assertThatThrownBy(() -> jwtProvider.getMemberIdFromAccessToken(token)).isInstanceOf(JwtException.class);
     }
 
     @Test
@@ -49,8 +47,7 @@ class JwtProviderTest {
     void refreshTokenRejected() {
         String token = jwtProvider.createRefreshToken(1L);
 
-        assertThatThrownBy(() -> jwtProvider.getMemberIdFromAccessToken(token))
-                .isInstanceOf(JwtException.class);
+        assertThatThrownBy(() -> jwtProvider.getMemberIdFromAccessToken(token)).isInstanceOf(JwtException.class);
     }
 
     @Test

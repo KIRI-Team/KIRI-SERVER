@@ -12,12 +12,12 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
+import java.time.LocalDateTime;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-import java.time.LocalDateTime;
 
 // family_id(가족 FK)는 Family 엔티티 생성 시 연관관계로 추가 예정
 @Entity
@@ -27,11 +27,10 @@ import java.time.LocalDateTime;
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
 @Table(
         name = "member",
-        uniqueConstraints = @UniqueConstraint(
-                name = "uk_member_social",
-                columnNames = {"social_provider", "social_provider_uid"}
-        )
-)
+        uniqueConstraints =
+                @UniqueConstraint(
+                        name = "uk_member_social",
+                        columnNames = {"social_provider", "social_provider_uid"}))
 public class Member extends BaseEntity {
 
     @Id

@@ -4,12 +4,10 @@ import com.kiri.server.domain.member.entity.Member;
 import com.kiri.server.domain.term.dto.TermResDTO;
 import com.kiri.server.domain.term.entity.MemberTerm;
 import com.kiri.server.domain.term.entity.Term;
-
 import java.time.LocalDateTime;
 import java.util.List;
 
 public class TermConverter {
-
 
     public static TermResDTO.Info toInfo(Term term) {
         LocalDateTime lastModifiedAt = term.getUpdatedAt() != null ? term.getUpdatedAt() : term.getCreatedAt();

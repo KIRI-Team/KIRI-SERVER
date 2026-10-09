@@ -15,6 +15,5 @@ import org.springframework.web.bind.annotation.RestController;
 public class ValidatedTestController {
 
     @GetMapping("/test/validated-param")
-    void validatedParam(@RequestParam @Min(value=1, message="1 이상이어야 합니다.") Integer page){
-    }
+    void validatedParam(@RequestParam @Min(value = 1, message = "1 이상이어야 합니다.") Integer page) {}
 }

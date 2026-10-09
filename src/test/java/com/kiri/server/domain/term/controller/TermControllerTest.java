@@ -1,5 +1,16 @@
 package com.kiri.server.domain.term.controller;
 
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.willThrow;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
 import com.kiri.server.domain.term.dto.TermResDTO;
 import com.kiri.server.domain.term.exception.TermException;
 import com.kiri.server.domain.term.exception.code.TermErrorCode;
@@ -8,6 +19,8 @@ import com.kiri.server.global.config.SecurityConfig;
 import com.kiri.server.global.security.handler.CustomAccessDeniedHandler;
 import com.kiri.server.global.security.handler.CustomAuthenticationEntryPoint;
 import com.kiri.server.global.security.jwt.JwtProvider;
+import java.time.LocalDateTime;
+import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -20,22 +33,9 @@ import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
-import java.time.LocalDateTime;
-import java.util.List;
-
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.BDDMockito.given;
-import static org.mockito.BDDMockito.willThrow;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
-
 @WebMvcTest(TermController.class)
-@Import({SecurityConfig.class, CustomAuthenticationEntryPoint.class, CustomAccessDeniedHandler.class, JwtProvider.class})
+@Import({SecurityConfig.class, CustomAuthenticationEntryPoint.class, CustomAccessDeniedHandler.class, JwtProvider.class
+})
 @TestPropertySource(properties = "jwt.secret=" + TermControllerTest.SECRET)
 class TermControllerTest {
 
@@ -79,8 +79,7 @@ class TermControllerTest {
                 .build();
         given(termService.getTerms()).willReturn(List.of(info));
 
-        mockMvc.perform(get("/api/v1/terms")
-                        .header(HttpHeaders.AUTHORIZATION, bearerToken))
+        mockMvc.perform(get("/api/v1/terms").header(HttpHeaders.AUTHORIZATION, bearerToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value("TERM200_1"))
                 .andExpect(jsonPath("$.result[0].termId").value(1))
@@ -131,7 +130,8 @@ class TermControllerTest {
     @DisplayName("필수 약관 미동의 예외가 발생하면 TERM400_1로 응답한다.")
     void agree_requiredNotAgreed() throws Exception {
         willThrow(new TermException(TermErrorCode.REQUIRED_NOT_AGREED))
-                .given(termService).agree(eq(MEMBER_ID), any());
+                .given(termService)
+                .agree(eq(MEMBER_ID), any());
 
         mockMvc.perform(post("/api/v1/terms/agreements")
                         .header(HttpHeaders.AUTHORIZATION, bearerToken)
@@ -147,13 +147,18 @@ class TermControllerTest {
         TermResDTO.AgreementStatus agreementStatus = TermResDTO.AgreementStatus.builder()
                 .termsAgreed(true)
                 .agreements(List.of(
-                        TermResDTO.AgreementInfo.builder().termId(1L).isAgreed(true).build(),
-                        TermResDTO.AgreementInfo.builder().termId(2L).isAgreed(false).build()))
+                        TermResDTO.AgreementInfo.builder()
+                                .termId(1L)
+                                .isAgreed(true)
+                                .build(),
+                        TermResDTO.AgreementInfo.builder()
+                                .termId(2L)
+                                .isAgreed(false)
+                                .build()))
                 .build();
         given(termService.getAgreementStatus(MEMBER_ID)).willReturn(agreementStatus);
 
-        mockMvc.perform(get("/api/v1/terms/agreements")
-                        .header(HttpHeaders.AUTHORIZATION, bearerToken))
+        mockMvc.perform(get("/api/v1/terms/agreements").header(HttpHeaders.AUTHORIZATION, bearerToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value("TERM200_3"))
                 .andExpect(jsonPath("$.result.termsAgreed").value(true))

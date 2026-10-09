@@ -1,5 +1,14 @@
 package com.kiri.server.domain.term.service;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.tuple;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+
 import com.kiri.server.domain.member.entity.Member;
 import com.kiri.server.domain.member.exception.MemberException;
 import com.kiri.server.domain.member.exception.code.MemberErrorCode;
@@ -13,6 +22,9 @@ import com.kiri.server.domain.term.exception.TermException;
 import com.kiri.server.domain.term.exception.code.TermErrorCode;
 import com.kiri.server.domain.term.repository.MemberTermRepository;
 import com.kiri.server.domain.term.repository.TermRepository;
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Optional;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -20,19 +32,6 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-
-import java.time.LocalDateTime;
-import java.util.List;
-import java.util.Optional;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.assertj.core.api.Assertions.tuple;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.BDDMockito.given;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
 
 @ExtendWith(MockitoExtension.class)
 class TermServiceTest {
@@ -158,9 +157,7 @@ class TermServiceTest {
         assertThat(status.termsAgreed()).isFalse();
         assertThat(status.agreements())
                 .extracting(TermResDTO.AgreementInfo::termId, TermResDTO.AgreementInfo::isAgreed)
-                .containsExactly(
-                        tuple(1L, false),
-                        tuple(2L, false));
+                .containsExactly(tuple(1L, false), tuple(2L, false));
     }
 
     @Test

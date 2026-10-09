@@ -1,5 +1,10 @@
 package com.kiri.server.global.apiPayload.handler;
 
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -7,11 +12,6 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
-
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest({ExceptionTestController.class, ValidatedTestController.class})
 @AutoConfigureMockMvc(addFilters = false)
@@ -45,8 +45,7 @@ class GeneralExceptionAdviceTest {
     @Test
     @DisplayName("@ModelAttribute @Valid 검증 실패 시 result에 필드별 에러 메시지를 담는다.")
     void methodArgumentNotValid_modelAttribute() throws Exception {
-        mockMvc.perform(get("/test/model-attribute")
-                        .param("name", ""))
+        mockMvc.perform(get("/test/model-attribute").param("name", ""))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("COMMON400_1"))
                 .andExpect(jsonPath("$.result.name").value("이름은 필수입니다."));
@@ -66,8 +65,7 @@ class GeneralExceptionAdviceTest {
     @Test
     @DisplayName("@Validated 컨트롤러의 파라미터 검증 실패 시 result에 파라미터별 에러 메시지를 담는다.")
     void constraintViolation() throws Exception {
-        mockMvc.perform(get("/test/validated-param")
-                        .param("page", "0"))
+        mockMvc.perform(get("/test/validated-param").param("page", "0"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("COMMON400_1"))
                 .andExpect(jsonPath("$.result.page").value("1 이상이어야 합니다."));
@@ -76,8 +74,7 @@ class GeneralExceptionAdviceTest {
     @Test
     @DisplayName("@Validated 없는 컨트롤러의 파라미터 검증 실패 시 result에 파라미터별 에러 메시지를 담는다.")
     void handlerMethodValidation() throws Exception {
-        mockMvc.perform(get("/test/param")
-                        .param("page", "0"))
+        mockMvc.perform(get("/test/param").param("page", "0"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("COMMON400_1"))
                 .andExpect(jsonPath("$.result.page").value("1 이상이어야 합니다."));
@@ -141,8 +138,7 @@ class GeneralExceptionAdviceTest {
     @Test
     @DisplayName("파라미터 타입이 맞지 않으면 400으로 응답한다.")
     void typeMismatch() throws Exception {
-        mockMvc.perform(get("/test/param")
-                        .param("page", "abc"))
+        mockMvc.perform(get("/test/param").param("page", "abc"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("COMMON400_1"));
     }
@@ -150,9 +146,7 @@ class GeneralExceptionAdviceTest {
     @Test
     @DisplayName("지원하지 않는 Content-Type이면 415로 응답한다.")
     void httpMediaTypeNotSupported() throws Exception {
-        mockMvc.perform(post("/test/valid")
-                        .contentType(MediaType.TEXT_PLAIN)
-                        .content("name"))
+        mockMvc.perform(post("/test/valid").contentType(MediaType.TEXT_PLAIN).content("name"))
                 .andExpect(status().isUnsupportedMediaType())
                 .andExpect(jsonPath("$.code").value("COMMON415_1"));
     }

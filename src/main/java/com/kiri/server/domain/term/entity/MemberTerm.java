@@ -12,13 +12,12 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
+import java.time.LocalDateTime;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-
-import java.time.LocalDateTime;
 
 @Entity
 @Getter
@@ -28,9 +27,10 @@ import java.time.LocalDateTime;
 @Table(
         name = "member_term",
         uniqueConstraints = {
-                @UniqueConstraint(name = "uk_member_term", columnNames = {"member_id", "term_id"})
-        }
-)
+            @UniqueConstraint(
+                    name = "uk_member_term",
+                    columnNames = {"member_id", "term_id"})
+        })
 public class MemberTerm extends BaseEntity {
 
     @Id

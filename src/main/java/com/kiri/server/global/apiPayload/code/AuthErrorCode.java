@@ -6,7 +6,7 @@ import org.springframework.http.HttpStatus;
 
 @Getter
 @RequiredArgsConstructor
-public enum AuthErrorCode implements BaseErrorCode{
+public enum AuthErrorCode implements BaseErrorCode {
 
     // 401 Unauthorized (인증 실패)
     INVALID_TOKEN(HttpStatus.UNAUTHORIZED, "AUTH401_1", "유효하지 않은 토큰입니다."),

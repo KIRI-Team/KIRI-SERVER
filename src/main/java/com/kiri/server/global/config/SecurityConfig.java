@@ -25,17 +25,17 @@ public class SecurityConfig {
     private final JwtProvider jwtProvider;
 
     // 인증 없이 접근 가능한 경로
-    private final static String[] PUBLIC_URLS = {
-            // 처리되지 않은 예외 포워딩
-            "/error",
-            // Swagger
-            "/swagger-ui.html",
-            "/swagger-ui/**",
-            "/v3/api-docs/**",
-            // 헬스 체크
-            "/actuator/health",
-            // 배포 버전 확인
-            "/actuator/info",
+    private static final String[] PUBLIC_URLS = {
+        // 처리되지 않은 예외 포워딩
+        "/error",
+        // Swagger
+        "/swagger-ui.html",
+        "/swagger-ui/**",
+        "/v3/api-docs/**",
+        // 헬스 체크
+        "/actuator/health",
+        // 배포 버전 확인
+        "/actuator/info",
     };
 
     @Bean
@@ -45,15 +45,13 @@ public class SecurityConfig {
                 .csrf(AbstractHttpConfigurer::disable)
                 .formLogin(AbstractHttpConfigurer::disable)
                 .httpBasic(AbstractHttpConfigurer::disable)
-
-                .sessionManagement(session -> session
-                        .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-
-                .authorizeHttpRequests(auth -> auth
-                        .requestMatchers(PUBLIC_URLS).permitAll()
-                        .anyRequest().authenticated())
-                .exceptionHandling(ex -> ex.authenticationEntryPoint(authenticationEntryPoint)
-                        .accessDeniedHandler(accessDeniedHandler))
+                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .authorizeHttpRequests(auth -> auth.requestMatchers(PUBLIC_URLS)
+                        .permitAll()
+                        .anyRequest()
+                        .authenticated())
+                .exceptionHandling(ex ->
+                        ex.authenticationEntryPoint(authenticationEntryPoint).accessDeniedHandler(accessDeniedHandler))
                 .addFilterBefore(new JwtAuthFilter(jwtProvider), UsernamePasswordAuthenticationFilter.class);
         return http.build();
     }

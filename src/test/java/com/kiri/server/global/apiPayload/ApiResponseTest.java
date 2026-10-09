@@ -1,12 +1,12 @@
 package com.kiri.server.global.apiPayload;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import com.kiri.server.global.apiPayload.code.GeneralErrorCode;
 import com.kiri.server.global.apiPayload.code.GeneralSuccessCode;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import tools.jackson.databind.json.JsonMapper;
-
-import static org.assertj.core.api.Assertions.assertThat;
 
 class ApiResponseTest {
 
@@ -61,6 +61,8 @@ class ApiResponseTest {
     void serialize_keyOrderAndNoDuplicateSuccess() {
         String json = jsonMapper.writeValueAsString(ApiResponse.onSuccess(GeneralSuccessCode.OK));
 
-        assertThat(json).isEqualTo("{\"isSuccess\":true,\"code\":\"COMMON200_1\",\"message\":\"성공적으로 요청을 처리했습니다.\",\"result\":null}");
+        assertThat(json)
+                .isEqualTo(
+                        "{\"isSuccess\":true,\"code\":\"COMMON200_1\",\"message\":\"성공적으로 요청을 처리했습니다.\",\"result\":null}");
     }
 }
