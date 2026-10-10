@@ -37,6 +37,11 @@ ls src/main/resources/db/migration/
 - 테이블·컬럼명은 엔티티의 `@Table`, `@Column(name)`과 정확히 같게
 - `nullable = false`면 `NOT NULL`, 엔티티의 `@UniqueConstraint(name)`과 같은 이름으로 `CONSTRAINT uk_...`
 - 테이블 위에 `-- 한글 설명` 한 줄
+- 글자 수 제한은 기획 값 그대로 `VARCHAR(n)`으로 쓰고 요청 DTO `@Size(max = n)`과 맞춤. n은 바이트가 아니라 글자 수라 512 같은 2의 거듭제곱으로 맞출 이유 없음
+  - 기획이 정해지지 않았으면 TEXT보다 임시 제한으로 시작 (`VARCHAR` 늘리기는 즉시 끝나지만, TEXT에 제한을 걸려면 초과 데이터부터 정리해야 함)
+  - `columnDefinition = "TEXT"`면 `length`는 무시됨. 둘을 같이 쓰지 않음
+- PostgreSQL UNIQUE는 NULL끼리 중복으로 보지 않음. nullable 컬럼(예: `fixed_day`)에 걸어도 null 행은 여러 개 가능
+- 두 테이블이 서로를 `NOT NULL` FK로 참조하면 어느 쪽도 먼저 INSERT할 수 없음 (예: `family.owner_id` ↔ `member.family_id`). 한쪽은 nullable로
 
 ```sql
 -- 질문
@@ -68,5 +73,6 @@ CREATE TABLE question
 2. `./gradlew test` 실행. `KiriServerApplicationTests`가 앱을 띄우면서 Flyway 적용과 `ddl-auto: validate`를 같이 검증
 3. 실패 메시지별 원인
    - `Schema-validation: missing column` / `wrong column type`: 엔티티와 DDL의 이름·타입 불일치
+   - `Unable to create unique key constraint ... column not found`: `@UniqueConstraint`의 `columnNames`에 필드명을 썼거나 `{"a, b"}`처럼 한 문자열로 묶음
    - `checksum mismatch`: 이미 적용한 파일을 수정함. 아직 dev에 반영 안 된 파일이면 `docker compose down -v` 후 재실행
 4. DB를 띄울 수 없으면 검증하지 못했다는 사실을 보고에 남김

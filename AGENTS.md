@@ -51,7 +51,7 @@ global/               # 공통 설정, 응답 포맷, 예외 처리, 보안, 로
 - `@NoArgsConstructor(access = PROTECTED)`, `@Builder` + `@AllArgsConstructor(access = PRIVATE)`
 - ID 필드명은 `id`, 컬럼명은 `@Column(name = "{엔티티}_id")`. 테이블·컬럼명은 snake_case로 명시
 - 연관관계는 `fetch = FetchType.LAZY` (검사), enum은 `@Enumerated(EnumType.STRING)` (검사)
-- 유니크 제약은 이름을 붙임 (`uk_{테이블}_{설명}`)
+- 유니크 제약은 이름을 붙임 (`uk_{테이블}_{설명}`). 제약·컬럼 주석 등 세부 규칙은 new-domain 스킬
 - `@Data`, `@ToString`, `@EqualsAndHashCode` 금지 (지연 로딩 연관관계를 건드려 쿼리·순환 참조 발생)
 
 **DTO / Converter**
@@ -70,6 +70,7 @@ global/               # 공통 설정, 응답 포맷, 예외 처리, 보안, 로
 **Service / 트랜잭션**
 - 의존성은 생성자 주입만 (`@RequiredArgsConstructor` + `private final`). 필드 `@Autowired` 금지
 - DB를 쓰는 메서드는 `@Transactional`, 조회만 하면 `@Transactional(readOnly = true)`
+  - `open-in-view: false`라서 LAZY 연관관계는 트랜잭션 안에서만 읽힘. Converter 변환도 Service 트랜잭션 안에서 호출
 - 외부 API 호출은 트랜잭션 밖에서 합니다 (검사). 외부 응답을 기다리는 동안 DB 커넥션을 점유하지 않기 위함
   - 외부 연동 클래스는 `client` 패키지에 둠 (예: `domain/auth/client/KakaoClient`). `@Transactional` 메서드에서 `..client..` 패키지(RestClient, WebClient 포함) 호출 시 실패
   - 로그인처럼 외부 검증 후 DB에 저장하는 흐름은 트랜잭션 없는 메서드에서 외부 호출 → `@Transactional` Service 호출 순서로
@@ -91,8 +92,8 @@ global/               # 공통 설정, 응답 포맷, 예외 처리, 보안, 로
 **기타**
 - `jakarta.persistence`, `jakarta.validation` 사용 (`javax.*` 금지, 단 `javax.crypto` 등 JDK 패키지는 허용)
 - 로그: 4xx는 `log.warn`, 예상치 못한 5xx만 `log.error`. 토큰, 비밀번호, 이메일 등 개인정보는 로그에 남기지 않음. `System.out` 금지
-- 시간은 `LocalDateTime`, 서버·DB 모두 `Asia/Seoul` 기준
-- 와일드카드 import(`import jakarta.persistence.*;`) 금지
+- 시간은 `LocalDateTime`, 서버·DB 모두 `Asia/Seoul` 기준. "오늘" 판단은 서버 시간대에 의존하지 않도록 `LocalDate.now(ZoneId.of("Asia/Seoul"))`
+- 와일드카드 import(`import jakarta.persistence.*;`) 금지 (IntelliJ 자동 합치기 설정은 [docs/local-setup.md](docs/local-setup.md))
 - 주석은 한국어로, "왜"가 코드만으로 드러나지 않는 곳에만 짧게
 
 ## DB 마이그레이션
@@ -122,8 +123,12 @@ global/               # 공통 설정, 응답 포맷, 예외 처리, 보안, 로
 
 - 브랜치: develop에서 `{type}/#{이슈번호}-{kebab-case 설명}` (예: `feat/#12-user-signup`)
 - 커밋: `{type}: {한국어 설명}`. type은 `feat`, `fix`, `refactor`, `docs`, `chore`, `init`, `test`
+  - 설명은 명사형으로 끝내고 마침표 없이 제목 한 줄 (`feat: 오늘의 질문 조회 API 추가`)
+  - `Co-Authored-By` 등 AI 서명을 붙이지 않음
 - 커밋은 하나의 목적만 갖는 단위로 나눔 (예: 엔티티+Repository / API 구현 / 테스트)
 - PR: 제목 `[type] 요약`, `.github/PULL_REQUEST_TEMPLATE.md` 사용, 본문에 `Closes #{이슈번호}`
+- 커밋하지 않은 변경이 있으면 브랜치 전환, `git reset --hard`, `git stash` 전에 먼저 물어보기. `git add`만 한 새 파일은 `reset --hard`로 작업 폴더에서 삭제됨
+- 다른 브랜치의 파일은 전환하지 않고 `git show {브랜치}:{경로}`로 읽거나 `git worktree`로 따로 꺼내서 작업
 
 ## 완료 조건
 
@@ -134,6 +139,7 @@ global/               # 공통 설정, 응답 포맷, 예외 처리, 보안, 로
 - [ ] 엔티티를 바꿨다면 마이그레이션 파일 추가
 - [ ] 새 API라면 Docs 인터페이스, SuccessCode/ErrorCode, Controller·Service 테스트까지 작성
 - [ ] 실행하지 못한 검사가 있으면 그 사실과 이유를 함께 보고
+- [ ] 검사가 실제로 실행됐는지 결과(`BUILD SUCCESSFUL`, 테스트 수)로 확인. 출력이 비었거나 필터링해서 안 보인다고 통과로 보고하지 않음
 
 ## 작업 경계
 
@@ -161,7 +167,7 @@ global/               # 공통 설정, 응답 포맷, 예외 처리, 보안, 로
 
 | 스킬 | 언제 |
 |---|---|
-| [new-domain](.agents/skills/new-domain/SKILL.md) | 새 도메인·API 추가 |
+| [new-domain](.agents/skills/new-domain/SKILL.md) | 새 도메인·API 추가, 엔티티·Repository·DTO·Converter 작성·수정 |
 | [flyway-migration](.agents/skills/flyway-migration/SKILL.md) | 엔티티 변경으로 스키마를 바꿀 때 |
 | [write-tests](.agents/skills/write-tests/SKILL.md) | 테스트 작성·수정 |
 

@@ -150,3 +150,7 @@ docker compose up -d
 ### DataGrip, IntelliJ에서 `SHOW timezone`이 UTC로 나오는 경우
 
 DB 설정 문제가 아니라 DataGrip, IntelliJ가 접속할 때 세션 타임존을 UTC로 덮어쓰기 때문입니다. 데이터소스 Properties → Advanced → VM options에 `-Duser.timezone=Asia/Seoul`을 입력하고 다시 연결하세요.
+
+### IntelliJ가 import를 `jakarta.persistence.*`로 합치는 경우
+
+같은 패키지에서 import가 5개를 넘으면 IntelliJ가 자동으로 와일드카드로 합칩니다. 팀 규칙상 와일드카드 import는 금지이므로 Settings → Editor → Code Style → Java → Imports에서 `Class count to use import with '*'`와 `Names count to use static import with '*'`를 `99`로 올리세요.
