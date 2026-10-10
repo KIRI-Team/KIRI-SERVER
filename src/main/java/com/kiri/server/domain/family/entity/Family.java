@@ -1,5 +1,6 @@
 package com.kiri.server.domain.family.entity;
 
+import com.kiri.server.domain.member.entity.Member;
 import com.kiri.server.global.entity.BaseEntity;
 import jakarta.persistence.*;
 import lombok.*;
@@ -11,6 +12,7 @@ import java.time.LocalDateTime;
 @Table(
         name = "family",
         uniqueConstraints = {
+                @UniqueConstraint(name = "uk_family_owner", columnNames = {"owner_id"}),
                 @UniqueConstraint(name = "uk_family_name", columnNames = { "name" }),
                 @UniqueConstraint(name = "uk_family_invite_code", columnNames = {"invite_code"}),
                 @UniqueConstraint(name = "uk_family_invite_token", columnNames = { "invite_token" })
@@ -26,6 +28,10 @@ public class Family extends BaseEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "family_id")
     private Long id;
+
+    @OneToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "owner_id", nullable = false, unique = true)
+    private Member member;
 
     @Column(name = "name", nullable = false)
     private String name;
