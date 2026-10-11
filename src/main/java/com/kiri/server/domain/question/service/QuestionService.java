@@ -18,20 +18,18 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Clock;
 import java.time.LocalDate;
-import java.time.ZoneId;
 import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
 public class QuestionService {
 
-    // 서버 시간대 설정과 무관하게 한국 자정 기준으로 "오늘"을 판단
-    private static final ZoneId KST = ZoneId.of("Asia/Seoul");
-
     private final MemberRepository memberRepository;
     private final FamilyQuestionRepository familyQuestionRepository;
     private final MemberAnswerRepository memberAnswerRepository;
+    private final Clock clock;
 
     @Transactional(readOnly = true)
     public QuestionResDTO.TodayQuestion getTodayQuestion(Long memberId) {
@@ -45,7 +43,7 @@ public class QuestionService {
             return QuestionConverter.toNoFamily();
         }
 
-        LocalDate today = LocalDate.now(KST);
+        LocalDate today = LocalDate.now(clock);
 
         FamilyQuestion familyQuestion = familyQuestionRepository.findByFamilyAndQuestionDate(family, today)
                 .orElseThrow(() -> new QuestionException(QuestionErrorCode.TODAY_QUESTION_NOT_FOUND));
@@ -72,7 +70,7 @@ public class QuestionService {
         }
 
         // 답변 작성/수정은 질문이 배정된 당일에만 가능
-        if (!familyQuestion.getQuestionDate().equals(LocalDate.now(KST))) {
+        if (!familyQuestion.getQuestionDate().equals(LocalDate.now(clock))) {
             throw new QuestionException(QuestionErrorCode.ANSWER_PERIOD_EXPIRED);
         }
 
