@@ -4,7 +4,7 @@ variable "name_prefix" {
 }
 
 variable "github_repo" {
-  description = "배포 Role을 사용할 GitHub 레포 (owner/repo)"
+  description = "배포 Role을 사용할 GitHub 레포 (owner@owner_id/repo@repo_id)"
   type        = string
 }
 
