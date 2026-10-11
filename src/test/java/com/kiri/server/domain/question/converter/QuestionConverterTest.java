@@ -1,11 +1,14 @@
 package com.kiri.server.domain.question.converter;
 
+import com.kiri.server.domain.member.entity.Member;
 import com.kiri.server.domain.question.dto.QuestionResDTO;
 import com.kiri.server.domain.question.entity.FamilyQuestion;
+import com.kiri.server.domain.question.entity.Poke;
 import com.kiri.server.domain.question.entity.Question;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import java.time.LocalDate;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -34,5 +37,19 @@ class QuestionConverterTest {
         assertThat(result.questionId()).isNull();
         assertThat(result.question()).isNull();
         assertThat(result.answer()).isNull();
+    }
+
+    @Test
+    @DisplayName("찌르기 엔티티는 보낸 사람, 받은 사람, 찌른 날짜를 그대로 담는다.")
+    void toPoke() {
+        Member sender = Member.builder().id(1L).build();
+        Member receiver = Member.builder().id(2L).build();
+        LocalDate pokeDate = LocalDate.of(2026, 10, 10);
+
+        Poke result = QuestionConverter.toPoke(sender, receiver, pokeDate);
+
+        assertThat(result.getSender()).isEqualTo(sender);
+        assertThat(result.getReceiver()).isEqualTo(receiver);
+        assertThat(result.getPokeDate()).isEqualTo(pokeDate);
     }
 }
