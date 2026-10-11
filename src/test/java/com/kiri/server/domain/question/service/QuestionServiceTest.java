@@ -14,14 +14,16 @@ import com.kiri.server.domain.question.exception.QuestionException;
 import com.kiri.server.domain.question.exception.code.QuestionErrorCode;
 import com.kiri.server.domain.question.repository.FamilyQuestionRepository;
 import com.kiri.server.domain.question.repository.MemberAnswerRepository;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.time.Clock;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.Optional;
@@ -51,20 +53,26 @@ class QuestionServiceTest {
     @Mock
     private MemberAnswerRepository memberAnswerRepository;
 
-    @InjectMocks
     private QuestionService questionService;
+
+    private final Clock clock = Clock.fixed(Instant.parse("2026-10-10T03:00:00Z"), ZoneId.of("Asia/Seoul"));
 
     private final Family family = Family.builder().id(1L).name("행복한 우리집").build();
     private final Member member = Member.builder().id(MEMBER_ID).family(family).build();
     private final Question question = Question.builder().id(100L).content("오늘 가장 웃겼던 일은?").build();
-    // 답변은 당일에만 가능하므로 서비스와 같은 기준(한국 시간)의 오늘로 배정
-    private final LocalDate today = LocalDate.now(ZoneId.of("Asia/Seoul"));
+    private final LocalDate today = LocalDate.now(clock);
     private final FamilyQuestion familyQuestion = FamilyQuestion.builder()
             .id(FAMILY_QUESTION_ID)
             .family(family)
             .question(question)
             .questionDate(today)
             .build();
+
+    @BeforeEach
+    void setUp() {
+        questionService = new QuestionService(
+                memberRepository, familyQuestionRepository, memberAnswerRepository, clock);
+    }
 
     @Test
     @DisplayName("존재하지 않는 회원이면 MEMBER404_1 예외가 발생한다.")
