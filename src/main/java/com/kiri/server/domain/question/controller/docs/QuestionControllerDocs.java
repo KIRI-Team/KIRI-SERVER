@@ -524,6 +524,6 @@ public interface QuestionControllerDocs {
     })
     ApiResponse<Void> poke(
             @Parameter(hidden = true) Long memberId,
-            @Parameter(name = "memberId", description = "찌를 가족 구성원의 회원 ID", example = "2") Long targetId
+            @Parameter(name = "memberId", description = "찌를 가족 구성원의 회원 ID", example = "2") Long receiverId
     );
 }

@@ -50,9 +50,9 @@ public class QuestionController implements QuestionControllerDocs {
     @PostMapping("/today/members/{memberId}/pokes")
     public ApiResponse<Void> poke(
             @AuthenticationPrincipal Long memberId,
-            @PathVariable("memberId") Long targetId
+            @PathVariable("memberId") Long receiverId
     ) {
-        questionService.poke(memberId, targetId);
+        questionService.poke(memberId, receiverId);
         BaseSuccessCode code = QuestionSuccessCode.POKE;
         return ApiResponse.onSuccess(code);
     }

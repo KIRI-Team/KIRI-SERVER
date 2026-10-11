@@ -49,7 +49,7 @@ class QuestionServiceTest {
 
     private static final Long MEMBER_ID = 1L;
     private static final Long FAMILY_QUESTION_ID = 10L;
-    private static final Long TARGET_ID = 2L;
+    private static final Long RECEIVER_ID = 2L;
     private static final QuestionReqDTO.WriteAnswer WRITE_REQUEST =
             new QuestionReqDTO.WriteAnswer("강아지가 산책하다 넘어졌어요.");
 
@@ -74,7 +74,7 @@ class QuestionServiceTest {
 
     private final Family family = Family.builder().id(1L).name("행복한 우리집").build();
     private final Member member = Member.builder().id(MEMBER_ID).family(family).build();
-    private final Member target = Member.builder().id(TARGET_ID).family(family).build();
+    private final Member receiver = Member.builder().id(RECEIVER_ID).family(family).build();
     private final Question question = Question.builder().id(100L).content("오늘 가장 웃겼던 일은?").build();
     private final LocalDate today = LocalDate.now(clock);
     private final FamilyQuestion familyQuestion = FamilyQuestion.builder()
@@ -411,7 +411,7 @@ class QuestionServiceTest {
     void poke_memberNotFound() {
         given(memberRepository.findById(MEMBER_ID)).willReturn(Optional.empty());
 
-        assertThatThrownBy(() -> questionService.poke(MEMBER_ID, TARGET_ID))
+        assertThatThrownBy(() -> questionService.poke(MEMBER_ID, RECEIVER_ID))
                 .isInstanceOf(MemberException.class)
                 .extracting("errorCode")
                 .isEqualTo(MemberErrorCode.NOT_FOUND);
@@ -423,61 +423,61 @@ class QuestionServiceTest {
         Member memberWithoutFamily = Member.builder().id(MEMBER_ID).build();
         given(memberRepository.findById(MEMBER_ID)).willReturn(Optional.of(memberWithoutFamily));
 
-        assertThatThrownBy(() -> questionService.poke(MEMBER_ID, TARGET_ID))
+        assertThatThrownBy(() -> questionService.poke(MEMBER_ID, RECEIVER_ID))
                 .isInstanceOf(QuestionException.class)
                 .extracting("errorCode")
                 .isEqualTo(QuestionErrorCode.FAMILY_REQUIRED);
-        verify(memberRepository, never()).findById(TARGET_ID);
+        verify(memberRepository, never()).findById(RECEIVER_ID);
     }
 
     @Test
     @DisplayName("찌를 대상이 존재하지 않는 회원이면 QUESTION404_3 예외가 발생한다.")
-    void poke_targetNotFound() {
+    void poke_receiverNotFound() {
         given(memberRepository.findById(MEMBER_ID)).willReturn(Optional.of(member));
-        given(memberRepository.findById(TARGET_ID)).willReturn(Optional.empty());
+        given(memberRepository.findById(RECEIVER_ID)).willReturn(Optional.empty());
 
-        assertThatThrownBy(() -> questionService.poke(MEMBER_ID, TARGET_ID))
+        assertThatThrownBy(() -> questionService.poke(MEMBER_ID, RECEIVER_ID))
                 .isInstanceOf(QuestionException.class)
                 .extracting("errorCode")
-                .isEqualTo(QuestionErrorCode.POKE_TARGET_NOT_FOUND);
+                .isEqualTo(QuestionErrorCode.POKE_RECEIVER_NOT_FOUND);
     }
 
     @Test
     @DisplayName("다른 가족의 회원을 찌르면 없는 회원과 같은 QUESTION404_3 예외가 발생하고 저장하지 않는다.")
-    void poke_targetOtherFamily() {
+    void poke_receiverOtherFamily() {
         Family otherFamily = Family.builder().id(2L).name("옆집").build();
-        Member otherFamilyMember = Member.builder().id(TARGET_ID).family(otherFamily).build();
+        Member otherFamilyMember = Member.builder().id(RECEIVER_ID).family(otherFamily).build();
         given(memberRepository.findById(MEMBER_ID)).willReturn(Optional.of(member));
-        given(memberRepository.findById(TARGET_ID)).willReturn(Optional.of(otherFamilyMember));
+        given(memberRepository.findById(RECEIVER_ID)).willReturn(Optional.of(otherFamilyMember));
 
-        assertThatThrownBy(() -> questionService.poke(MEMBER_ID, TARGET_ID))
+        assertThatThrownBy(() -> questionService.poke(MEMBER_ID, RECEIVER_ID))
                 .isInstanceOf(QuestionException.class)
                 .extracting("errorCode")
-                .isEqualTo(QuestionErrorCode.POKE_TARGET_NOT_FOUND);
+                .isEqualTo(QuestionErrorCode.POKE_RECEIVER_NOT_FOUND);
         verify(pokeRepository, never()).save(any());
     }
 
     @Test
     @DisplayName("가족이 없는 회원을 찌르면 QUESTION404_3 예외가 발생한다.")
-    void poke_targetNoFamily() {
-        Member targetWithoutFamily = Member.builder().id(TARGET_ID).build();
+    void poke_receiverNoFamily() {
+        Member receiverWithoutFamily = Member.builder().id(RECEIVER_ID).build();
         given(memberRepository.findById(MEMBER_ID)).willReturn(Optional.of(member));
-        given(memberRepository.findById(TARGET_ID)).willReturn(Optional.of(targetWithoutFamily));
+        given(memberRepository.findById(RECEIVER_ID)).willReturn(Optional.of(receiverWithoutFamily));
 
-        assertThatThrownBy(() -> questionService.poke(MEMBER_ID, TARGET_ID))
+        assertThatThrownBy(() -> questionService.poke(MEMBER_ID, RECEIVER_ID))
                 .isInstanceOf(QuestionException.class)
                 .extracting("errorCode")
-                .isEqualTo(QuestionErrorCode.POKE_TARGET_NOT_FOUND);
+                .isEqualTo(QuestionErrorCode.POKE_RECEIVER_NOT_FOUND);
     }
 
     @Test
     @DisplayName("오늘 이미 찌른 대상이면 QUESTION409_1 예외가 발생하고 저장하지 않으며 이벤트도 발행하지 않는다.")
     void poke_alreadyPoked() {
         given(memberRepository.findById(MEMBER_ID)).willReturn(Optional.of(member));
-        given(memberRepository.findById(TARGET_ID)).willReturn(Optional.of(target));
-        given(pokeRepository.existsBySenderAndReceiverAndPokeDate(member, target, today)).willReturn(true);
+        given(memberRepository.findById(RECEIVER_ID)).willReturn(Optional.of(receiver));
+        given(pokeRepository.existsBySenderAndReceiverAndPokeDate(member, receiver, today)).willReturn(true);
 
-        assertThatThrownBy(() -> questionService.poke(MEMBER_ID, TARGET_ID))
+        assertThatThrownBy(() -> questionService.poke(MEMBER_ID, RECEIVER_ID))
                 .isInstanceOf(QuestionException.class)
                 .extracting("errorCode")
                 .isEqualTo(QuestionErrorCode.ALREADY_POKED);
@@ -489,33 +489,33 @@ class QuestionServiceTest {
     @DisplayName("같은 가족 구성원을 찌르면 보낸 사람, 받은 사람, 오늘 날짜로 저장하고 찌르기 이벤트를 발행한다.")
     void poke_success() {
         given(memberRepository.findById(MEMBER_ID)).willReturn(Optional.of(member));
-        given(memberRepository.findById(TARGET_ID)).willReturn(Optional.of(target));
-        given(pokeRepository.existsBySenderAndReceiverAndPokeDate(member, target, today)).willReturn(false);
+        given(memberRepository.findById(RECEIVER_ID)).willReturn(Optional.of(receiver));
+        given(pokeRepository.existsBySenderAndReceiverAndPokeDate(member, receiver, today)).willReturn(false);
 
-        questionService.poke(MEMBER_ID, TARGET_ID);
+        questionService.poke(MEMBER_ID, RECEIVER_ID);
 
         // save에 넘어간 엔티티를 붙잡아 값이 제대로 채워졌는지 확인
         ArgumentCaptor<Poke> captor = ArgumentCaptor.forClass(Poke.class);
         verify(pokeRepository).save(captor.capture());
         Poke saved = captor.getValue();
         assertThat(saved.getSender()).isEqualTo(member);
-        assertThat(saved.getReceiver()).isEqualTo(target);
+        assertThat(saved.getReceiver()).isEqualTo(receiver);
         assertThat(saved.getPokeDate()).isEqualTo(today);
 
-        verify(eventPublisher).publishEvent(new PokeEvent(MEMBER_ID, TARGET_ID));
+        verify(eventPublisher).publishEvent(new PokeEvent(MEMBER_ID, RECEIVER_ID));
     }
 
     @Test
     @DisplayName("동시 요청으로 찌르기 유니크 제약을 위반하면 순차 중복과 같은 QUESTION409_1 예외로 바꿔 던지고 이벤트를 발행하지 않는다.")
     void poke_concurrentDuplicate() {
         given(memberRepository.findById(MEMBER_ID)).willReturn(Optional.of(member));
-        given(memberRepository.findById(TARGET_ID)).willReturn(Optional.of(target));
-        given(pokeRepository.existsBySenderAndReceiverAndPokeDate(member, target, today)).willReturn(false);
+        given(memberRepository.findById(RECEIVER_ID)).willReturn(Optional.of(receiver));
+        given(pokeRepository.existsBySenderAndReceiverAndPokeDate(member, receiver, today)).willReturn(false);
         given(pokeRepository.save(any(Poke.class))).willThrow(new DataIntegrityViolationException(
                 "could not execute statement",
                 new SQLException("ERROR: duplicate key value violates unique constraint \"uk_poke_sender_receiver_date\"")));
 
-        assertThatThrownBy(() -> questionService.poke(MEMBER_ID, TARGET_ID))
+        assertThatThrownBy(() -> questionService.poke(MEMBER_ID, RECEIVER_ID))
                 .isInstanceOf(QuestionException.class)
                 .extracting("errorCode")
                 .isEqualTo(QuestionErrorCode.ALREADY_POKED);
@@ -526,14 +526,14 @@ class QuestionServiceTest {
     @DisplayName("찌르기 유니크 제약이 아닌 무결성 위반은 바꾸지 않고 그대로 던진다.")
     void poke_otherIntegrityViolation() {
         given(memberRepository.findById(MEMBER_ID)).willReturn(Optional.of(member));
-        given(memberRepository.findById(TARGET_ID)).willReturn(Optional.of(target));
-        given(pokeRepository.existsBySenderAndReceiverAndPokeDate(member, target, today)).willReturn(false);
+        given(memberRepository.findById(RECEIVER_ID)).willReturn(Optional.of(receiver));
+        given(pokeRepository.existsBySenderAndReceiverAndPokeDate(member, receiver, today)).willReturn(false);
         // 대상 회원이 그 사이 탈퇴해 FK 위반이 난 상황
         given(pokeRepository.save(any(Poke.class))).willThrow(new DataIntegrityViolationException(
                 "could not execute statement",
                 new SQLException("ERROR: insert or update on table \"poke\" violates foreign key constraint \"fk_poke_receiver\"")));
 
-        assertThatThrownBy(() -> questionService.poke(MEMBER_ID, TARGET_ID))
+        assertThatThrownBy(() -> questionService.poke(MEMBER_ID, RECEIVER_ID))
                 .isInstanceOf(DataIntegrityViolationException.class);
     }
 }

@@ -116,10 +116,10 @@ public class QuestionService {
     }
 
     @Transactional
-    public void poke(Long memberId, Long targetId) {
+    public void poke(Long memberId, Long receiverId) {
 
         // 자기 자신은 찌를 수 없음
-        if (memberId.equals(targetId)) {
+        if (memberId.equals(receiverId)) {
             throw new QuestionException(QuestionErrorCode.SELF_POKE);
         }
 
@@ -133,24 +133,24 @@ public class QuestionService {
         }
 
         // 대상이 없는 회원
-        Member target = memberRepository.findById(targetId)
-                .orElseThrow(() -> new QuestionException(QuestionErrorCode.POKE_TARGET_NOT_FOUND));
+        Member receiver = memberRepository.findById(receiverId)
+                .orElseThrow(() -> new QuestionException(QuestionErrorCode.POKE_RECEIVER_NOT_FOUND));
 
         // 대상이 다른 가족
-        Family targetFamily = target.getFamily();
-        if (targetFamily == null || !family.getId().equals(targetFamily.getId())) {
-            throw new QuestionException(QuestionErrorCode.POKE_TARGET_NOT_FOUND);
+        Family receiverFamily = receiver.getFamily();
+        if (receiverFamily == null || !family.getId().equals(receiverFamily.getId())) {
+            throw new QuestionException(QuestionErrorCode.POKE_RECEIVER_NOT_FOUND);
         }
 
         LocalDate today = LocalDate.now(clock);
 
         // 같은 사람에게 하루 한 번만 가능
-        if (pokeRepository.existsBySenderAndReceiverAndPokeDate(member, target, today)) {
+        if (pokeRepository.existsBySenderAndReceiverAndPokeDate(member, receiver, today)) {
             throw new QuestionException(QuestionErrorCode.ALREADY_POKED);
         }
 
         try {
-            pokeRepository.save(QuestionConverter.toPoke(member, target, today));
+            pokeRepository.save(QuestionConverter.toPoke(member, receiver, today));
         } catch (DataIntegrityViolationException e) {
             if (isDuplicatePoke(e)) {
                 throw new QuestionException(QuestionErrorCode.ALREADY_POKED);
@@ -158,7 +158,7 @@ public class QuestionService {
             throw e;
         }
 
-        eventPublisher.publishEvent(new PokeEvent(memberId, targetId));
+        eventPublisher.publishEvent(new PokeEvent(memberId, receiverId));
     }
 
     // 내 가족에게 배정된 질문만 조회 (다른 가족의 질문은 존재 여부를 숨기기 위해 같은 404)
