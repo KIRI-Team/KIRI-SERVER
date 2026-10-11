@@ -98,7 +98,7 @@ public interface MemberControllerDocs {
                                                         "code": "COMMON400_1",
                                                         "message": "잘못된 요청입니다.",
                                                         "result": {
-                                                            "socialProviderToken": "nonce는 필수입니다."
+                                                            "nonce": "nonce는 필수입니다."
                                                         }
                                                     }
                                                     """
