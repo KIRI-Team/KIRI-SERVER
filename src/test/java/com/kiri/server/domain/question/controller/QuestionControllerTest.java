@@ -116,6 +116,7 @@ class QuestionControllerTest {
                 .andExpect(jsonPath("$.code").value("QUESTION404_1"));
     }
 
+    @Test
     @DisplayName("답변 작성에 성공하면 QUESTION200_2로 응답하고 토큰의 회원 ID와 path의 질문 ID로 처리한다.")
     void writeAnswer_success() throws Exception {
         mockMvc.perform(put(WRITE_ANSWER_URL, QUESTION_ID)
