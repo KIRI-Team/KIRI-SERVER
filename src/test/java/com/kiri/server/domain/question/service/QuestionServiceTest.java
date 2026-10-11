@@ -12,6 +12,7 @@ import com.kiri.server.domain.question.entity.FamilyQuestion;
 import com.kiri.server.domain.question.entity.MemberAnswer;
 import com.kiri.server.domain.question.entity.Poke;
 import com.kiri.server.domain.question.entity.Question;
+import com.kiri.server.domain.question.event.PokeEvent;
 import com.kiri.server.domain.question.exception.QuestionException;
 import com.kiri.server.domain.question.exception.code.QuestionErrorCode;
 import com.kiri.server.domain.question.repository.FamilyQuestionRepository;
@@ -24,6 +25,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 
 import java.sql.SQLException;
@@ -63,6 +65,9 @@ class QuestionServiceTest {
     @Mock
     private PokeRepository pokeRepository;
 
+    @Mock
+    private ApplicationEventPublisher eventPublisher;
+
     private QuestionService questionService;
 
     private final Clock clock = Clock.fixed(Instant.parse("2026-10-10T03:00:00Z"), ZoneId.of("Asia/Seoul"));
@@ -82,7 +87,7 @@ class QuestionServiceTest {
     @BeforeEach
     void setUp() {
         questionService = new QuestionService(
-                memberRepository, familyQuestionRepository, memberAnswerRepository, clock, pokeRepository);
+                memberRepository, familyQuestionRepository, memberAnswerRepository, clock, pokeRepository, eventPublisher);
     }
 
     @Test
@@ -466,7 +471,7 @@ class QuestionServiceTest {
     }
 
     @Test
-    @DisplayName("오늘 이미 찌른 대상이면 QUESTION409_1 예외가 발생하고 저장하지 않는다.")
+    @DisplayName("오늘 이미 찌른 대상이면 QUESTION409_1 예외가 발생하고 저장하지 않으며 이벤트도 발행하지 않는다.")
     void poke_alreadyPoked() {
         given(memberRepository.findById(MEMBER_ID)).willReturn(Optional.of(member));
         given(memberRepository.findById(TARGET_ID)).willReturn(Optional.of(target));
@@ -477,10 +482,11 @@ class QuestionServiceTest {
                 .extracting("errorCode")
                 .isEqualTo(QuestionErrorCode.ALREADY_POKED);
         verify(pokeRepository, never()).save(any());
+        verify(eventPublisher, never()).publishEvent(any(Object.class));
     }
 
     @Test
-    @DisplayName("같은 가족 구성원을 찌르면 보낸 사람, 받은 사람, 오늘 날짜로 저장한다.")
+    @DisplayName("같은 가족 구성원을 찌르면 보낸 사람, 받은 사람, 오늘 날짜로 저장하고 찌르기 이벤트를 발행한다.")
     void poke_success() {
         given(memberRepository.findById(MEMBER_ID)).willReturn(Optional.of(member));
         given(memberRepository.findById(TARGET_ID)).willReturn(Optional.of(target));
@@ -495,10 +501,12 @@ class QuestionServiceTest {
         assertThat(saved.getSender()).isEqualTo(member);
         assertThat(saved.getReceiver()).isEqualTo(target);
         assertThat(saved.getPokeDate()).isEqualTo(today);
+
+        verify(eventPublisher).publishEvent(new PokeEvent(MEMBER_ID, TARGET_ID));
     }
 
     @Test
-    @DisplayName("동시 요청으로 찌르기 유니크 제약을 위반하면 순차 중복과 같은 QUESTION409_1 예외로 바꿔 던진다.")
+    @DisplayName("동시 요청으로 찌르기 유니크 제약을 위반하면 순차 중복과 같은 QUESTION409_1 예외로 바꿔 던지고 이벤트를 발행하지 않는다.")
     void poke_concurrentDuplicate() {
         given(memberRepository.findById(MEMBER_ID)).willReturn(Optional.of(member));
         given(memberRepository.findById(TARGET_ID)).willReturn(Optional.of(target));
@@ -511,6 +519,7 @@ class QuestionServiceTest {
                 .isInstanceOf(QuestionException.class)
                 .extracting("errorCode")
                 .isEqualTo(QuestionErrorCode.ALREADY_POKED);
+        verify(eventPublisher, never()).publishEvent(any(Object.class));
     }
 
     @Test
