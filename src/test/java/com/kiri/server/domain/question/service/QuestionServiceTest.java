@@ -25,10 +25,11 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.postgresql.util.PSQLException;
+import org.postgresql.util.ServerErrorMessage;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 
-import java.sql.SQLException;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -513,7 +514,8 @@ class QuestionServiceTest {
         given(pokeRepository.existsBySenderAndReceiverAndPokeDate(member, receiver, today)).willReturn(false);
         given(pokeRepository.save(any(Poke.class))).willThrow(new DataIntegrityViolationException(
                 "could not execute statement",
-                new SQLException("ERROR: duplicate key value violates unique constraint \"uk_poke_sender_receiver_date\"")));
+                new PSQLException(new ServerErrorMessage(
+                        "SERROR\0C23505\0Mduplicate key value violates unique constraint\0nuk_poke_sender_receiver_date\0"))));
 
         assertThatThrownBy(() -> questionService.poke(MEMBER_ID, RECEIVER_ID))
                 .isInstanceOf(QuestionException.class)
@@ -531,7 +533,8 @@ class QuestionServiceTest {
         // 대상 회원이 그 사이 탈퇴해 FK 위반이 난 상황
         given(pokeRepository.save(any(Poke.class))).willThrow(new DataIntegrityViolationException(
                 "could not execute statement",
-                new SQLException("ERROR: insert or update on table \"poke\" violates foreign key constraint \"fk_poke_receiver\"")));
+                new PSQLException(new ServerErrorMessage(
+                        "SERROR\0C23503\0Minsert or update violates foreign key constraint\0nfk_poke_receiver\0"))));
 
         assertThatThrownBy(() -> questionService.poke(MEMBER_ID, RECEIVER_ID))
                 .isInstanceOf(DataIntegrityViolationException.class);

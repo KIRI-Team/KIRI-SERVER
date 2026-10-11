@@ -17,6 +17,8 @@ import com.kiri.server.domain.question.repository.FamilyQuestionRepository;
 import com.kiri.server.domain.question.repository.MemberAnswerRepository;
 import com.kiri.server.domain.question.repository.PokeRepository;
 import lombok.RequiredArgsConstructor;
+import org.postgresql.util.PSQLException;
+import org.postgresql.util.ServerErrorMessage;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
@@ -173,9 +175,12 @@ public class QuestionService {
         return familyQuestion;
     }
 
-    // 원본 에러 메시지에 유니크 제약 여부 확인
-    private boolean isDuplicatePoke(DataIntegrityViolationException e){
-        String message=e.getMostSpecificCause().getMessage();
-        return message!=null && message.contains("uk_poke_sender_receiver_date");
+    // 유니크 제약 여부 확인
+    private boolean isDuplicatePoke(DataIntegrityViolationException e) {
+        if (!(e.getMostSpecificCause() instanceof PSQLException psqlException)) {
+            return false;
+        }
+        ServerErrorMessage serverError = psqlException.getServerErrorMessage();
+        return serverError != null && "uk_poke_sender_receiver_date".equals(serverError.getConstraint());
     }
 }
