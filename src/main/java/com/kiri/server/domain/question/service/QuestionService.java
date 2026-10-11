@@ -10,12 +10,14 @@ import com.kiri.server.domain.question.dto.QuestionReqDTO;
 import com.kiri.server.domain.question.dto.QuestionResDTO;
 import com.kiri.server.domain.question.entity.FamilyQuestion;
 import com.kiri.server.domain.question.entity.MemberAnswer;
+import com.kiri.server.domain.question.event.PokeEvent;
 import com.kiri.server.domain.question.exception.QuestionException;
 import com.kiri.server.domain.question.exception.code.QuestionErrorCode;
 import com.kiri.server.domain.question.repository.FamilyQuestionRepository;
 import com.kiri.server.domain.question.repository.MemberAnswerRepository;
 import com.kiri.server.domain.question.repository.PokeRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -38,6 +40,7 @@ public class QuestionService {
     private final MemberAnswerRepository memberAnswerRepository;
     private final Clock clock;
     private final PokeRepository pokeRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Transactional(readOnly = true)
     public QuestionResDTO.TodayQuestion getTodayQuestion(Long memberId) {
@@ -154,6 +157,8 @@ public class QuestionService {
             }
             throw e;
         }
+
+        eventPublisher.publishEvent(new PokeEvent(memberId, targetId));
     }
 
     // 내 가족에게 배정된 질문만 조회 (다른 가족의 질문은 존재 여부를 숨기기 위해 같은 404)
