@@ -50,4 +50,9 @@ public class MemberAnswer extends BaseEntity {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "member_id", nullable = false)
     private Member member;
+
+    // 답변 내용 수정
+    public void updateContent(String content) {
+        this.content = content;
+    }
 }

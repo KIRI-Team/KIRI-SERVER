@@ -1,5 +1,6 @@
 package com.kiri.server.domain.question.converter;
 
+import com.kiri.server.domain.member.entity.Member;
 import com.kiri.server.domain.question.dto.QuestionResDTO;
 import com.kiri.server.domain.question.entity.FamilyQuestion;
 import com.kiri.server.domain.question.entity.MemberAnswer;
@@ -25,6 +26,14 @@ public class QuestionConverter {
         return QuestionResDTO.TodayQuestion.builder()
                 .hasFamily(false)
                 .isAnswered(false)
+                .build();
+    }
+
+    public static MemberAnswer toMemberAnswer(String content, FamilyQuestion familyQuestion, Member member) {
+        return MemberAnswer.builder()
+                .content(content)
+                .familyQuestion(familyQuestion)
+                .member(member)
                 .build();
     }
 }

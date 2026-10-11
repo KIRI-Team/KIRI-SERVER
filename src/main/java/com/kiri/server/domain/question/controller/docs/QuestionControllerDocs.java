@@ -1,5 +1,6 @@
 package com.kiri.server.domain.question.controller.docs;
 
+import com.kiri.server.domain.question.dto.QuestionReqDTO;
 import com.kiri.server.domain.question.dto.QuestionResDTO;
 import com.kiri.server.global.apiPayload.ApiResponse;
 import io.swagger.v3.oas.annotations.Operation;
@@ -123,5 +124,159 @@ public interface QuestionControllerDocs {
     })
     ApiResponse<QuestionResDTO.TodayQuestion> getTodayQuestion(
             @Parameter(hidden = true) Long memberId
+    );
+
+    @Operation(
+            summary = "내 답변 작성/수정 API",
+            description = """
+                    # 내 답변 작성/수정
+
+                    ## 요청 형식
+                    - 헤더: Authorization: Bearer {JWT 토큰}
+                    - path: questionId (오늘의 질문 조회 API가 반환한 questionId)
+                    - body: { "answer": "답변 내용" }
+
+                    답변이 없으면 새로 작성하고, 이미 있으면 내용을 덮어씁니다.
+                    같은 요청을 여러 번 보내도 결과는 같습니다.
+                    질문이 배정된 당일(한국 시간 자정 기준)에만 작성/수정할 수 있습니다.
+
+                    ## 요청 필드
+                    - answer: 답변 내용 (필수, 공백만 입력 불가, 최대 500자)
+
+                    ## 동작 방식
+                    1. 요청 값을 검증합니다. 실패하면 400(COMMON400_1)을 반환합니다.
+                       - answer 검증 실패: result에 { "answer": "에러 메시지" } 형태로 담깁니다.
+                       - Body 형식 오류: result에 "요청 Body 형식이 잘못되었습니다."가 담깁니다.
+                       - questionId 타입 오류: result는 null입니다.
+                    2. 인증된 회원이 존재하는지 확인합니다. 없으면 404(MEMBER404_1)를 반환합니다.
+                    3. 질문이 없거나 내 가족에게 배정된 질문이 아니면 404(QUESTION404_2)를 반환합니다.
+                    4. 오늘 배정된 질문이 아니면 400(QUESTION400_1)을 반환합니다.
+                    5. 내 답변이 있으면 수정하고, 없으면 새로 작성합니다.
+                    6. 같은 회원의 첫 작성 요청이 동시에 들어오면 하나만 저장되고 나머지는 409(COMMON409_1)를 반환합니다.
+                    """
+    )
+    @ApiResponses(value = {
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200",
+                    description = "작성/수정 성공",
+                    content = @Content(
+                            mediaType = "application/json",
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "isSuccess": true,
+                                      "code": "QUESTION200_2",
+                                      "message": "답변을 성공적으로 작성하였습니다.",
+                                      "result": null
+                                    }
+                                    """)
+                    )
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "400",
+                    description = """
+                            잘못된 요청
+                            - COMMON400_1: answer 누락/공백, 500자 초과, Body 형식 오류, questionId가 숫자가 아님
+                            - QUESTION400_1: 오늘 배정된 질문이 아님
+                            """,
+                    content = @Content(
+                            mediaType = "application/json",
+                            examples = {
+                                    @ExampleObject(name = "답변 누락/공백", description = "answer가 없거나 null, 빈 문자열, 공백만 있는 경우", value = """
+                                            {
+                                              "isSuccess": false,
+                                              "code": "COMMON400_1",
+                                              "message": "잘못된 요청입니다.",
+                                              "result": {
+                                                "answer": "답변을 입력해주세요."
+                                              }
+                                            }
+                                            """),
+                                    @ExampleObject(name = "답변 500자 초과", value = """
+                                            {
+                                              "isSuccess": false,
+                                              "code": "COMMON400_1",
+                                              "message": "잘못된 요청입니다.",
+                                              "result": {
+                                                "answer": "답변은 500자 이내로 작성해주세요."
+                                              }
+                                            }
+                                            """),
+                                    @ExampleObject(name = "Body 형식 오류", description = "Body가 없거나 JSON 문법이 틀린 경우", value = """
+                                            {
+                                              "isSuccess": false,
+                                              "code": "COMMON400_1",
+                                              "message": "잘못된 요청입니다.",
+                                              "result": "요청 Body 형식이 잘못되었습니다."
+                                            }
+                                            """),
+                                    @ExampleObject(name = "questionId 타입 오류", description = "path의 questionId가 숫자가 아닌 경우 (예: /questions/abc/answers/me)", value = """
+                                            {
+                                              "isSuccess": false,
+                                              "code": "COMMON400_1",
+                                              "message": "잘못된 요청입니다.",
+                                              "result": null
+                                            }
+                                            """),
+                                    @ExampleObject(name = "답변 기한 지남", value = """
+                                            {
+                                              "isSuccess": false,
+                                              "code": "QUESTION400_1",
+                                              "message": "오늘의 질문에만 답변할 수 있습니다.",
+                                              "result": null
+                                            }
+                                            """)
+                            }
+                    )
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "401",
+                    description = "인증 실패 - 토큰 미삽입(COMMON401_1) / 유효하지 않은 토큰(AUTH401_1) / 토큰 만료(AUTH401_2)",
+                    content = @Content(
+                            mediaType = "application/json",
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "isSuccess": false,
+                                      "code": "AUTH401_2",
+                                      "message": "토큰이 만료되었습니다.",
+                                      "result": null
+                                    }
+                                    """)
+                    )
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "404",
+                    description = "질문이 없거나 내 가족의 질문이 아님(QUESTION404_2) / 토큰의 회원이 존재하지 않음(MEMBER404_1)",
+                    content = @Content(
+                            mediaType = "application/json",
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "isSuccess": false,
+                                      "code": "QUESTION404_2",
+                                      "message": "질문이 존재하지 않습니다.",
+                                      "result": null
+                                    }
+                                    """)
+                    )
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "409",
+                    description = "첫 작성 요청이 동시에 들어와 중복 저장이 막힘(COMMON409_1)",
+                    content = @Content(
+                            mediaType = "application/json",
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "isSuccess": false,
+                                      "code": "COMMON409_1",
+                                      "message": "이미 존재하는 데이터이거나 요청이 충돌합니다.",
+                                      "result": null
+                                    }
+                                    """)
+                    )
+            )
+    })
+    ApiResponse<Void> writeAnswer(
+            @Parameter(hidden = true) Long memberId,
+            @Parameter(description = "가족에게 배정된 질문 ID", example = "12") Long questionId,
+            QuestionReqDTO.WriteAnswer request
     );
 }
