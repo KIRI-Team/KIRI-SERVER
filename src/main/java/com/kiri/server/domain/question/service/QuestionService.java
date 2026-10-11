@@ -6,6 +6,7 @@ import com.kiri.server.domain.member.exception.MemberException;
 import com.kiri.server.domain.member.exception.code.MemberErrorCode;
 import com.kiri.server.domain.member.repository.MemberRepository;
 import com.kiri.server.domain.question.converter.QuestionConverter;
+import com.kiri.server.domain.question.dto.QuestionReqDTO;
 import com.kiri.server.domain.question.dto.QuestionResDTO;
 import com.kiri.server.domain.question.entity.FamilyQuestion;
 import com.kiri.server.domain.question.entity.MemberAnswer;
@@ -53,5 +54,35 @@ public class QuestionService {
         Optional<MemberAnswer> answer = memberAnswerRepository.findByFamilyQuestionAndMember(familyQuestion, member);
 
         return QuestionConverter.toTodayQuestion(familyQuestion, answer);
+    }
+
+    @Transactional
+    public void writeAnswer(Long memberId, Long questionId, QuestionReqDTO.WriteAnswer request) {
+
+        Member member = memberRepository.findById(memberId)
+                .orElseThrow(() -> new MemberException(MemberErrorCode.NOT_FOUND));
+
+        FamilyQuestion familyQuestion = familyQuestionRepository.findById(questionId)
+                .orElseThrow(() -> new QuestionException(QuestionErrorCode.FAMILY_QUESTION_NOT_FOUND));
+
+        // 내 가족에게 배정된 질문인지 확인
+        Family family = member.getFamily();
+        if (family == null || !family.getId().equals(familyQuestion.getFamily().getId())) {
+            throw new QuestionException(QuestionErrorCode.FAMILY_QUESTION_NOT_FOUND);
+        }
+
+        // 답변 작성/수정은 질문이 배정된 당일에만 가능
+        if (!familyQuestion.getQuestionDate().equals(LocalDate.now(KST))) {
+            throw new QuestionException(QuestionErrorCode.ANSWER_PERIOD_EXPIRED);
+        }
+
+        // 동시에 두 번 생성 요청이 오면 uk_member_answer 유니크 제약이 막고 전역 핸들러가 409로 응답
+        memberAnswerRepository.findByFamilyQuestionAndMember(familyQuestion, member)
+                .ifPresentOrElse(
+                        answer -> answer.updateContent(request.answer()),
+                        () -> memberAnswerRepository.save(
+                                QuestionConverter.toMemberAnswer(request.answer(), familyQuestion, member)
+                        )
+                );
     }
 }
