@@ -29,7 +29,7 @@ public class MemberWriter {
     @Transactional
     public MemberResDTO.Login persist(SocialProvider socialProvider, OidcUserInfo oidcUserInfo) {
 
-        Member member = memberRepository.findByProviderAndProviderId(socialProvider, oidcUserInfo.socialProviderUid()).orElse(null);
+        Member member = memberRepository.findBySocialProviderAndSocialProviderUid(socialProvider, oidcUserInfo.socialProviderUid()).orElse(null);
         boolean isNewUser = false;
 
         if (member == null) {
@@ -39,7 +39,7 @@ public class MemberWriter {
                         .orElseThrow(() -> new MemberException(MemberErrorCode.NOT_FOUND));
                 isNewUser = true;
             } catch (DataIntegrityViolationException e) {
-                member = memberRepository.findByProviderAndProviderIdForUpdate(socialProvider, oidcUserInfo.socialProviderUid()).orElseThrow(() -> e);
+                member = memberRepository.findBySocialProviderAndSocialProviderUidForUpdate(socialProvider, oidcUserInfo.socialProviderUid()).orElseThrow(() -> e);
             }
         }
 
