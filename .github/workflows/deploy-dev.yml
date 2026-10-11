@@ -5,7 +5,7 @@ on:
     branches:
       - develop
     paths-ignore:
-      - "infra/**"
+      - "infra/terraform/**"
       - "**.md"
 
   workflow_dispatch:
