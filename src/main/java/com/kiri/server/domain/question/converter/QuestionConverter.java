@@ -4,7 +4,9 @@ import com.kiri.server.domain.member.entity.Member;
 import com.kiri.server.domain.question.dto.QuestionResDTO;
 import com.kiri.server.domain.question.entity.FamilyQuestion;
 import com.kiri.server.domain.question.entity.MemberAnswer;
+import com.kiri.server.domain.question.entity.Poke;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -60,6 +62,14 @@ public class QuestionConverter {
                 .nickname(member.getNickname())
                 .isAnswered(answer != null)
                 .answer(answer == null ? null : answer.getContent())
+                .build();
+    }
+
+    public static Poke toPoke(Member sender, Member receiver, LocalDate pokeDate) {
+        return Poke.builder()
+                .sender(sender)
+                .receiver(receiver)
+                .pokeDate(pokeDate)
                 .build();
     }
 }

@@ -46,4 +46,14 @@ public class QuestionController implements QuestionControllerDocs {
         BaseSuccessCode code = QuestionSuccessCode.FAMILY_ANSWERS;
         return ApiResponse.onSuccess(code, questionService.getFamilyAnswers(memberId, questionId));
     }
+
+    @PostMapping("/today/members/{memberId}/pokes")
+    public ApiResponse<Void> poke(
+            @AuthenticationPrincipal Long memberId,
+            @PathVariable("memberId") Long targetId
+    ) {
+        questionService.poke(memberId, targetId);
+        BaseSuccessCode code = QuestionSuccessCode.POKE;
+        return ApiResponse.onSuccess(code);
+    }
 }

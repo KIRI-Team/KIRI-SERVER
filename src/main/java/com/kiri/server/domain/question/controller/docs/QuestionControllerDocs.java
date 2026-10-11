@@ -393,4 +393,137 @@ public interface QuestionControllerDocs {
             @Parameter(hidden = true) Long memberId,
             @Parameter(description = "가족에게 배정된 질문 ID", example = "12") Long questionId
     );
+
+    @Operation(
+            summary = "가족 구성원 콕 찌르기 API",
+            description = """
+                    # 가족 구성원 콕 찌르기
+
+                    ## 요청 형식
+                    - 헤더: Authorization: Bearer {JWT 토큰}
+                    - path: memberId (찌를 가족 구성원의 회원 ID, 가족 답변 조회 API의 answers[].memberId)
+
+                    오늘의 질문 화면에서 가족 구성원을 콕 찌릅니다.
+                    아직 답변하지 않은 구성원에게는 답변 재촉, 이미 답변한 구성원에게는 관심 표현의 의미입니다.
+                    같은 구성원은 하루(한국 시간 자정 기준)에 한 번만 찌를 수 있습니다.
+
+                    ## 동작 방식
+                    1. path의 memberId가 숫자가 아니면 400(COMMON400_1)을 반환합니다.
+                    2. 자기 자신을 찌르면 400(QUESTION400_2)을 반환합니다.
+                    3. 인증된 회원이 존재하는지 확인합니다. 없으면 404(MEMBER404_1)를 반환합니다.
+                    4. 가족에 속하지 않은 회원이면 403(QUESTION403_1)을 반환합니다.
+                    5. 대상이 없는 회원이거나 내 가족 구성원이 아니면 404(QUESTION404_3)를 반환합니다.
+                    6. 오늘 이미 찌른 구성원이면 409(QUESTION409_1)를 반환합니다. 같은 요청이 동시에 들어와도 하나만 저장되고 나머지는 같은 409를 반환합니다.
+                    """
+    )
+    @ApiResponses(value = {
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200",
+                    description = "찌르기 성공",
+                    content = @Content(
+                            mediaType = "application/json",
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "isSuccess": true,
+                                      "code": "QUESTION200_4",
+                                      "message": "가족 구성원을 성공적으로 찔렀습니다.",
+                                      "result": null
+                                    }
+                                    """)
+                    )
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "400",
+                    description = """
+                            잘못된 요청
+                            - COMMON400_1: memberId가 숫자가 아님
+                            - QUESTION400_2: 자기 자신을 찌름
+                            """,
+                    content = @Content(
+                            mediaType = "application/json",
+                            examples = {
+                                    @ExampleObject(name = "memberId 타입 오류", description = "path의 memberId가 숫자가 아닌 경우 (예: /questions/today/members/abc/pokes)", value = """
+                                            {
+                                              "isSuccess": false,
+                                              "code": "COMMON400_1",
+                                              "message": "잘못된 요청입니다.",
+                                              "result": null
+                                            }
+                                            """),
+                                    @ExampleObject(name = "자기 자신 찌르기", value = """
+                                            {
+                                              "isSuccess": false,
+                                              "code": "QUESTION400_2",
+                                              "message": "자기 자신은 찌를 수 없습니다.",
+                                              "result": null
+                                            }
+                                            """)
+                            }
+                    )
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "401",
+                    description = "인증 실패 - 토큰 미삽입(COMMON401_1) / 유효하지 않은 토큰(AUTH401_1) / 토큰 만료(AUTH401_2)",
+                    content = @Content(
+                            mediaType = "application/json",
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "isSuccess": false,
+                                      "code": "AUTH401_2",
+                                      "message": "토큰이 만료되었습니다.",
+                                      "result": null
+                                    }
+                                    """)
+                    )
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "403",
+                    description = "가족에 속하지 않은 회원(QUESTION403_1)",
+                    content = @Content(
+                            mediaType = "application/json",
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "isSuccess": false,
+                                      "code": "QUESTION403_1",
+                                      "message": "가족에 소속된 회원만 이용할 수 있습니다.",
+                                      "result": null
+                                    }
+                                    """)
+                    )
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "404",
+                    description = "대상이 없거나 내 가족 구성원이 아님(QUESTION404_3) / 토큰의 회원이 존재하지 않음(MEMBER404_1)",
+                    content = @Content(
+                            mediaType = "application/json",
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "isSuccess": false,
+                                      "code": "QUESTION404_3",
+                                      "message": "찌를 수 있는 가족 구성원이 아닙니다.",
+                                      "result": null
+                                    }
+                                    """)
+                    )
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "409",
+                    description = "오늘 이미 찌른 구성원(QUESTION409_1)",
+                    content = @Content(
+                            mediaType = "application/json",
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "isSuccess": false,
+                                      "code": "QUESTION409_1",
+                                      "message": "오늘은 이미 찌른 가족 구성원입니다.",
+                                      "result": null
+                                    }
+                                    """)
+                    )
+            )
+    })
+    ApiResponse<Void> poke(
+            @Parameter(hidden = true) Long memberId,
+            @Parameter(name = "memberId", description = "찌를 가족 구성원의 회원 ID", example = "2") Long targetId
+    );
 }

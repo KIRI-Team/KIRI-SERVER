@@ -14,7 +14,9 @@ import com.kiri.server.domain.question.exception.QuestionException;
 import com.kiri.server.domain.question.exception.code.QuestionErrorCode;
 import com.kiri.server.domain.question.repository.FamilyQuestionRepository;
 import com.kiri.server.domain.question.repository.MemberAnswerRepository;
+import com.kiri.server.domain.question.repository.PokeRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -35,6 +37,7 @@ public class QuestionService {
     private final FamilyQuestionRepository familyQuestionRepository;
     private final MemberAnswerRepository memberAnswerRepository;
     private final Clock clock;
+    private final PokeRepository pokeRepository;
 
     @Transactional(readOnly = true)
     public QuestionResDTO.TodayQuestion getTodayQuestion(Long memberId) {
@@ -109,6 +112,50 @@ public class QuestionService {
         return QuestionConverter.toFamilyAnswers(familyQuestion, familyMembers, answerByMemberId, memberId);
     }
 
+    @Transactional
+    public void poke(Long memberId, Long targetId) {
+
+        // 자기 자신은 찌를 수 없음
+        if (memberId.equals(targetId)) {
+            throw new QuestionException(QuestionErrorCode.SELF_POKE);
+        }
+
+        Member member = memberRepository.findById(memberId)
+                .orElseThrow(() -> new MemberException(MemberErrorCode.NOT_FOUND));
+
+        // 요청자는 반드시 가족에 소속되어 있어야 함
+        Family family = member.getFamily();
+        if (family == null) {
+            throw new QuestionException(QuestionErrorCode.FAMILY_REQUIRED);
+        }
+
+        // 대상이 없는 회원
+        Member target = memberRepository.findById(targetId)
+                .orElseThrow(() -> new QuestionException(QuestionErrorCode.POKE_TARGET_NOT_FOUND));
+
+        // 대상이 다른 가족
+        Family targetFamily = target.getFamily();
+        if (targetFamily == null || !family.getId().equals(targetFamily.getId())) {
+            throw new QuestionException(QuestionErrorCode.POKE_TARGET_NOT_FOUND);
+        }
+
+        LocalDate today = LocalDate.now(clock);
+
+        // 같은 사람에게 하루 한 번만 가능
+        if (pokeRepository.existsBySenderAndReceiverAndPokeDate(member, target, today)) {
+            throw new QuestionException(QuestionErrorCode.ALREADY_POKED);
+        }
+
+        try {
+            pokeRepository.save(QuestionConverter.toPoke(member, target, today));
+        } catch (DataIntegrityViolationException e) {
+            if (isDuplicatePoke(e)) {
+                throw new QuestionException(QuestionErrorCode.ALREADY_POKED);
+            }
+            throw e;
+        }
+    }
+
     // 내 가족에게 배정된 질문만 조회 (다른 가족의 질문은 존재 여부를 숨기기 위해 같은 404)
     private FamilyQuestion getMyFamilyQuestion(Member member, Long questionId) {
         FamilyQuestion familyQuestion = familyQuestionRepository.findById(questionId)
@@ -119,5 +166,11 @@ public class QuestionService {
             throw new QuestionException(QuestionErrorCode.FAMILY_QUESTION_NOT_FOUND);
         }
         return familyQuestion;
+    }
+
+    // 원본 에러 메시지에 유니크 제약 여부 확인
+    private boolean isDuplicatePoke(DataIntegrityViolationException e){
+        String message=e.getMostSpecificCause().getMessage();
+        return message!=null && message.contains("uk_poke_sender_receiver_date");
     }
 }
