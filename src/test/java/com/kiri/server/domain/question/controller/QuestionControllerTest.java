@@ -1,5 +1,6 @@
 package com.kiri.server.domain.question.controller;
 
+import com.kiri.server.domain.question.dto.QuestionReqDTO;
 import com.kiri.server.domain.question.dto.QuestionResDTO;
 import com.kiri.server.domain.question.exception.QuestionException;
 import com.kiri.server.domain.question.exception.code.QuestionErrorCode;
@@ -15,12 +16,17 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -31,6 +37,8 @@ class QuestionControllerTest {
 
     static final String SECRET = "test-secret-key-for-jwt-must-be-at-least-32-bytes";
     private static final Long MEMBER_ID = 1L;
+    private static final Long QUESTION_ID = 10L;
+    private static final String WRITE_ANSWER_URL = "/api/v1/questions/{questionId}/answers/me";
 
     @Autowired
     private MockMvc mockMvc;
@@ -106,5 +114,57 @@ class QuestionControllerTest {
                         .header(HttpHeaders.AUTHORIZATION, bearerToken))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value("QUESTION404_1"));
+    }
+
+    @DisplayName("답변 작성에 성공하면 QUESTION200_2로 응답하고 토큰의 회원 ID와 path의 질문 ID로 처리한다.")
+    void writeAnswer_success() throws Exception {
+        mockMvc.perform(put(WRITE_ANSWER_URL, QUESTION_ID)
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"answer\":\"강아지가 산책하다 넘어졌어요.\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value("QUESTION200_2"))
+                .andExpect(jsonPath("$.result").doesNotExist());
+
+        verify(questionService).writeAnswer(
+                MEMBER_ID, QUESTION_ID, new QuestionReqDTO.WriteAnswer("강아지가 산책하다 넘어졌어요."));
+    }
+
+    @Test
+    @DisplayName("답변이 공백이면 COMMON400_1과 필드 에러 메시지로 응답하고 서비스를 호출하지 않는다.")
+    void writeAnswer_blank() throws Exception {
+        mockMvc.perform(put(WRITE_ANSWER_URL, QUESTION_ID)
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"answer\":\"   \"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("COMMON400_1"))
+                .andExpect(jsonPath("$.result.answer").value("답변을 입력해주세요."));
+
+        verify(questionService, never()).writeAnswer(any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("답변이 500자를 넘으면 COMMON400_1과 필드 에러 메시지로 응답한다.")
+    void writeAnswer_tooLong() throws Exception {
+        String tooLong = "가".repeat(501);
+
+        mockMvc.perform(put(WRITE_ANSWER_URL, QUESTION_ID)
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"answer\":\"" + tooLong + "\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("COMMON400_1"))
+                .andExpect(jsonPath("$.result.answer").value("답변은 500자 이내로 작성해주세요."));
+    }
+
+    @Test
+    @DisplayName("답변이 정확히 500자면 검증을 통과한다.")
+    void writeAnswer_maxLength() throws Exception {
+        mockMvc.perform(put(WRITE_ANSWER_URL, QUESTION_ID)
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"answer\":\"" + "가".repeat(500) + "\"}"))
+                .andExpect(status().isOk());
     }
 }
