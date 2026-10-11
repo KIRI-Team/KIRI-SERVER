@@ -5,6 +5,7 @@ import com.kiri.server.domain.member.entity.Member;
 import com.kiri.server.domain.member.exception.MemberException;
 import com.kiri.server.domain.member.exception.code.MemberErrorCode;
 import com.kiri.server.domain.member.repository.MemberRepository;
+import com.kiri.server.domain.question.dto.QuestionReqDTO;
 import com.kiri.server.domain.question.dto.QuestionResDTO;
 import com.kiri.server.domain.question.entity.FamilyQuestion;
 import com.kiri.server.domain.question.entity.MemberAnswer;
@@ -16,11 +17,13 @@ import com.kiri.server.domain.question.repository.MemberAnswerRepository;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -36,6 +39,8 @@ class QuestionServiceTest {
 
     private static final Long MEMBER_ID = 1L;
     private static final Long FAMILY_QUESTION_ID = 10L;
+    private static final QuestionReqDTO.WriteAnswer WRITE_REQUEST =
+            new QuestionReqDTO.WriteAnswer("강아지가 산책하다 넘어졌어요.");
 
     @Mock
     private MemberRepository memberRepository;
@@ -52,11 +57,13 @@ class QuestionServiceTest {
     private final Family family = Family.builder().id(1L).name("행복한 우리집").build();
     private final Member member = Member.builder().id(MEMBER_ID).family(family).build();
     private final Question question = Question.builder().id(100L).content("오늘 가장 웃겼던 일은?").build();
+    // 답변은 당일에만 가능하므로 서비스와 같은 기준(한국 시간)의 오늘로 배정
+    private final LocalDate today = LocalDate.now(ZoneId.of("Asia/Seoul"));
     private final FamilyQuestion familyQuestion = FamilyQuestion.builder()
             .id(FAMILY_QUESTION_ID)
             .family(family)
             .question(question)
-            .questionDate(LocalDate.of(2026, 10, 10))
+            .questionDate(today)
             .build();
 
     @Test
@@ -135,5 +142,118 @@ class QuestionServiceTest {
 
         assertThat(result.isAnswered()).isTrue();
         assertThat(result.answer()).isEqualTo("강아지가 산책하다 넘어졌어요.");
+    }
+
+    @Test
+    @DisplayName("답변 작성 시 존재하지 않는 회원이면 MEMBER404_1 예외가 발생한다.")
+    void writeAnswer_memberNotFound() {
+        given(memberRepository.findById(MEMBER_ID)).willReturn(Optional.empty());
+
+        assertThatThrownBy(() -> questionService.writeAnswer(MEMBER_ID, FAMILY_QUESTION_ID, WRITE_REQUEST))
+                .isInstanceOf(MemberException.class)
+                .extracting("errorCode")
+                .isEqualTo(MemberErrorCode.NOT_FOUND);
+    }
+
+    @Test
+    @DisplayName("답변 작성 시 질문이 존재하지 않으면 QUESTION404_2 예외가 발생한다.")
+    void writeAnswer_familyQuestionNotFound() {
+        given(memberRepository.findById(MEMBER_ID)).willReturn(Optional.of(member));
+        given(familyQuestionRepository.findById(FAMILY_QUESTION_ID)).willReturn(Optional.empty());
+
+        assertThatThrownBy(() -> questionService.writeAnswer(MEMBER_ID, FAMILY_QUESTION_ID, WRITE_REQUEST))
+                .isInstanceOf(QuestionException.class)
+                .extracting("errorCode")
+                .isEqualTo(QuestionErrorCode.FAMILY_QUESTION_NOT_FOUND);
+    }
+
+    @Test
+    @DisplayName("다른 가족의 질문에 답변하면 QUESTION404_2 예외가 발생하고 저장하지 않는다.")
+    void writeAnswer_otherFamilyQuestion() {
+        Family otherFamily = Family.builder().id(2L).name("옆집").build();
+        FamilyQuestion otherFamilyQuestion = FamilyQuestion.builder()
+                .id(FAMILY_QUESTION_ID)
+                .family(otherFamily)
+                .question(question)
+                .questionDate(LocalDate.of(2026, 10, 10))
+                .build();
+        given(memberRepository.findById(MEMBER_ID)).willReturn(Optional.of(member));
+        given(familyQuestionRepository.findById(FAMILY_QUESTION_ID)).willReturn(Optional.of(otherFamilyQuestion));
+
+        assertThatThrownBy(() -> questionService.writeAnswer(MEMBER_ID, FAMILY_QUESTION_ID, WRITE_REQUEST))
+                .isInstanceOf(QuestionException.class)
+                .extracting("errorCode")
+                .isEqualTo(QuestionErrorCode.FAMILY_QUESTION_NOT_FOUND);
+        verify(memberAnswerRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("가족이 없는 회원이 답변하면 QUESTION404_2 예외가 발생한다.")
+    void writeAnswer_noFamily() {
+        Member memberWithoutFamily = Member.builder().id(MEMBER_ID).build();
+        given(memberRepository.findById(MEMBER_ID)).willReturn(Optional.of(memberWithoutFamily));
+        given(familyQuestionRepository.findById(FAMILY_QUESTION_ID)).willReturn(Optional.of(familyQuestion));
+
+        assertThatThrownBy(() -> questionService.writeAnswer(MEMBER_ID, FAMILY_QUESTION_ID, WRITE_REQUEST))
+                .isInstanceOf(QuestionException.class)
+                .extracting("errorCode")
+                .isEqualTo(QuestionErrorCode.FAMILY_QUESTION_NOT_FOUND);
+    }
+
+    @Test
+    @DisplayName("지난 날짜의 질문에 답변하면 QUESTION400_1 예외가 발생하고 저장하지 않는다.")
+    void writeAnswer_periodExpired() {
+        FamilyQuestion yesterdayQuestion = FamilyQuestion.builder()
+                .id(FAMILY_QUESTION_ID)
+                .family(family)
+                .question(question)
+                .questionDate(today.minusDays(1))
+                .build();
+        given(memberRepository.findById(MEMBER_ID)).willReturn(Optional.of(member));
+        given(familyQuestionRepository.findById(FAMILY_QUESTION_ID)).willReturn(Optional.of(yesterdayQuestion));
+
+        assertThatThrownBy(() -> questionService.writeAnswer(MEMBER_ID, FAMILY_QUESTION_ID, WRITE_REQUEST))
+                .isInstanceOf(QuestionException.class)
+                .extracting("errorCode")
+                .isEqualTo(QuestionErrorCode.ANSWER_PERIOD_EXPIRED);
+        verify(memberAnswerRepository, never()).findByFamilyQuestionAndMember(any(), any());
+    }
+
+    @Test
+    @DisplayName("답변이 없으면 요청 내용으로 새 답변을 저장한다.")
+    void writeAnswer_create() {
+        given(memberRepository.findById(MEMBER_ID)).willReturn(Optional.of(member));
+        given(familyQuestionRepository.findById(FAMILY_QUESTION_ID)).willReturn(Optional.of(familyQuestion));
+        given(memberAnswerRepository.findByFamilyQuestionAndMember(familyQuestion, member))
+                .willReturn(Optional.empty());
+
+        questionService.writeAnswer(MEMBER_ID, FAMILY_QUESTION_ID, WRITE_REQUEST);
+
+        // save에 넘어간 엔티티를 붙잡아 값이 제대로 채워졌는지 확인
+        ArgumentCaptor<MemberAnswer> captor = ArgumentCaptor.forClass(MemberAnswer.class);
+        verify(memberAnswerRepository).save(captor.capture());
+        MemberAnswer saved = captor.getValue();
+        assertThat(saved.getContent()).isEqualTo(WRITE_REQUEST.answer());
+        assertThat(saved.getFamilyQuestion()).isEqualTo(familyQuestion);
+        assertThat(saved.getMember()).isEqualTo(member);
+    }
+
+    @Test
+    @DisplayName("답변이 이미 있으면 새로 저장하지 않고 기존 답변 내용을 덮어쓴다.")
+    void writeAnswer_update() {
+        MemberAnswer existing = MemberAnswer.builder()
+                .content("이전 답변")
+                .familyQuestion(familyQuestion)
+                .member(member)
+                .build();
+        given(memberRepository.findById(MEMBER_ID)).willReturn(Optional.of(member));
+        given(familyQuestionRepository.findById(FAMILY_QUESTION_ID)).willReturn(Optional.of(familyQuestion));
+        given(memberAnswerRepository.findByFamilyQuestionAndMember(familyQuestion, member))
+                .willReturn(Optional.of(existing));
+
+        questionService.writeAnswer(MEMBER_ID, FAMILY_QUESTION_ID, WRITE_REQUEST);
+
+        assertThat(existing.getContent()).isEqualTo(WRITE_REQUEST.answer());
+        verify(memberAnswerRepository, never()).save(any());
     }
 }
