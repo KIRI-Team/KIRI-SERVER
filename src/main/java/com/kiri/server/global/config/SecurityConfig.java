@@ -36,6 +36,9 @@ public class SecurityConfig {
             "/actuator/health",
             // 배포 버전 확인
             "/actuator/info",
+            // 인증(소셜 로그인 / 토큰 재발급)
+            "/api/v1/auth/login",
+            "/api/v1/auth/reissue",
     };
 
     @Bean
