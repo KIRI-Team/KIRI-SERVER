@@ -25,9 +25,11 @@ import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -42,6 +44,8 @@ class QuestionControllerTest {
     private static final Long QUESTION_ID = 10L;
     private static final String WRITE_ANSWER_URL = "/api/v1/questions/{questionId}/answers/me";
     private static final String FAMILY_ANSWERS_URL = "/api/v1/questions/{questionId}/answers";
+    private static final String POKE_URL = "/api/v1/questions/today/members/{memberId}/pokes";
+    private static final Long RECEIVER_ID = 2L;
 
     @Autowired
     private MockMvc mockMvc;
@@ -226,5 +230,49 @@ class QuestionControllerTest {
                         .header(HttpHeaders.AUTHORIZATION, bearerToken))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value("QUESTION404_2"));
+    }
+
+    @Test
+    @DisplayName("토큰 없이 찌르면 COMMON401_1로 응답한다.")
+    void poke_noToken() throws Exception {
+        mockMvc.perform(post(POKE_URL, RECEIVER_ID))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("COMMON401_1"));
+    }
+
+    @Test
+    @DisplayName("찌르기에 성공하면 QUESTION200_4로 응답하고 토큰의 회원 ID와 path의 대상 ID로 처리한다.")
+    void poke_success() throws Exception {
+        mockMvc.perform(post(POKE_URL, RECEIVER_ID)
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value("QUESTION200_4"))
+                .andExpect(jsonPath("$.result").doesNotExist());
+
+        verify(questionService).poke(MEMBER_ID, RECEIVER_ID);
+    }
+
+    @Test
+    @DisplayName("가족이 없는 회원이 찌르면 403과 QUESTION403_1로 응답한다.")
+    void poke_noFamily() throws Exception {
+        willThrow(new QuestionException(QuestionErrorCode.FAMILY_REQUIRED))
+                .given(questionService).poke(MEMBER_ID, RECEIVER_ID);
+
+        mockMvc.perform(post(POKE_URL, RECEIVER_ID)
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("QUESTION403_1"));
+    }
+
+    @Test
+    @DisplayName("오늘 이미 찌른 대상이면 409와 QUESTION409_2로 응답한다.")
+    void poke_alreadyPoked() throws Exception {
+        willThrow(new QuestionException(QuestionErrorCode.ALREADY_POKED))
+                .given(questionService).poke(MEMBER_ID, RECEIVER_ID);
+
+        mockMvc.perform(post(POKE_URL, RECEIVER_ID)
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("QUESTION409_2"));
     }
 }

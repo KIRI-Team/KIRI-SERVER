@@ -10,11 +10,17 @@ import com.kiri.server.domain.question.dto.QuestionReqDTO;
 import com.kiri.server.domain.question.dto.QuestionResDTO;
 import com.kiri.server.domain.question.entity.FamilyQuestion;
 import com.kiri.server.domain.question.entity.MemberAnswer;
+import com.kiri.server.domain.question.event.PokeEvent;
 import com.kiri.server.domain.question.exception.QuestionException;
 import com.kiri.server.domain.question.exception.code.QuestionErrorCode;
 import com.kiri.server.domain.question.repository.FamilyQuestionRepository;
 import com.kiri.server.domain.question.repository.MemberAnswerRepository;
+import com.kiri.server.domain.question.repository.PokeRepository;
 import lombok.RequiredArgsConstructor;
+import org.postgresql.util.PSQLException;
+import org.postgresql.util.ServerErrorMessage;
+import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.postgresql.util.PSQLException;
 import org.postgresql.util.ServerErrorMessage;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -38,6 +44,8 @@ public class QuestionService {
     private final FamilyQuestionRepository familyQuestionRepository;
     private final MemberAnswerRepository memberAnswerRepository;
     private final Clock clock;
+    private final PokeRepository pokeRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Transactional(readOnly = true)
     public QuestionResDTO.TodayQuestion getTodayQuestion(Long memberId) {
@@ -128,6 +136,52 @@ public class QuestionService {
         return QuestionConverter.toFamilyAnswers(familyQuestion, familyMembers, answerByMemberId, memberId);
     }
 
+    @Transactional
+    public void poke(Long memberId, Long receiverId) {
+
+        // 자기 자신은 찌를 수 없음
+        if (memberId.equals(receiverId)) {
+            throw new QuestionException(QuestionErrorCode.SELF_POKE);
+        }
+
+        Member member = memberRepository.findById(memberId)
+                .orElseThrow(() -> new MemberException(MemberErrorCode.NOT_FOUND));
+
+        // 요청자는 반드시 가족에 소속되어 있어야 함
+        Family family = member.getFamily();
+        if (family == null) {
+            throw new QuestionException(QuestionErrorCode.FAMILY_REQUIRED);
+        }
+
+        // 대상이 없는 회원
+        Member receiver = memberRepository.findById(receiverId)
+                .orElseThrow(() -> new QuestionException(QuestionErrorCode.POKE_RECEIVER_NOT_FOUND));
+
+        // 대상이 다른 가족
+        Family receiverFamily = receiver.getFamily();
+        if (receiverFamily == null || !family.getId().equals(receiverFamily.getId())) {
+            throw new QuestionException(QuestionErrorCode.POKE_RECEIVER_NOT_FOUND);
+        }
+
+        LocalDate today = LocalDate.now(clock);
+
+        // 같은 사람에게 하루 한 번만 가능
+        if (pokeRepository.existsBySenderAndReceiverAndPokeDate(member, receiver, today)) {
+            throw new QuestionException(QuestionErrorCode.ALREADY_POKED);
+        }
+
+        try {
+            pokeRepository.save(QuestionConverter.toPoke(member, receiver, today));
+        } catch (DataIntegrityViolationException e) {
+            if (isDuplicatePoke(e)) {
+                throw new QuestionException(QuestionErrorCode.ALREADY_POKED);
+            }
+            throw e;
+        }
+
+        eventPublisher.publishEvent(new PokeEvent(memberId, receiverId));
+    }
+
     // 내 가족에게 배정된 질문만 조회 (다른 가족의 질문은 존재 여부를 숨기기 위해 같은 404)
     private FamilyQuestion getMyFamilyQuestion(Member member, Long questionId) {
         FamilyQuestion familyQuestion = familyQuestionRepository.findById(questionId)
@@ -138,5 +192,14 @@ public class QuestionService {
             throw new QuestionException(QuestionErrorCode.FAMILY_QUESTION_NOT_FOUND);
         }
         return familyQuestion;
+    }
+
+    // 유니크 제약 여부 확인
+    private boolean isDuplicatePoke(DataIntegrityViolationException e) {
+        if (!(e.getMostSpecificCause() instanceof PSQLException psqlException)) {
+            return false;
+        }
+        ServerErrorMessage serverError = psqlException.getServerErrorMessage();
+        return serverError != null && "uk_poke_sender_receiver_date".equals(serverError.getConstraint());
     }
 }
