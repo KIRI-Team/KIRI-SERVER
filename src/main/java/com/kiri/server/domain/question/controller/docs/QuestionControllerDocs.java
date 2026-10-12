@@ -152,7 +152,8 @@ public interface QuestionControllerDocs {
                     3. 질문이 없거나 내 가족에게 배정된 질문이 아니면 404(QUESTION404_2)를 반환합니다.
                     4. 오늘 배정된 질문이 아니면 400(QUESTION400_1)을 반환합니다.
                     5. 내 답변이 있으면 수정하고, 없으면 새로 작성합니다.
-                    6. 같은 회원의 첫 작성 요청이 동시에 들어오면 하나만 저장되고 나머지는 409(COMMON409_1)를 반환합니다.
+                    6. 같은 회원의 첫 작성 요청이 동시에 들어오면 하나만 저장되고 나머지는 409(QUESTION409_1)를 반환합니다.
+                       다시 요청하면 저장된 답변을 수정하므로 정상 처리됩니다.
                     """
     )
     @ApiResponses(value = {
@@ -260,14 +261,14 @@ public interface QuestionControllerDocs {
             ),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
                     responseCode = "409",
-                    description = "첫 작성 요청이 동시에 들어와 중복 저장이 막힘(COMMON409_1)",
+                    description = "첫 작성 요청이 동시에 들어와 중복 저장이 막힘(QUESTION409_1)",
                     content = @Content(
                             mediaType = "application/json",
                             examples = @ExampleObject(value = """
                                     {
                                       "isSuccess": false,
-                                      "code": "COMMON409_1",
-                                      "message": "이미 존재하는 데이터이거나 요청이 충돌합니다.",
+                                      "code": "QUESTION409_1",
+                                      "message": "답변 요청이 동시에 처리되었습니다. 다시 시도해주세요.",
                                       "result": null
                                     }
                                     """)
