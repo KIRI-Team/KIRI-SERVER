@@ -15,6 +15,9 @@ import com.kiri.server.domain.question.exception.code.QuestionErrorCode;
 import com.kiri.server.domain.question.repository.FamilyQuestionRepository;
 import com.kiri.server.domain.question.repository.MemberAnswerRepository;
 import lombok.RequiredArgsConstructor;
+import org.postgresql.util.PSQLException;
+import org.postgresql.util.ServerErrorMessage;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -74,13 +77,29 @@ public class QuestionService {
             throw new QuestionException(QuestionErrorCode.ANSWER_PERIOD_EXPIRED);
         }
 
-        // 동시에 두 번 생성 요청이 오면 uk_member_answer 유니크 제약이 막고 전역 핸들러가 409로 응답
-        memberAnswerRepository.findByFamilyQuestionAndMember(familyQuestion, member)
-                .ifPresentOrElse(
-                        answer -> answer.updateContent(request.answer()),
-                        () -> memberAnswerRepository.save(
-                                QuestionConverter.toMemberAnswer(request.answer(), familyQuestion, member)
-                        )
-                );
+        Optional<MemberAnswer> answer = memberAnswerRepository.findByFamilyQuestionAndMember(familyQuestion, member);
+        if (answer.isPresent()) {
+            answer.get().updateContent(request.answer());
+            return;
+        }
+
+        // 동시에 두 번 생성 요청이 오면 uk_member_answer 유니크 제약이 막으므로 409로 변환
+        try {
+            memberAnswerRepository.save(QuestionConverter.toMemberAnswer(request.answer(), familyQuestion, member));
+        } catch (DataIntegrityViolationException e) {
+            if (isDuplicateAnswer(e)) {
+                throw new QuestionException(QuestionErrorCode.DUPLICATE_ANSWER_REQUEST);
+            }
+            throw e;
+        }
+    }
+
+    // 유니크 제약 여부 확인
+    private boolean isDuplicateAnswer(DataIntegrityViolationException e) {
+        if (!(e.getMostSpecificCause() instanceof PSQLException psqlException)) {
+            return false;
+        }
+        ServerErrorMessage serverError = psqlException.getServerErrorMessage();
+        return serverError != null && "uk_member_answer".equals(serverError.getConstraint());
     }
 }

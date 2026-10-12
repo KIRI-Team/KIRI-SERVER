@@ -21,6 +21,9 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.postgresql.util.PSQLException;
+import org.postgresql.util.ServerErrorMessage;
+import org.springframework.dao.DataIntegrityViolationException;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -263,5 +266,41 @@ class QuestionServiceTest {
 
         assertThat(existing.getContent()).isEqualTo(WRITE_REQUEST.answer());
         verify(memberAnswerRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("첫 답변 작성이 동시에 들어와 답변 유니크 제약에 막히면 QUESTION409_1 예외가 발생한다.")
+    void writeAnswer_duplicateRequest() {
+        given(memberRepository.findById(MEMBER_ID)).willReturn(Optional.of(member));
+        given(familyQuestionRepository.findById(FAMILY_QUESTION_ID)).willReturn(Optional.of(familyQuestion));
+        given(memberAnswerRepository.findByFamilyQuestionAndMember(familyQuestion, member))
+                .willReturn(Optional.empty());
+        // 조회 시점엔 없었지만 다른 요청이 먼저 저장한 상황
+        given(memberAnswerRepository.save(any(MemberAnswer.class))).willThrow(new DataIntegrityViolationException(
+                "could not execute statement",
+                new PSQLException(new ServerErrorMessage(
+                        "SERROR\0C23505\0Mduplicate key value violates unique constraint\0nuk_member_answer\0"))));
+
+        assertThatThrownBy(() -> questionService.writeAnswer(MEMBER_ID, FAMILY_QUESTION_ID, WRITE_REQUEST))
+                .isInstanceOf(QuestionException.class)
+                .extracting("errorCode")
+                .isEqualTo(QuestionErrorCode.DUPLICATE_ANSWER_REQUEST);
+    }
+
+    @Test
+    @DisplayName("답변 유니크 제약이 아닌 무결성 위반은 바꾸지 않고 그대로 던진다.")
+    void writeAnswer_otherIntegrityViolation() {
+        given(memberRepository.findById(MEMBER_ID)).willReturn(Optional.of(member));
+        given(familyQuestionRepository.findById(FAMILY_QUESTION_ID)).willReturn(Optional.of(familyQuestion));
+        given(memberAnswerRepository.findByFamilyQuestionAndMember(familyQuestion, member))
+                .willReturn(Optional.empty());
+        // 회원이 그 사이 탈퇴해 FK 위반이 난 상황
+        given(memberAnswerRepository.save(any(MemberAnswer.class))).willThrow(new DataIntegrityViolationException(
+                "could not execute statement",
+                new PSQLException(new ServerErrorMessage(
+                        "SERROR\0C23503\0Minsert or update violates foreign key constraint\0nfk_member_answer_member\0"))));
+
+        assertThatThrownBy(() -> questionService.writeAnswer(MEMBER_ID, FAMILY_QUESTION_ID, WRITE_REQUEST))
+                .isInstanceOf(DataIntegrityViolationException.class);
     }
 }
