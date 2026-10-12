@@ -37,4 +37,13 @@ public class QuestionController implements QuestionControllerDocs {
         BaseSuccessCode code = QuestionSuccessCode.WRITE_ANSWER;
         return ApiResponse.onSuccess(code);
     }
+
+    @GetMapping("/{questionId}/answers")
+    public ApiResponse<QuestionResDTO.FamilyAnswers> getFamilyAnswers(
+            @AuthenticationPrincipal Long memberId,
+            @PathVariable Long questionId
+    ) {
+        BaseSuccessCode code = QuestionSuccessCode.FAMILY_ANSWERS;
+        return ApiResponse.onSuccess(code, questionService.getFamilyAnswers(memberId, questionId));
+    }
 }
