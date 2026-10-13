@@ -6,9 +6,10 @@ public class MissionTitleGenerator {
 
     private static final int MAX_TITLE_LENGTH = 100;
     private static final String EXPERIENCE_WORD = "체험";
+    private static final String REGION_SUFFIX = "\\s*\\((서울|서울특별시)\\)$";
 
     public static String generate(Category category, String originName) {
-        String name = originName.replaceAll("\\s+", " ").trim();
+        String name = originName.replaceAll("\\s+", " ").trim().replaceAll(REGION_SUFFIX, "");
         return switch (category) {
             case POPUP, FOOD_CAFE -> fit(name, "", " 방문하기");
             case EXHIBITION, PERFORMANCE -> fit(name, "", " 관람하기");

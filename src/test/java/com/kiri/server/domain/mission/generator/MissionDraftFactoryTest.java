@@ -136,7 +136,7 @@ class MissionDraftFactoryTest {
     }
 
     @Test
-    @DisplayName("숙박·쇼핑·여행코스는 미션 대상이 아니다.")
+    @DisplayName("숙박·시장이 아닌 쇼핑·여행코스는 미션 대상이 아니다.")
     void ignoredTypes() {
         assertThat(factory.create(base("32", "어느 호텔").build())).isInstanceOf(DraftResult.Ignored.class);
         assertThat(factory.create(base("38", "어느 시장").build())).isInstanceOf(DraftResult.Ignored.class);
@@ -186,6 +186,71 @@ class MissionDraftFactoryTest {
 
         assertThat(draft.isPeriodOver(LocalDate.of(2026, 10, 5))).isFalse();
         assertThat(draft.isPeriodOver(LocalDate.of(2026, 10, 6))).isTrue();
+    }
+
+    @Test
+    @DisplayName("행사는 분류체계 코드로 전시회·공연·축제를 나눈다.")
+    void eventByClassification() {
+        MissionDraft exhibition = ready(factory.create(event("K-일러스트레이션페어", "EV03", "EV030100")));
+        MissionDraft concert = ready(factory.create(event("가을밤 페스티벌", "EV02", "EV020700")));
+        MissionDraft festival = ready(factory.create(event("K-푸드 페스티벌", "EV01", "EV010600")));
+
+        assertThat(exhibition.category()).isEqualTo(Category.EXHIBITION);
+        assertThat(concert.category()).isEqualTo(Category.PERFORMANCE);
+        assertThat(festival.category()).isEqualTo(Category.POPUP);
+    }
+
+    @Test
+    @DisplayName("역사·종교 관광지와 관광특구는 나들이 미션이 되고 제목 끝의 지역 표기는 뺀다.")
+    void historyAndDistrict() {
+        MissionDraft temple = ready(factory.create(base("12", "화계사(서울)")
+                .lclsSystm1("HS").lclsSystm2("HS03").lclsSystm3("HS030100").build()));
+        MissionDraft district = ready(factory.create(base("12", "이태원 관광특구")
+                .lclsSystm1("VE").lclsSystm2("VE05").lclsSystm3("VE050100").build()));
+
+        assertThat(temple.category()).isEqualTo(Category.OUTDOOR);
+        assertThat(temple.title()).isEqualTo("가족과 화계사 나들이 가기");
+        assertThat(temple.place().name()).isEqualTo("화계사(서울)");
+        assertThat(district.title()).isEqualTo("가족과 이태원 관광특구 나들이 가기");
+    }
+
+    @Test
+    @DisplayName("문화시설은 공연시설이면 공연, 전시시설이면 전시 미션이 된다.")
+    void cultureFacilityByClassification() {
+        MissionDraft theater = ready(factory.create(base("14", "세종문화회관").lclsSystm2("VE06").build()));
+        MissionDraft gallery = ready(factory.create(base("14", "가나아트센터").lclsSystm2("VE07").build()));
+
+        assertThat(theater.category()).isEqualTo(Category.PERFORMANCE);
+        assertThat(gallery.category()).isEqualTo(Category.EXHIBITION);
+        assertThat(gallery.indoorOutdoor()).isEqualTo(IndoorOutdoor.INDOOR);
+    }
+
+    @Test
+    @DisplayName("쇼핑 중 시장만 맛집 미션으로 받고 나머지 쇼핑은 제외한다.")
+    void marketOnly() {
+        MissionDraft market = ready(factory.create(base("38", "광장시장").lclsSystm2("SH06").build()));
+
+        assertThat(market.category()).isEqualTo(Category.FOOD_CAFE);
+        assertThat(market.place().placeType()).isEqualTo(PlaceType.TOURIST_SPOT);
+        assertThat(factory.create(base("38", "롯데백화점").lclsSystm2("SH01").build()))
+                .isInstanceOf(DraftResult.Ignored.class);
+    }
+
+    @Test
+    @DisplayName("주점·교통시설·연회장·카지노는 가족 미션 대상에서 제외한다.")
+    void ignoredClassifications() {
+        assertThat(factory.create(base("39", "어느 펍").lclsSystm2("FD04").build())).isInstanceOf(DraftResult.Ignored.class);
+        assertThat(factory.create(base("12", "서울역").lclsSystm2("VE11").build())).isInstanceOf(DraftResult.Ignored.class);
+        assertThat(factory.create(base("14", "어느 연회장").lclsSystm2("VE08").build())).isInstanceOf(DraftResult.Ignored.class);
+        assertThat(factory.create(base("12", "어느 카지노").lclsSystm2("VE12").lclsSystm3("VE120200").build()))
+                .isInstanceOf(DraftResult.Ignored.class);
+    }
+
+    private NormalizedContent event(String title, String lclsSystm2, String lclsSystm3) {
+        return base("15", title)
+                .lclsSystm1("EV").lclsSystm2(lclsSystm2).lclsSystm3(lclsSystm3)
+                .startDate(LocalDate.of(2026, 10, 10)).endDate(LocalDate.of(2026, 10, 20))
+                .build();
     }
 
     private NormalizedContent.NormalizedContentBuilder base(String contentTypeId, String title) {

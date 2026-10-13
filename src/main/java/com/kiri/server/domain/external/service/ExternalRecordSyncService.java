@@ -46,7 +46,8 @@ public class ExternalRecordSyncService {
             return record.isPresent() ? SyncDecision.HIDE : SyncDecision.SKIP;
         }
         if (record.isEmpty()) {
-            return CategoryClassifier.isIgnoredType(item.contentTypeId()) ? SyncDecision.SKIP : SyncDecision.FETCH;
+            return CategoryClassifier.isIgnored(item.contentTypeId(), item.lclsSystm2(), item.lclsSystm3())
+                    ? SyncDecision.SKIP : SyncDecision.FETCH;
         }
         return record.get().isSameOrigin(item.modifiedAt()) ? SyncDecision.UNCHANGED : SyncDecision.FETCH;
     }

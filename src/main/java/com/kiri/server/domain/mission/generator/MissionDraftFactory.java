@@ -39,7 +39,7 @@ public class MissionDraftFactory {
     }
 
     public DraftResult create(NormalizedContent content) {
-        if (CategoryClassifier.isIgnoredType(content.contentTypeId())) {
+        if (CategoryClassifier.isIgnored(content.contentTypeId(), content.lclsSystm2(), content.lclsSystm3())) {
             return new DraftResult.Ignored();
         }
         if (isBlank(content.title())) {
