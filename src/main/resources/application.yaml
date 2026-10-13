@@ -95,3 +95,5 @@ tour-api:
   region-code: "11"
   connect-timeout: 3s
   read-timeout: 10s
+  max-calls-per-run: 240
+  sync-cron: "0 0 */6 * * *"
