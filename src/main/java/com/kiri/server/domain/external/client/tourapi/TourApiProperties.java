@@ -12,8 +12,17 @@ public record TourApiProperties(
         Integer numOfRows,
         String regionCode,
         Duration connectTimeout,
-        Duration readTimeout
+        Duration readTimeout,
+        Integer maxCallsPerRun
 ) {
+
+    private static final int DEFAULT_NUM_OF_ROWS = 100;
+    private static final int DEFAULT_MAX_CALLS_PER_RUN = 240;
+
+    public TourApiProperties {
+        numOfRows = numOfRows == null ? DEFAULT_NUM_OF_ROWS : numOfRows;
+        maxCallsPerRun = maxCallsPerRun == null ? DEFAULT_MAX_CALLS_PER_RUN : maxCallsPerRun;
+    }
 
     public boolean hasServiceKey() {
         return serviceKey != null && !serviceKey.isBlank();
