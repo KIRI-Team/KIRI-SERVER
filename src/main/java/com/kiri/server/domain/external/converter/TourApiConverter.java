@@ -13,6 +13,8 @@ import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import static com.kiri.server.domain.external.client.tourapi.TourApiResponseParser.text;
 
@@ -22,6 +24,9 @@ public class TourApiConverter {
     private static final String HIDDEN = "0";
     private static final String IMAGE_SOURCE = "한국관광공사";
     private static final int MAX_ADDRESS_LENGTH = 255;
+    private static final int MAX_URL_LENGTH = 500;
+    private static final Pattern HREF = Pattern.compile("href\\s*=\\s*[\"']([^\"']+)[\"']", Pattern.CASE_INSENSITIVE);
+    private static final Pattern PLAIN_URL = Pattern.compile("https?://[^\\s\"'<>]+", Pattern.CASE_INSENSITIVE);
 
     private static final String TYPE_EVENT = "15";
     private static final String TYPE_RESTAURANT = "39";
@@ -88,6 +93,17 @@ public class TourApiConverter {
                 .programTexts(programTexts(type, introNode, infoNodes))
                 .menuNames(menuNames(type, introNode))
                 .build();
+    }
+
+    public static String toSourceUrl(JsonNode common) {
+        String homepage = text(orMissing(common), "homepage");
+        if (homepage == null) {
+            return null;
+        }
+        Matcher href = HREF.matcher(homepage);
+        Matcher plain = PLAIN_URL.matcher(homepage);
+        String url = href.find() ? href.group(1).trim() : plain.find() ? plain.group() : null;
+        return url == null || url.length() > MAX_URL_LENGTH ? null : url;
     }
 
     private static List<String> programTexts(String type, JsonNode intro, List<JsonNode> infos) {

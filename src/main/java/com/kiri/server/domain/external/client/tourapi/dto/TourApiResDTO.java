@@ -47,4 +47,15 @@ public class TourApiResDTO {
             JsonNode raw
     ) {
     }
+
+    public record Details(
+            JsonNode common,
+            JsonNode intro,
+            List<JsonNode> infos
+    ) {
+
+        public Details {
+            infos = infos == null ? List.of() : List.copyOf(infos);
+        }
+    }
 }
