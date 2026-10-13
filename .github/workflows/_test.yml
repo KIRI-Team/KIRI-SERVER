@@ -41,3 +41,7 @@ jobs:
           DB_USER: kiri
           DB_PW: kiri
           JWT_SECRET: ci-test-jwt-secret-must-be-at-least-32-bytes
+          KAKAO_NATIVE_APP_KEY: test-kakao-key
+          GOOGLE_ANDROID_CLIENT_ID: test-android
+          GOOGLE_IOS_CLIENT_ID: test-ios
+          APPLE_CLIENT_ID: test-apple

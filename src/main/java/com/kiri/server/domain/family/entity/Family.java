@@ -22,23 +22,19 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Entity
-@Getter
-@Builder
-@AllArgsConstructor(access = AccessLevel.PRIVATE)
-@NoArgsConstructor(access = AccessLevel.PROTECTED)
 @Table(
         name = "family",
         uniqueConstraints = {
-                // 가족명은 서비스 전체에서 중복 불가
-                @UniqueConstraint(name = "uk_family_name", columnNames = {"name"}),
-                // 한 회원은 가족을 하나만 생성 가능
                 @UniqueConstraint(name = "uk_family_owner", columnNames = {"owner_id"}),
-                // 초대 코드로 가족을 찾으므로 가족 간 중복 불가
+                @UniqueConstraint(name = "uk_family_name", columnNames = { "name" }),
                 @UniqueConstraint(name = "uk_family_invite_code", columnNames = {"invite_code"}),
-                // 초대 토큰으로 가족을 찾으므로 가족 간 중복 불가
-                @UniqueConstraint(name = "uk_family_invite_token", columnNames = {"invite_token"})
+                @UniqueConstraint(name = "uk_family_invite_token", columnNames = { "invite_token" })
         }
 )
+@Getter
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
+@Builder
+@AllArgsConstructor(access = AccessLevel.PRIVATE)
 public class Family extends BaseEntity {
 
     @Id
@@ -46,40 +42,31 @@ public class Family extends BaseEntity {
     @Column(name = "family_id")
     private Long id;
 
-    // 가족명
-    @Column(name = "name", length = 20, nullable = false)
+    @OneToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "owner_id", nullable = false, unique = true)
+    private Member owner;
+
+    @Column(name = "name", nullable = false)
     private String name;
 
-    // 초대 코드
     @Column(name = "invite_code", length = 6)
     private String inviteCode;
 
-    // 초대 토큰
     @Column(name = "invite_token", length = 64)
     private String inviteToken;
 
-    // 초대 만료일시
     @Column(name = "invite_expires_at")
     private LocalDateTime inviteExpiresAt;
 
-    // 지역 코드
     @Column(name = "region_code", length = 10)
     private String regionCode;
 
-    // 위도
     @Column(name = "latitude", precision = 10, scale = 7)
     private BigDecimal latitude;
 
-    // 경도
     @Column(name = "longitude", precision = 10, scale = 7)
     private BigDecimal longitude;
 
-    // 주소
-    @Column(name = "address", length = 255)
+    @Column(name = "address")
     private String address;
-
-    // 가족을 만든 회원 (방장)
-    @OneToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "owner_id", nullable = false)
-    private Member owner;
 }
