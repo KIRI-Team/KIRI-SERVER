@@ -4,6 +4,7 @@ import com.kiri.server.domain.external.enums.ExternalSource;
 import com.kiri.server.domain.external.enums.ProcessStatus;
 import com.kiri.server.domain.external.enums.ReviewReason;
 import com.kiri.server.domain.mission.entity.Mission;
+import com.kiri.server.domain.place.entity.Place;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -33,16 +34,30 @@ class ExternalRecordTest {
     }
 
     @Test
-    @DisplayName("미션으로 가공되면 미션을 연결하고 검수 사유를 지운다.")
+    @DisplayName("원본 수정 시각이 저장된 값과 같을 때만 같은 원본으로 본다.")
+    void isSameOrigin() {
+        ExternalRecord record = reviewRequired(ReviewReason.NO_LOCATION);
+        ExternalRecord noModifiedAt = ExternalRecord.builder().contentHash(HASH).build();
+        record.updateOrigin("{}", HASH, SYNCED_AT.minusDays(1), null, SYNCED_AT);
+
+        assertThat(record.isSameOrigin(SYNCED_AT.minusDays(1))).isTrue();
+        assertThat(record.isSameOrigin(SYNCED_AT)).isFalse();
+        assertThat(noModifiedAt.isSameOrigin(null)).isFalse();
+    }
+
+    @Test
+    @DisplayName("미션으로 가공되면 미션과 장소를 연결하고 검수 사유를 지운다.")
     void markProcessed() {
         ExternalRecord record = reviewRequired(ReviewReason.CATEGORY_UNKNOWN);
-        Mission mission = Mission.builder().build();
+        Place place = Place.builder().name("여의도한강공원").build();
+        Mission mission = Mission.builder().place(place).build();
 
         record.markProcessed(mission);
 
         assertThat(record.getProcessStatus()).isEqualTo(ProcessStatus.PROCESSED);
         assertThat(record.getReviewReason()).isNull();
         assertThat(record.getMission()).isSameAs(mission);
+        assertThat(record.getPlace()).isSameAs(place);
     }
 
     @Test

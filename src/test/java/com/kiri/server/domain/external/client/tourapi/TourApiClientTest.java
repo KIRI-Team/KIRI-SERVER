@@ -281,7 +281,7 @@ class TourApiClientTest {
 
     private Fixture fixture(String serviceKey, String regionCode) {
         TourApiProperties properties = new TourApiProperties(
-                BASE_URL, serviceKey, "KIRI", 100, regionCode, Duration.ofSeconds(3), Duration.ofSeconds(10));
+                BASE_URL, serviceKey, "KIRI", 100, regionCode, Duration.ofSeconds(3), Duration.ofSeconds(10), 240);
         RestClient.Builder builder = RestClient.builder()
                 .uriBuilderFactory(RestClientConfig.strictUriBuilderFactory(BASE_URL));
         MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();

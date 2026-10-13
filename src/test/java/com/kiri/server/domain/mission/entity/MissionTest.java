@@ -3,8 +3,11 @@ package com.kiri.server.domain.mission.entity;
 import com.kiri.server.domain.mission.enums.Category;
 import com.kiri.server.domain.mission.enums.MissionStatus;
 import com.kiri.server.domain.mission.enums.MissionType;
+import com.kiri.server.domain.mission.generator.dto.MissionDraft;
+import com.kiri.server.domain.place.entity.Place;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.LocalDate;
 
@@ -93,6 +96,59 @@ class MissionTest {
         mission.endIfPeriodOver(TODAY);
 
         assertThat(mission.getStatus()).isEqualTo(MissionStatus.ACTIVE);
+    }
+
+    @Test
+    @DisplayName("원본이 바뀌면 미션 내용과 장소를 새 가공 결과로 갱신하고 상태는 유지한다.")
+    void updateContent() {
+        Mission mission = withStatus(MissionStatus.HIDDEN);
+        Place place = Place.builder().name("여의도한강공원").build();
+        MissionDraft draft = MissionDraft.builder()
+                .title("새 제목").description("새 설명")
+                .category(Category.PERFORMANCE).missionType(MissionType.PERIOD)
+                .startDate(TODAY).endDate(TODAY.plusDays(3))
+                .price(10000)
+                .build();
+
+        mission.updateContent(draft, place);
+
+        assertThat(mission.getTitle()).isEqualTo("새 제목");
+        assertThat(mission.getCategory()).isEqualTo(Category.PERFORMANCE);
+        assertThat(mission.getEndDate()).isEqualTo(TODAY.plusDays(3));
+        assertThat(mission.getPrice()).isEqualTo(10000);
+        assertThat(mission.getPlace()).isSameAs(place);
+        assertThat(mission.getStatus()).isEqualTo(MissionStatus.HIDDEN);
+    }
+
+    @Test
+    @DisplayName("재가공된 미션은 확인 필요·종료 상태에서 다시 노출하되 기간이 지났으면 종료한다.")
+    void reactivate() {
+        Mission checkRequired = withStatus(MissionStatus.CHECK_REQUIRED);
+        Mission extended = periodMission(TODAY.minusDays(5), TODAY.plusDays(1));
+        ReflectionTestUtils.setField(extended, "status", MissionStatus.ENDED);
+        Mission stillOver = periodMission(TODAY.minusDays(5), TODAY.minusDays(1));
+        ReflectionTestUtils.setField(stillOver, "status", MissionStatus.ENDED);
+
+        checkRequired.reactivate(TODAY);
+        extended.reactivate(TODAY);
+        stillOver.reactivate(TODAY);
+
+        assertThat(checkRequired.getStatus()).isEqualTo(MissionStatus.ACTIVE);
+        assertThat(extended.getStatus()).isEqualTo(MissionStatus.ACTIVE);
+        assertThat(stillOver.getStatus()).isEqualTo(MissionStatus.ENDED);
+    }
+
+    @Test
+    @DisplayName("운영자가 숨기거나 취소한 미션은 재가공되어도 다시 노출하지 않는다.")
+    void reactivate_operatorStatusUnchanged() {
+        Mission hidden = withStatus(MissionStatus.HIDDEN);
+        Mission cancelled = withStatus(MissionStatus.CANCELLED);
+
+        hidden.reactivate(TODAY);
+        cancelled.reactivate(TODAY);
+
+        assertThat(hidden.getStatus()).isEqualTo(MissionStatus.HIDDEN);
+        assertThat(cancelled.getStatus()).isEqualTo(MissionStatus.CANCELLED);
     }
 
     private Mission periodMission(LocalDate startDate, LocalDate endDate) {

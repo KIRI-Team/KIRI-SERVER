@@ -129,4 +129,23 @@ class TourApiConverterTest {
         assertThat(content.usageTimeText()).isEqualTo("11:00~21:30");
         assertThat(content.startDate()).isNull();
     }
+
+    @Test
+    @DisplayName("공통정보의 홈페이지 링크에서 원본 URL을 꺼낸다.")
+    void toSourceUrl() {
+        JsonNode anchor = jsonMapper.readTree("""
+                {"homepage":"<a href=\\"https://www.museum.go.kr\\" target=\\"_blank\\">www.museum.go.kr</a>"}
+                """);
+        JsonNode plain = jsonMapper.readTree("""
+                {"homepage":"http://hangang.seoul.go.kr 참고"}
+                """);
+        JsonNode domainOnly = jsonMapper.readTree("""
+                {"homepage":"www.museum.go.kr"}
+                """);
+
+        assertThat(TourApiConverter.toSourceUrl(anchor)).isEqualTo("https://www.museum.go.kr");
+        assertThat(TourApiConverter.toSourceUrl(plain)).isEqualTo("http://hangang.seoul.go.kr");
+        assertThat(TourApiConverter.toSourceUrl(domainOnly)).isNull();
+        assertThat(TourApiConverter.toSourceUrl(null)).isNull();
+    }
 }
