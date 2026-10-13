@@ -182,7 +182,7 @@ class TourApiSyncServiceTest {
 
     private TourApiSyncService service(String serviceKey, int maxCallsPerRun) {
         TourApiProperties properties = new TourApiProperties(
-                "https://apis.data.go.kr/B551011/KorService2", serviceKey, "KIRI", 100, "11",
+                "https://apis.data.go.kr/B551011/KorService2", serviceKey, "KIRI", 2, "11",
                 Duration.ofSeconds(3), Duration.ofSeconds(10), maxCallsPerRun);
         Clock clock = Clock.fixed(NOW.atZone(SEOUL).toInstant(), SEOUL);
         return new TourApiSyncService(tourApiClient, properties, externalRecordSyncService,

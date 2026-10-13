@@ -86,7 +86,7 @@ public class TourApiSyncService {
             for (JsonNode node : page.items()) {
                 syncItem(TourApiConverter.toSyncItem(node), run);
             }
-            if (page.items().isEmpty() || !page.hasNext()) {
+            if (page.items().isEmpty() || (long) pageNo * properties.numOfRows() >= page.totalCount()) {
                 return;
             }
             pageNo++;

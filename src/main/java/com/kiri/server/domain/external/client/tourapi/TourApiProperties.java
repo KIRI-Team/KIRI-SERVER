@@ -16,7 +16,7 @@ public record TourApiProperties(
         Integer maxCallsPerRun
 ) {
 
-    private static final int DEFAULT_NUM_OF_ROWS = 100;
+    private static final int DEFAULT_NUM_OF_ROWS = 1000;
     private static final int DEFAULT_MAX_CALLS_PER_RUN = 240;
 
     public TourApiProperties {
