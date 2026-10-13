@@ -4,6 +4,7 @@ import com.kiri.server.domain.mission.enums.Category;
 import com.kiri.server.domain.mission.enums.IndoorOutdoor;
 import com.kiri.server.domain.mission.enums.MissionStatus;
 import com.kiri.server.domain.mission.enums.MissionType;
+import com.kiri.server.domain.mission.generator.dto.MissionDraft;
 import com.kiri.server.domain.place.entity.Place;
 import com.kiri.server.global.entity.BaseEntity;
 import jakarta.persistence.Column;
@@ -101,6 +102,33 @@ public class Mission extends BaseEntity {
 
     @Column(name = "closing_time")
     private LocalTime closingTime;
+
+    public void updateContent(MissionDraft draft, Place place) {
+        this.place = place;
+        this.title = draft.title();
+        this.description = draft.description();
+        this.category = draft.category();
+        this.missionType = draft.missionType();
+        this.imageUrl = draft.imageUrl();
+        this.imageSource = draft.imageSource();
+        this.durationMinMinutes = draft.durationMinMinutes();
+        this.durationMaxMinutes = draft.durationMaxMinutes();
+        this.price = draft.price();
+        this.estimatedStepsMin = draft.estimatedStepsMin();
+        this.estimatedStepsMax = draft.estimatedStepsMax();
+        this.indoorOutdoor = draft.indoorOutdoor();
+        this.startDate = draft.startDate();
+        this.endDate = draft.endDate();
+        this.openingTime = draft.openingTime();
+        this.closingTime = draft.closingTime();
+    }
+
+    public void reactivate(LocalDate today) {
+        if (status == MissionStatus.CHECK_REQUIRED || status == MissionStatus.ENDED) {
+            this.status = MissionStatus.ACTIVE;
+        }
+        endIfPeriodOver(today);
+    }
 
     public void requireCheck() {
         if (status == MissionStatus.ACTIVE) {

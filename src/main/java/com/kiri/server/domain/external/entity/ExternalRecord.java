@@ -85,6 +85,10 @@ public class ExternalRecord extends BaseEntity {
     @Column(name = "synced_at", nullable = false)
     private LocalDateTime syncedAt;
 
+    public boolean isSameOrigin(LocalDateTime modifiedAt) {
+        return originModifiedAt != null && originModifiedAt.equals(modifiedAt);
+    }
+
     public boolean isChanged(String newContentHash) {
         return !contentHash.equals(newContentHash);
     }
@@ -104,6 +108,7 @@ public class ExternalRecord extends BaseEntity {
 
     public void markProcessed(Mission mission) {
         this.mission = mission;
+        this.place = mission.getPlace();
         this.processStatus = ProcessStatus.PROCESSED;
         this.reviewReason = null;
     }

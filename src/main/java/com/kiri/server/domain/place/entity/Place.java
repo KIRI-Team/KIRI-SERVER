@@ -1,5 +1,6 @@
 package com.kiri.server.domain.place.entity;
 
+import com.kiri.server.domain.mission.generator.dto.MissionDraft;
 import com.kiri.server.domain.place.enums.PlaceType;
 import com.kiri.server.global.entity.BaseEntity;
 import jakarta.persistence.Column;
@@ -62,4 +63,18 @@ public class Place extends BaseEntity {
 
     @Column(name = "image_source", length = 255)
     private String imageSource;
+
+    public void fillMissingFrom(MissionDraft.PlaceDraft draft) {
+        if (regionCode == null) {
+            this.regionCode = draft.regionCode();
+        }
+        if (openingTime == null && closingTime == null) {
+            this.openingTime = draft.openingTime();
+            this.closingTime = draft.closingTime();
+        }
+        if (imageUrl == null && draft.imageUrl() != null) {
+            this.imageUrl = draft.imageUrl();
+            this.imageSource = draft.imageSource();
+        }
+    }
 }

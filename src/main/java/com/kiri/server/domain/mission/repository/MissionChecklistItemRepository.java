@@ -15,7 +15,7 @@ public interface MissionChecklistItemRepository extends JpaRepository<MissionChe
 
     List<MissionChecklistItem> findAllByMissionOrderByItemTypeAscDisplayOrderAsc(Mission mission);
 
-    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Modifying(flushAutomatically = true)
     @Query("DELETE FROM MissionChecklistItem i WHERE i.mission = :mission")
     void deleteAllByMissionInBulk(@Param("mission") Mission mission);
 }
