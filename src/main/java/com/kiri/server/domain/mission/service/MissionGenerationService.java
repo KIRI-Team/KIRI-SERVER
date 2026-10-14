@@ -1,8 +1,10 @@
 package com.kiri.server.domain.mission.service;
 
 import com.kiri.server.domain.external.entity.ExternalRecord;
+import com.kiri.server.domain.external.enums.ReviewReason;
 import com.kiri.server.domain.mission.converter.MissionConverter;
 import com.kiri.server.domain.mission.entity.Mission;
+import com.kiri.server.domain.mission.enums.MissionType;
 import com.kiri.server.domain.mission.generator.dto.DraftResult;
 import com.kiri.server.domain.mission.generator.dto.MissionDraft;
 import com.kiri.server.domain.mission.repository.MissionChecklistItemRepository;
@@ -59,6 +61,10 @@ public class MissionGenerationService {
             record.markIgnored();
             return;
         }
+        if (mission == null && hasDuplicate(draft)) {
+            record.markReviewRequired(ReviewReason.DUPLICATE_SUSPECT);
+            return;
+        }
 
         Place place = findOrCreatePlace(draft.place());
         if (mission == null) {
@@ -79,9 +85,32 @@ public class MissionGenerationService {
                 .findFirst()
                 .map(place -> {
                     place.fillMissingFrom(draft);
+                    place.refreshImage(draft.imageUrl(), draft.imageSource());
                     return place;
                 })
                 .orElseGet(() -> placeRepository.save(MissionConverter.toPlace(draft)));
+    }
+
+    private boolean hasDuplicate(MissionDraft draft) {
+        return missionRepository.findAllWithPlaceByTitle(draft.title()).stream()
+                .anyMatch(existing -> isNear(existing.getPlace(), draft.place()) && overlaps(existing, draft));
+    }
+
+    private boolean isNear(Place place, MissionDraft.PlaceDraft draft) {
+        return distanceMeters(place.getLatitude(), place.getLongitude(),
+                draft.latitude(), draft.longitude()) <= SAME_PLACE_METERS;
+    }
+
+    private boolean overlaps(Mission existing, MissionDraft draft) {
+        if (existing.getMissionType() != draft.missionType()) {
+            return false;
+        }
+        if (draft.missionType() == MissionType.PERMANENT) {
+            return true;
+        }
+        return existing.getStartDate() != null && existing.getEndDate() != null
+                && !existing.getStartDate().isAfter(draft.endDate())
+                && !draft.startDate().isAfter(existing.getEndDate());
     }
 
     private void requireCheck(ExternalRecord record) {

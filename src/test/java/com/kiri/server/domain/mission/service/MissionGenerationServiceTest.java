@@ -122,6 +122,39 @@ class MissionGenerationServiceTest {
     }
 
     @Test
+    @DisplayName("제목이 같고 가까운 곳에서 기간이 겹치는 미션이 이미 있으면 만들지 않고 중복 의심 검수로 보낸다.")
+    void apply_duplicateSuspect() {
+        ExternalRecord record = newRecord();
+        Mission existing = periodMission(place(LATITUDE, LONGITUDE), TODAY, TODAY.plusDays(5));
+        given(missionRepository.findAllWithPlaceByTitle("한강 뚜벅뚜벅 축제 방문하기")).willReturn(List.of(existing));
+
+        missionGenerationService.apply(record, new DraftResult.Ready(draft(TODAY.plusDays(2))), TODAY);
+
+        assertThat(record.getProcessStatus()).isEqualTo(ProcessStatus.REVIEW_REQUIRED);
+        assertThat(record.getReviewReason()).isEqualTo(ReviewReason.DUPLICATE_SUSPECT);
+        assertThat(record.getMission()).isNull();
+        verify(missionRepository, never()).save(any());
+        verifyNoInteractions(placeRepository, missionChecklistItemRepository);
+    }
+
+    @Test
+    @DisplayName("제목이 같아도 멀리 있거나 기간이 겹치지 않으면 별개 미션으로 만든다.")
+    void apply_sameTitleButNotDuplicate() {
+        Mission far = periodMission(place(new BigDecimal("37.5400000"), LONGITUDE), TODAY, TODAY.plusDays(5));
+        Mission lastYear = periodMission(place(LATITUDE, LONGITUDE), TODAY.minusYears(1), TODAY.minusYears(1).plusDays(2));
+        given(missionRepository.findAllWithPlaceByTitle("한강 뚜벅뚜벅 축제 방문하기")).willReturn(List.of(far, lastYear));
+        given(placeRepository.findAllByName("여의도한강공원")).willReturn(List.of());
+        given(placeRepository.save(any(Place.class))).willAnswer(invocation -> invocation.getArgument(0));
+        given(missionRepository.save(any(Mission.class))).willAnswer(invocation -> invocation.getArgument(0));
+        ExternalRecord record = newRecord();
+
+        missionGenerationService.apply(record, new DraftResult.Ready(draft(TODAY.plusDays(2))), TODAY);
+
+        assertThat(record.getProcessStatus()).isEqualTo(ProcessStatus.PROCESSED);
+        verify(missionRepository).save(any(Mission.class));
+    }
+
+    @Test
     @DisplayName("기존 미션은 내용을 갱신하고 필수 활동을 다시 만들며 확인 필요 상태를 풀어준다.")
     void apply_updatesExistingMission() {
         Place existingPlace = place(LATITUDE, LONGITUDE);
@@ -226,6 +259,14 @@ class MissionGenerationServiceTest {
                 .name("여의도한강공원").placeType(PlaceType.EVENT_VENUE)
                 .latitude(latitude).longitude(longitude)
                 .address("서울특별시 영등포구 여의동로 330")
+                .build();
+    }
+
+    private Mission periodMission(Place place, LocalDate startDate, LocalDate endDate) {
+        return Mission.builder()
+                .place(place).title("한강 뚜벅뚜벅 축제 방문하기").description("설명")
+                .category(Category.POPUP).missionType(MissionType.PERIOD)
+                .startDate(startDate).endDate(endDate)
                 .build();
     }
 
