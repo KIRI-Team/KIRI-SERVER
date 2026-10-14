@@ -9,25 +9,25 @@ import java.util.List;
 @Component
 public class GoogleOidcProvider extends AbstractOidcProvider{
 
-    private final List<String> clientIds;
+    private final String clientId;
     private final String jwksUri;
     private final String issuer;
 
     public GoogleOidcProvider(
-            @Value("${google.client-ids}") List<String> clientIds,
+            @Value("${google.client-ids}") String clientId,
             @Value("${google.jwks-uri}") String jwksUri,
             @Value("${google.issuer}") String issuer,
             OidcJwksClient oidcJwksClient
     ) {
         super(oidcJwksClient);
-        this.clientIds = clientIds;
+        this.clientId = clientId;
         this.jwksUri = jwksUri;
         this.issuer = issuer;
     }
 
     @Override
-    protected List<String> getClientIds() {
-        return clientIds;
+    protected String getClientId() {
+        return clientId;
     }
 
     @Override

@@ -213,8 +213,8 @@ class AbstractOidcProviderTest {
         }
 
         @Override
-        protected List<String> getClientIds() {
-            return List.of(CLIENT_ID);
+        protected String getClientId() {
+            return CLIENT_ID;
         }
 
         @Override
