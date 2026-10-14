@@ -31,7 +31,7 @@ public class Family extends BaseEntity {
 
     @OneToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "owner_id", nullable = false, unique = true)
-    private Member member;
+    private Member owner;
 
     @Column(name = "name", nullable = false)
     private String name;
@@ -39,7 +39,7 @@ public class Family extends BaseEntity {
     @Column(name = "invite_code", length = 6)
     private String inviteCode;
 
-    @Column(name = "invite_token", length = 64)
+    @Column(name = "invite_token", length = 32)
     private String inviteToken;
 
     @Column(name = "inviteExpiresAt")
@@ -56,4 +56,10 @@ public class Family extends BaseEntity {
 
     @Column(name = "address")
     private String address;
+
+    public void renewInvite(String inviteCode, String inviteToken, LocalDateTime inviteExpiresAt) {
+        this.inviteCode = inviteCode;
+        this.inviteToken = inviteToken;
+        this.inviteExpiresAt = inviteExpiresAt;
+    }
 }

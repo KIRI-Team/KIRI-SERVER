@@ -1,5 +1,6 @@
 package com.kiri.server.domain.member.entity;
 
+import com.kiri.server.domain.family.entity.Family;
 import com.kiri.server.domain.member.enums.FamilyRole;
 import com.kiri.server.domain.member.enums.SocialProvider;
 import com.kiri.server.global.entity.BaseEntity;
@@ -26,6 +27,10 @@ public class Member extends BaseEntity {
     @Column(name = "member_id")
     private Long id;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "family_id")
+    private Family family;
+
     @Column(name = "nickname")
     private String nickname;
 
@@ -49,5 +54,9 @@ public class Member extends BaseEntity {
 
     public void updateRefreshTokenToHash(String refreshTokenHash) {
         this.refreshTokenHash = refreshTokenHash;
+    }
+
+    public void assignFamily(Family family) {
+        this.family = family;
     }
 }
