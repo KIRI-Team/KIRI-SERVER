@@ -14,7 +14,7 @@ public class GoogleOidcProvider extends AbstractOidcProvider{
     private final String issuer;
 
     public GoogleOidcProvider(
-            @Value("${google.client-ids}") String clientId,
+            @Value("${google.client-id}") String clientId,
             @Value("${google.jwks-uri}") String jwksUri,
             @Value("${google.issuer}") String issuer,
             OidcJwksClient oidcJwksClient
