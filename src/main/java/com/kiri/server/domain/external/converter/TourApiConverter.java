@@ -22,7 +22,9 @@ public class TourApiConverter {
 
     private static final DateTimeFormatter MODIFIED_TIME_FORMAT = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
     private static final String HIDDEN = "0";
-    private static final String IMAGE_SOURCE = "한국관광공사";
+    private static final Map<String, String> IMAGE_SOURCES = Map.of(
+            "Type1", "한국관광공사 (공공누리 제1유형)",
+            "Type3", "한국관광공사 (공공누리 제3유형·변경금지)");
     private static final int MAX_ADDRESS_LENGTH = 255;
     private static final int MAX_URL_LENGTH = 500;
     private static final Pattern HREF = Pattern.compile("href\\s*=\\s*[\"']([^\"']+)[\"']", Pattern.CASE_INSENSITIVE);
@@ -79,8 +81,9 @@ public class TourApiConverter {
                 .latitude(item.latitude() != null ? item.latitude() : decimal(text(commonNode, "mapy")))
                 .longitude(item.longitude() != null ? item.longitude() : decimal(text(commonNode, "mapx")))
                 .regionCode(joinRegionCode(item.regionCode(), item.sigunguCode()))
-                .imageUrl(firstNonNull(item.imageUrl(), text(commonNode, "firstimage")))
-                .imageSource(IMAGE_SOURCE)
+                .imageUrl(imageSource(item, commonNode) == null ? null
+                        : firstNonNull(item.imageUrl(), text(commonNode, "firstimage")))
+                .imageSource(imageSource(item, commonNode))
                 .lclsSystm1(firstNonNull(item.lclsSystm1(), text(commonNode, "lclsSystm1")))
                 .lclsSystm2(firstNonNull(item.lclsSystm2(), text(commonNode, "lclsSystm2")))
                 .lclsSystm3(firstNonNull(item.lclsSystm3(), text(commonNode, "lclsSystm3")))
@@ -93,6 +96,12 @@ public class TourApiConverter {
                 .programTexts(programTexts(type, introNode, infoNodes))
                 .menuNames(menuNames(type, introNode))
                 .build();
+    }
+
+    private static String imageSource(TourApiResDTO.SyncItem item, JsonNode common) {
+        String image = firstNonNull(item.imageUrl(), text(common, "firstimage"));
+        String copyrightType = firstNonNull(item.copyrightType(), text(common, "cpyrhtDivCd"));
+        return image == null || copyrightType == null ? null : IMAGE_SOURCES.get(copyrightType);
     }
 
     public static String toSourceUrl(JsonNode common) {

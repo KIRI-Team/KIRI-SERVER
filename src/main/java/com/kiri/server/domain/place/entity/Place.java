@@ -72,9 +72,10 @@ public class Place extends BaseEntity {
             this.openingTime = draft.openingTime();
             this.closingTime = draft.closingTime();
         }
-        if (imageUrl == null && draft.imageUrl() != null) {
-            this.imageUrl = draft.imageUrl();
-            this.imageSource = draft.imageSource();
-        }
+    }
+
+    public void refreshImage(String imageUrl, String imageSource) {
+        this.imageUrl = imageUrl;
+        this.imageSource = imageUrl == null ? null : imageSource;
     }
 }

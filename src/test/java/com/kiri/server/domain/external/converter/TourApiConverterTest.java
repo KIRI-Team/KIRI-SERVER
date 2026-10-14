@@ -106,7 +106,8 @@ class TourApiConverterTest {
         assertThat(content.feeText()).isEqualTo("무료");
         assertThat(content.durationText()).isNull();
         assertThat(content.programTexts()).containsExactly("1. 잠수교 걷기\n2. 푸드트럭 존", "버스킹 공연");
-        assertThat(content.imageSource()).isEqualTo("한국관광공사");
+        assertThat(content.imageUrl()).isNull();
+        assertThat(content.imageSource()).isNull();
     }
 
     @Test
@@ -147,5 +148,28 @@ class TourApiConverterTest {
         assertThat(TourApiConverter.toSourceUrl(plain)).isEqualTo("http://hangang.seoul.go.kr");
         assertThat(TourApiConverter.toSourceUrl(domainOnly)).isNull();
         assertThat(TourApiConverter.toSourceUrl(null)).isNull();
+    }
+
+    @Test
+    @DisplayName("이미지는 공공누리 제1·3유형만 쓰고 출처에 유형을 함께 남긴다.")
+    void imagePolicy() {
+        NormalizedContent type1 = TourApiConverter.toNormalizedContent(imageItem("Type1"), null, null, null);
+        NormalizedContent type3 = TourApiConverter.toNormalizedContent(imageItem("Type3"), null, null, null);
+        NormalizedContent type2 = TourApiConverter.toNormalizedContent(imageItem("Type2"), null, null, null);
+        NormalizedContent unknown = TourApiConverter.toNormalizedContent(imageItem(""), null, null, null);
+
+        assertThat(type1.imageUrl()).isEqualTo("http://tong.visitkorea.or.kr/cms/resource/1.jpg");
+        assertThat(type1.imageSource()).isEqualTo("한국관광공사 (공공누리 제1유형)");
+        assertThat(type3.imageSource()).isEqualTo("한국관광공사 (공공누리 제3유형·변경금지)");
+        assertThat(type2.imageUrl()).isNull();
+        assertThat(type2.imageSource()).isNull();
+        assertThat(unknown.imageUrl()).isNull();
+    }
+
+    private TourApiResDTO.SyncItem imageItem(String copyrightType) {
+        return TourApiConverter.toSyncItem(jsonMapper.readTree("""
+                {"contentid":"1","contenttypeid":"14","title":"가나아트센터",
+                 "firstimage":"http://tong.visitkorea.or.kr/cms/resource/1.jpg","cpyrhtDivCd":"%s"}
+                """.formatted(copyrightType)));
     }
 }
