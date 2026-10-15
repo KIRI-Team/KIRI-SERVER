@@ -27,4 +27,17 @@ public interface MissionRepository extends JpaRepository<Mission, Long> {
                AND m.endDate < :today
             """)
     int endExpired(@Param("today") LocalDate today, @Param("now") LocalDateTime now);
+
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("""
+            UPDATE Mission m
+               SET m.status = com.kiri.server.domain.mission.enums.MissionStatus.ACTIVE,
+                   m.updatedAt = :now
+             WHERE m.status = com.kiri.server.domain.mission.enums.MissionStatus.CHECK_REQUIRED
+               AND (m.missionType = com.kiri.server.domain.mission.enums.MissionType.PERMANENT OR m.endDate >= :today)
+               AND EXISTS (SELECT r.id FROM ExternalRecord r
+                            WHERE r.mission = m
+                              AND r.processStatus = com.kiri.server.domain.external.enums.ProcessStatus.PROCESSED)
+            """)
+    int publishPending(@Param("today") LocalDate today, @Param("now") LocalDateTime now);
 }

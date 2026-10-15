@@ -12,16 +12,23 @@ import com.kiri.server.domain.mission.generator.dto.DraftResult;
 import com.kiri.server.domain.mission.generator.dto.MissionDraft;
 import org.springframework.stereotype.Component;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.Map;
 import java.util.Optional;
+import java.util.regex.Pattern;
 
 @Component
 public class MissionDraftFactory {
 
     private static final String TYPE_EVENT = "15";
-    private static final int MAX_NAME_LENGTH = 100;
+    private static final int MAX_TITLE_LENGTH = 100;
+    private static final Pattern CANCEL_MARKER = Pattern.compile("[\\[(（【]\\s*(행사\\s*)?취소(됨|된)?\\s*[\\])）】]");
+    private static final BigDecimal MIN_LATITUDE = new BigDecimal("37.40");
+    private static final BigDecimal MAX_LATITUDE = new BigDecimal("37.73");
+    private static final BigDecimal MIN_LONGITUDE = new BigDecimal("126.70");
+    private static final BigDecimal MAX_LONGITUDE = new BigDecimal("127.30");
     private static final DateTimeFormatter DATE_FORMAT = DateTimeFormatter.ofPattern("yyyy.M.d");
 
     private static final Map<Category, String> CATEGORY_LABELS = Map.of(
@@ -40,12 +47,15 @@ public class MissionDraftFactory {
 
     public DraftResult create(NormalizedContent content) {
         if (CategoryClassifier.isIgnored(content.contentTypeId(), content.lclsSystm2(), content.lclsSystm3())) {
-            return new DraftResult.Ignored();
+            return new DraftResult.Ignored(ReviewReason.EXCLUDED_TYPE);
         }
         if (isBlank(content.title())) {
             return new DraftResult.ReviewRequired(ReviewReason.MISSING_REQUIRED);
         }
-        if (!content.hasLocation()) {
+        if (isCancelled(content.title())) {
+            return new DraftResult.Ignored(ReviewReason.EXTERNAL_CANCELLED);
+        }
+        if (!content.hasLocation() || !inServiceArea(content.latitude(), content.longitude())) {
             return new DraftResult.ReviewRequired(ReviewReason.NO_LOCATION);
         }
         Optional<Classification> classification = CategoryClassifier.classify(content);
@@ -60,7 +70,23 @@ public class MissionDraftFactory {
             return new DraftResult.ReviewRequired(ReviewReason.MISSING_REQUIRED);
         }
 
-        return new DraftResult.Ready(toDraft(content, classification.get(), event ? MissionType.PERIOD : MissionType.PERMANENT));
+        MissionDraft draft = toDraft(content, classification.get(), event ? MissionType.PERIOD : MissionType.PERMANENT);
+        if (draft.title().length() > MAX_TITLE_LENGTH || draft.place().name().length() > MAX_TITLE_LENGTH) {
+            return new DraftResult.ReviewRequired(ReviewReason.TITLE_INVALID);
+        }
+        if (draft.checklist().size() < ChecklistPlanner.MIN_STEPS) {
+            return new DraftResult.ReviewRequired(ReviewReason.ACTIVITY_SHORTAGE);
+        }
+        return new DraftResult.Ready(draft);
+    }
+
+    public static boolean isCancelled(String title) {
+        return title != null && CANCEL_MARKER.matcher(title).find();
+    }
+
+    private static boolean inServiceArea(BigDecimal latitude, BigDecimal longitude) {
+        return latitude.compareTo(MIN_LATITUDE) >= 0 && latitude.compareTo(MAX_LATITUDE) <= 0
+                && longitude.compareTo(MIN_LONGITUDE) >= 0 && longitude.compareTo(MAX_LONGITUDE) <= 0;
     }
 
     private MissionDraft toDraft(NormalizedContent content, Classification classification, MissionType missionType) {
@@ -72,7 +98,7 @@ public class MissionDraftFactory {
         String title = titlePolisher.polish(MissionTitleGenerator.generate(category, content.title()), content);
 
         MissionDraft.PlaceDraft place = MissionDraft.PlaceDraft.builder()
-                .name(limit(content.placeName(), MAX_NAME_LENGTH))
+                .name(content.placeName().trim())
                 .placeType(classification.placeType())
                 .regionCode(content.regionCode())
                 .latitude(content.latitude())
@@ -128,10 +154,6 @@ public class MissionDraftFactory {
 
     private static String imageSource(NormalizedContent content) {
         return content.imageUrl() == null ? null : content.imageSource();
-    }
-
-    private static String limit(String text, int max) {
-        return text.length() <= max ? text : text.substring(0, max).trim();
     }
 
     private static boolean isBlank(String text) {

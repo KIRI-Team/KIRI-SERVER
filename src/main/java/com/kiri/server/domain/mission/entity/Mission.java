@@ -1,5 +1,6 @@
 package com.kiri.server.domain.mission.entity;
 
+import com.kiri.server.domain.mission.enums.CancelSource;
 import com.kiri.server.domain.mission.enums.Category;
 import com.kiri.server.domain.mission.enums.IndoorOutdoor;
 import com.kiri.server.domain.mission.enums.MissionStatus;
@@ -103,9 +104,26 @@ public class Mission extends BaseEntity {
     @Column(name = "closing_time")
     private LocalTime closingTime;
 
+    @Builder.Default
+    @Column(name = "title_edited", nullable = false)
+    private Boolean titleEdited = false;
+
+    @Builder.Default
+    @Column(name = "checklist_edited", nullable = false)
+    private Boolean checklistEdited = false;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "cancel_source", length = 20)
+    private CancelSource cancelSource;
+
+    @Column(name = "cancel_reason", length = 255)
+    private String cancelReason;
+
     public void updateContent(MissionDraft draft, Place place) {
         this.place = place;
-        this.title = draft.title();
+        if (!Boolean.TRUE.equals(titleEdited)) {
+            this.title = draft.title();
+        }
         this.description = draft.description();
         this.category = draft.category();
         this.missionType = draft.missionType();
@@ -128,6 +146,18 @@ public class Mission extends BaseEntity {
             this.status = MissionStatus.ACTIVE;
         }
         endIfPeriodOver(today);
+    }
+
+    public boolean isChecklistLocked() {
+        return Boolean.TRUE.equals(checklistEdited);
+    }
+
+    public void cancelByExternal(String reason) {
+        if (status == MissionStatus.ACTIVE || status == MissionStatus.CHECK_REQUIRED || status == MissionStatus.ENDED) {
+            this.status = MissionStatus.CANCELLED;
+            this.cancelSource = CancelSource.EXTERNAL;
+            this.cancelReason = reason;
+        }
     }
 
     public void requireCheck() {

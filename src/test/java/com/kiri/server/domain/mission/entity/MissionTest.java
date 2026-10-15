@@ -1,5 +1,6 @@
 package com.kiri.server.domain.mission.entity;
 
+import com.kiri.server.domain.mission.enums.CancelSource;
 import com.kiri.server.domain.mission.enums.Category;
 import com.kiri.server.domain.mission.enums.MissionStatus;
 import com.kiri.server.domain.mission.enums.MissionType;
@@ -149,6 +150,54 @@ class MissionTest {
 
         assertThat(hidden.getStatus()).isEqualTo(MissionStatus.HIDDEN);
         assertThat(cancelled.getStatus()).isEqualTo(MissionStatus.CANCELLED);
+    }
+
+    @Test
+    @DisplayName("운영자가 수정한 제목은 원본이 바뀌어도 유지하고 나머지 내용만 갱신한다.")
+    void updateContent_keepsEditedTitle() {
+        Mission mission = Mission.builder()
+                .title("운영자가 고친 제목").description("설명")
+                .category(Category.POPUP).missionType(MissionType.PERIOD)
+                .startDate(TODAY).endDate(TODAY)
+                .titleEdited(true)
+                .build();
+        MissionDraft draft = MissionDraft.builder()
+                .title("자동 제목").description("새 설명")
+                .category(Category.POPUP).missionType(MissionType.PERIOD)
+                .startDate(TODAY).endDate(TODAY.plusDays(1))
+                .build();
+
+        mission.updateContent(draft, Place.builder().name("장소").build());
+
+        assertThat(mission.getTitle()).isEqualTo("운영자가 고친 제목");
+        assertThat(mission.getDescription()).isEqualTo("새 설명");
+        assertThat(mission.getEndDate()).isEqualTo(TODAY.plusDays(1));
+    }
+
+    @Test
+    @DisplayName("외부 행사 취소는 취소 주체와 사유를 남기고, 운영자 상태는 바꾸지 않는다.")
+    void cancelByExternal() {
+        Mission active = withStatus(MissionStatus.ACTIVE);
+        Mission hidden = withStatus(MissionStatus.HIDDEN);
+
+        active.cancelByExternal("원본 제목에 취소 표시");
+        hidden.cancelByExternal("원본 제목에 취소 표시");
+
+        assertThat(active.getStatus()).isEqualTo(MissionStatus.CANCELLED);
+        assertThat(active.getCancelSource()).isEqualTo(CancelSource.EXTERNAL);
+        assertThat(active.getCancelReason()).isEqualTo("원본 제목에 취소 표시");
+        assertThat(hidden.getStatus()).isEqualTo(MissionStatus.HIDDEN);
+        assertThat(hidden.getCancelSource()).isNull();
+    }
+
+    @Test
+    @DisplayName("운영자가 필수 활동을 수정하면 자동 재생성 대상에서 빠진다.")
+    void isChecklistLocked() {
+        Mission edited = Mission.builder().checklistEdited(true).build();
+        Mission auto = Mission.builder().build();
+
+        assertThat(edited.isChecklistLocked()).isTrue();
+        assertThat(auto.isChecklistLocked()).isFalse();
     }
 
     private Mission periodMission(LocalDate startDate, LocalDate endDate) {

@@ -4,9 +4,12 @@ import com.kiri.server.domain.external.entity.ExternalRecord;
 import com.kiri.server.domain.external.enums.ExternalSource;
 import com.kiri.server.domain.external.enums.ProcessStatus;
 import com.kiri.server.domain.external.enums.ReviewReason;
+import com.kiri.server.domain.mission.config.MissionProperties;
 import com.kiri.server.domain.mission.entity.Mission;
 import com.kiri.server.domain.mission.entity.MissionChecklistItem;
+import com.kiri.server.domain.mission.enums.CancelSource;
 import com.kiri.server.domain.mission.enums.Category;
+import com.kiri.server.domain.mission.enums.ChecklistSource;
 import com.kiri.server.domain.mission.enums.ItemType;
 import com.kiri.server.domain.mission.enums.MissionStatus;
 import com.kiri.server.domain.mission.enums.MissionType;
@@ -21,7 +24,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -31,6 +33,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.tuple;
 import static org.assertj.core.api.Assertions.within;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
@@ -41,9 +44,12 @@ import static org.mockito.Mockito.verifyNoInteractions;
 @ExtendWith(MockitoExtension.class)
 class MissionGenerationServiceTest {
 
-    private static final LocalDate TODAY = LocalDate.of(2026, 10, 14);
+    private static final LocalDate TODAY = LocalDate.of(2026, 10, 16);
     private static final BigDecimal LATITUDE = new BigDecimal("37.5283169");
     private static final BigDecimal LONGITUDE = new BigDecimal("126.9327568");
+    private static final String PLACE_NAME = "여의도한강공원";
+    private static final String ADDRESS = "서울특별시 영등포구 여의동로 330";
+    private static final String TITLE = "한강 뚜벅뚜벅 축제 방문하기";
 
     @Mock
     private PlaceRepository placeRepository;
@@ -54,178 +60,246 @@ class MissionGenerationServiceTest {
     @Mock
     private MissionChecklistItemRepository missionChecklistItemRepository;
 
-    @InjectMocks
-    private MissionGenerationService missionGenerationService;
-
     @Test
-    @DisplayName("새 원본은 장소와 미션, 필수 활동을 만들고 PROCESSED로 연결한다.")
+    @DisplayName("자동 공개가 켜져 있으면 새 원본으로 장소·미션·필수 활동을 만들고 ACTIVE로 공개한다.")
     void apply_newMission() {
         ExternalRecord record = newRecord();
-        given(placeRepository.findAllByName("여의도한강공원")).willReturn(List.of());
-        given(placeRepository.save(any(Place.class))).willAnswer(invocation -> invocation.getArgument(0));
-        given(missionRepository.save(any(Mission.class))).willAnswer(invocation -> invocation.getArgument(0));
+        givenNoPlaces();
+        givenSaves();
 
-        missionGenerationService.apply(record, new DraftResult.Ready(draft(TODAY.plusDays(2))), TODAY);
+        service(true).apply(record, new DraftResult.Ready(draft(TODAY, TODAY.plusDays(2))), TODAY);
 
-        ArgumentCaptor<Mission> mission = ArgumentCaptor.forClass(Mission.class);
-        verify(missionRepository).save(mission.capture());
-        assertThat(mission.getValue().getTitle()).isEqualTo("한강 뚜벅뚜벅 축제 방문하기");
-        assertThat(mission.getValue().getPlace().getName()).isEqualTo("여의도한강공원");
-        assertThat(mission.getValue().getStatus()).isEqualTo(MissionStatus.ACTIVE);
-
-        List<MissionChecklistItem> items = captureChecklist();
-        assertThat(items).extracting(MissionChecklistItem::getTitle).containsExactly("잠수교 걷기", "버스킹 공연");
-        assertThat(items).allSatisfy(item -> assertThat(item.getMission()).isSameAs(mission.getValue()));
-
+        Mission mission = savedMission();
+        assertThat(mission.getStatus()).isEqualTo(MissionStatus.ACTIVE);
+        assertThat(mission.getPlace().getName()).isEqualTo(PLACE_NAME);
+        assertThat(savedChecklist())
+                .extracting(MissionChecklistItem::getSource, MissionChecklistItem::getTitle)
+                .containsExactly(tuple(ChecklistSource.ORIGIN, "잠수교 걷기"), tuple(ChecklistSource.KIRI, "가장 재미있었던 활동 공유하기"));
         assertThat(record.getProcessStatus()).isEqualTo(ProcessStatus.PROCESSED);
-        assertThat(record.getMission()).isSameAs(mission.getValue());
-        assertThat(record.getPlace()).isSameAs(mission.getValue().getPlace());
+        assertThat(record.getMission()).isSameAs(mission);
     }
 
     @Test
-    @DisplayName("이름이 같고 100m 안에 있는 장소는 새로 만들지 않고 재사용한다.")
-    void apply_reusesNearbyPlace() {
-        Place existing = place(new BigDecimal("37.5287000"), LONGITUDE);
-        given(placeRepository.findAllByName("여의도한강공원")).willReturn(List.of(existing));
+    @DisplayName("자동 공개가 꺼져 있으면 정상 미션도 비공개(CHECK_REQUIRED)로 만들어 둔다.")
+    void apply_autoPublishOff() {
+        ExternalRecord record = newRecord();
+        givenNoPlaces();
+        givenSaves();
+
+        service(false).apply(record, new DraftResult.Ready(draft(TODAY, TODAY.plusDays(2))), TODAY);
+
+        assertThat(savedMission().getStatus()).isEqualTo(MissionStatus.CHECK_REQUIRED);
+        assertThat(record.getProcessStatus()).isEqualTo(ProcessStatus.PROCESSED);
+    }
+
+    @Test
+    @DisplayName("정규화한 이름·주소가 같고 100m 안에 있는 장소는 재사용한다.")
+    void apply_reusesSamePlace() {
+        Place existing = place(" 여의도 한강공원 ", "서울특별시 영등포구 여의동로 330 (여의도동)", new BigDecimal("37.5287000"));
+        given(placeRepository.findAllWithin(any(), any(), any(), any())).willReturn(List.of(existing));
         given(missionRepository.save(any(Mission.class))).willAnswer(invocation -> invocation.getArgument(0));
 
-        missionGenerationService.apply(newRecord(), new DraftResult.Ready(draft(TODAY.plusDays(2))), TODAY);
+        service(true).apply(newRecord(), new DraftResult.Ready(draft(TODAY, TODAY.plusDays(2))), TODAY);
 
         verify(placeRepository, never()).save(any());
-        ArgumentCaptor<Mission> mission = ArgumentCaptor.forClass(Mission.class);
-        verify(missionRepository).save(mission.capture());
-        assertThat(mission.getValue().getPlace()).isSameAs(existing);
+        assertThat(savedMission().getPlace()).isSameAs(existing);
     }
 
     @Test
-    @DisplayName("이름이 같아도 100m보다 멀면 다른 장소로 새로 만든다.")
-    void apply_farPlaceIsNew() {
-        Place far = place(new BigDecimal("37.5400000"), LONGITUDE);
-        given(placeRepository.findAllByName("여의도한강공원")).willReturn(List.of(far));
-        given(placeRepository.save(any(Place.class))).willAnswer(invocation -> invocation.getArgument(0));
-        given(missionRepository.save(any(Mission.class))).willAnswer(invocation -> invocation.getArgument(0));
+    @DisplayName("근처에 이름은 같은데 주소가 다른 장소가 있으면 병합하지 않고 PLACE_AMBIGUOUS 검수로 보낸다.")
+    void apply_ambiguousPlace() {
+        ExternalRecord record = newRecord();
+        Place other = place(PLACE_NAME, "서울특별시 영등포구 여의서로 100", LATITUDE);
+        given(placeRepository.findAllWithin(any(), any(), any(), any())).willReturn(List.of(other));
 
-        missionGenerationService.apply(newRecord(), new DraftResult.Ready(draft(TODAY.plusDays(2))), TODAY);
+        service(true).apply(record, new DraftResult.Ready(draft(TODAY, TODAY.plusDays(2))), TODAY);
+
+        assertThat(record.getProcessStatus()).isEqualTo(ProcessStatus.REVIEW_REQUIRED);
+        assertThat(record.getReviewReason()).isEqualTo(ReviewReason.PLACE_AMBIGUOUS);
+        verify(missionRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("같은 주소라도 이름이 다른 매장·시설은 별도 장소로 만든다.")
+    void apply_differentStoreInSameBuilding() {
+        Place store = place("여의도한강공원 편의점", ADDRESS, LATITUDE);
+        given(placeRepository.findAllWithin(any(), any(), any(), any())).willReturn(List.of(store));
+        given(placeRepository.findAllByName(PLACE_NAME)).willReturn(List.of());
+        givenSaves();
+
+        service(true).apply(newRecord(), new DraftResult.Ready(draft(TODAY, TODAY.plusDays(2))), TODAY);
 
         verify(placeRepository).save(any(Place.class));
     }
 
     @Test
-    @DisplayName("처음 들어온 원본이 이미 끝난 행사면 미션을 만들지 않고 IGNORED로 둔다.")
-    void apply_newButPeriodOver() {
+    @DisplayName("처음 들어온 원본이 이미 끝난 행사면 PERIOD_OVER 사유로 제외한다.")
+    void apply_periodOver() {
         ExternalRecord record = newRecord();
 
-        missionGenerationService.apply(record, new DraftResult.Ready(draft(TODAY.minusDays(1))), TODAY);
+        service(true).apply(record, new DraftResult.Ready(draft(TODAY.minusDays(5), TODAY.minusDays(1))), TODAY);
 
         assertThat(record.getProcessStatus()).isEqualTo(ProcessStatus.IGNORED);
+        assertThat(record.getReviewReason()).isEqualTo(ReviewReason.PERIOD_OVER);
         verifyNoInteractions(placeRepository, missionRepository, missionChecklistItemRepository);
     }
 
     @Test
-    @DisplayName("제목이 같고 가까운 곳에서 기간이 겹치는 미션이 이미 있으면 만들지 않고 중복 의심 검수로 보낸다.")
+    @DisplayName("제목·장소·기간이 모두 같은 미션이 있으면 명확한 중복으로 제외한다.")
+    void apply_clearDuplicate() {
+        ExternalRecord record = newRecord();
+        givenNoPlaces();
+        given(missionRepository.findAllWithPlaceByTitle(TITLE))
+                .willReturn(List.of(periodMission(place(PLACE_NAME, ADDRESS, LATITUDE), TODAY, TODAY.plusDays(2))));
+
+        service(true).apply(record, new DraftResult.Ready(draft(TODAY, TODAY.plusDays(2))), TODAY);
+
+        assertThat(record.getProcessStatus()).isEqualTo(ProcessStatus.IGNORED);
+        assertThat(record.getReviewReason()).isEqualTo(ReviewReason.DUPLICATE);
+        verify(missionRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("제목이 같고 가까운 곳에서 기간이 겹치기만 하면 중복 의심 검수로 보낸다.")
     void apply_duplicateSuspect() {
         ExternalRecord record = newRecord();
-        Mission existing = periodMission(place(LATITUDE, LONGITUDE), TODAY, TODAY.plusDays(5));
-        given(missionRepository.findAllWithPlaceByTitle("한강 뚜벅뚜벅 축제 방문하기")).willReturn(List.of(existing));
+        givenNoPlaces();
+        given(missionRepository.findAllWithPlaceByTitle(TITLE))
+                .willReturn(List.of(periodMission(place(PLACE_NAME, ADDRESS, LATITUDE), TODAY, TODAY.plusDays(5))));
 
-        missionGenerationService.apply(record, new DraftResult.Ready(draft(TODAY.plusDays(2))), TODAY);
+        service(true).apply(record, new DraftResult.Ready(draft(TODAY, TODAY.plusDays(2))), TODAY);
 
         assertThat(record.getProcessStatus()).isEqualTo(ProcessStatus.REVIEW_REQUIRED);
         assertThat(record.getReviewReason()).isEqualTo(ReviewReason.DUPLICATE_SUSPECT);
-        assertThat(record.getMission()).isNull();
         verify(missionRepository, never()).save(any());
-        verifyNoInteractions(placeRepository, missionChecklistItemRepository);
     }
 
     @Test
     @DisplayName("제목이 같아도 멀리 있거나 기간이 겹치지 않으면 별개 미션으로 만든다.")
     void apply_sameTitleButNotDuplicate() {
-        Mission far = periodMission(place(new BigDecimal("37.5400000"), LONGITUDE), TODAY, TODAY.plusDays(5));
-        Mission lastYear = periodMission(place(LATITUDE, LONGITUDE), TODAY.minusYears(1), TODAY.minusYears(1).plusDays(2));
-        given(missionRepository.findAllWithPlaceByTitle("한강 뚜벅뚜벅 축제 방문하기")).willReturn(List.of(far, lastYear));
-        given(placeRepository.findAllByName("여의도한강공원")).willReturn(List.of());
-        given(placeRepository.save(any(Place.class))).willAnswer(invocation -> invocation.getArgument(0));
-        given(missionRepository.save(any(Mission.class))).willAnswer(invocation -> invocation.getArgument(0));
+        Mission far = periodMission(place(PLACE_NAME, ADDRESS, new BigDecimal("37.5400000")), TODAY, TODAY.plusDays(5));
+        Mission lastYear = periodMission(place(PLACE_NAME, ADDRESS, LATITUDE), TODAY.minusYears(1), TODAY.minusYears(1).plusDays(2));
+        givenNoPlaces();
+        given(missionRepository.findAllWithPlaceByTitle(TITLE)).willReturn(List.of(far, lastYear));
+        givenSaves();
         ExternalRecord record = newRecord();
 
-        missionGenerationService.apply(record, new DraftResult.Ready(draft(TODAY.plusDays(2))), TODAY);
+        service(true).apply(record, new DraftResult.Ready(draft(TODAY, TODAY.plusDays(2))), TODAY);
 
         assertThat(record.getProcessStatus()).isEqualTo(ProcessStatus.PROCESSED);
-        verify(missionRepository).save(any(Mission.class));
     }
 
     @Test
-    @DisplayName("기존 미션은 내용을 갱신하고 필수 활동을 다시 만들며 확인 필요 상태를 풀어준다.")
+    @DisplayName("기존 미션은 내용과 필수 활동을 갱신하고 확인 필요 상태를 풀어준다.")
     void apply_updatesExistingMission() {
-        Place existingPlace = place(LATITUDE, LONGITUDE);
-        Mission mission = Mission.builder()
-                .place(existingPlace).title("옛 제목").description("옛 설명")
-                .category(Category.POPUP).missionType(MissionType.PERIOD)
-                .startDate(TODAY).endDate(TODAY)
-                .status(MissionStatus.CHECK_REQUIRED)
-                .build();
+        Place existingPlace = place(PLACE_NAME, ADDRESS, LATITUDE);
+        Mission mission = periodMission(existingPlace, TODAY, TODAY);
+        mission.requireCheck();
         ExternalRecord record = newRecord();
         record.markProcessed(mission);
-        given(placeRepository.findAllByName("여의도한강공원")).willReturn(List.of(existingPlace));
+        given(placeRepository.findAllWithin(any(), any(), any(), any())).willReturn(List.of(existingPlace));
 
-        missionGenerationService.apply(record, new DraftResult.Ready(draft(TODAY.plusDays(2))), TODAY);
+        service(true).apply(record, new DraftResult.Ready(draft(TODAY, TODAY.plusDays(2))), TODAY);
 
-        assertThat(mission.getTitle()).isEqualTo("한강 뚜벅뚜벅 축제 방문하기");
         assertThat(mission.getEndDate()).isEqualTo(TODAY.plusDays(2));
         assertThat(mission.getStatus()).isEqualTo(MissionStatus.ACTIVE);
         verify(missionRepository, never()).save(any());
         verify(missionChecklistItemRepository).deleteAllByMissionInBulk(mission);
-        assertThat(captureChecklist()).hasSize(2);
-        assertThat(record.getProcessStatus()).isEqualTo(ProcessStatus.PROCESSED);
+        assertThat(savedChecklist()).hasSize(2);
     }
 
     @Test
-    @DisplayName("검수가 필요해진 원본은 이미 노출 중인 미션을 CHECK_REQUIRED로 내린다.")
-    void apply_reviewRequiredHidesMission() {
-        Mission mission = activeMission();
+    @DisplayName("운영자가 수정한 필수 활동은 원본이 바뀌어도 다시 만들지 않는다.")
+    void apply_keepsEditedChecklist() {
+        Place existingPlace = place(PLACE_NAME, ADDRESS, LATITUDE);
+        Mission mission = Mission.builder()
+                .place(existingPlace).title(TITLE).description("설명")
+                .category(Category.POPUP).missionType(MissionType.PERIOD)
+                .startDate(TODAY).endDate(TODAY)
+                .checklistEdited(true)
+                .build();
+        ExternalRecord record = newRecord();
+        record.markProcessed(mission);
+        given(placeRepository.findAllWithin(any(), any(), any(), any())).willReturn(List.of(existingPlace));
+
+        service(true).apply(record, new DraftResult.Ready(draft(TODAY, TODAY.plusDays(2))), TODAY);
+
+        verifyNoInteractions(missionChecklistItemRepository);
+        assertThat(mission.getEndDate()).isEqualTo(TODAY.plusDays(2));
+    }
+
+    @Test
+    @DisplayName("검수가 필요해진 원본은 노출 중인 미션을 CHECK_REQUIRED로 내린다.")
+    void apply_reviewRequired() {
+        Mission mission = periodMission(place(PLACE_NAME, ADDRESS, LATITUDE), TODAY, TODAY.plusDays(2));
         ExternalRecord record = newRecord();
         record.markProcessed(mission);
 
-        missionGenerationService.apply(record, new DraftResult.ReviewRequired(ReviewReason.NO_LOCATION), TODAY);
+        service(true).apply(record, new DraftResult.ReviewRequired(ReviewReason.NO_LOCATION), TODAY);
 
-        assertThat(record.getProcessStatus()).isEqualTo(ProcessStatus.REVIEW_REQUIRED);
         assertThat(record.getReviewReason()).isEqualTo(ReviewReason.NO_LOCATION);
-        assertThat(record.getMission()).isSameAs(mission);
         assertThat(mission.getStatus()).isEqualTo(MissionStatus.CHECK_REQUIRED);
     }
 
     @Test
-    @DisplayName("미션 대상이 아니게 된 원본은 IGNORED로 두고 기존 미션을 CHECK_REQUIRED로 내린다.")
-    void apply_ignored() {
-        Mission mission = activeMission();
+    @DisplayName("외부 취소 표시가 확인되면 원본은 제외하고 미션은 외부 취소로 기록한다.")
+    void apply_externalCancelled() {
+        Mission mission = periodMission(place(PLACE_NAME, ADDRESS, LATITUDE), TODAY, TODAY.plusDays(2));
         ExternalRecord record = newRecord();
         record.markProcessed(mission);
 
-        missionGenerationService.apply(record, new DraftResult.Ignored(), TODAY);
+        service(true).apply(record, new DraftResult.Ignored(ReviewReason.EXTERNAL_CANCELLED), TODAY);
 
         assertThat(record.getProcessStatus()).isEqualTo(ProcessStatus.IGNORED);
-        assertThat(mission.getStatus()).isEqualTo(MissionStatus.CHECK_REQUIRED);
+        assertThat(record.getReviewReason()).isEqualTo(ReviewReason.EXTERNAL_CANCELLED);
+        assertThat(mission.getStatus()).isEqualTo(MissionStatus.CANCELLED);
+        assertThat(mission.getCancelSource()).isEqualTo(CancelSource.EXTERNAL);
     }
 
     @Test
-    @DisplayName("원본이 비공개로 바뀌면 연결된 미션을 CHECK_REQUIRED로 내린다.")
-    void hide() {
-        Mission mission = activeMission();
+    @DisplayName("제외 업종이 된 원본은 제외 사유를 남기고 기존 미션을 CHECK_REQUIRED로 내린다.")
+    void apply_excludedType() {
+        Mission mission = periodMission(place(PLACE_NAME, ADDRESS, LATITUDE), TODAY, TODAY.plusDays(2));
         ExternalRecord record = newRecord();
         record.markProcessed(mission);
 
-        missionGenerationService.hide(record);
+        service(true).apply(record, new DraftResult.Ignored(ReviewReason.EXCLUDED_TYPE), TODAY);
 
+        assertThat(record.getReviewReason()).isEqualTo(ReviewReason.EXCLUDED_TYPE);
         assertThat(mission.getStatus()).isEqualTo(MissionStatus.CHECK_REQUIRED);
     }
 
     @Test
-    @DisplayName("기간이 지난 미션 종료는 저장소의 일괄 갱신에 맡긴다.")
-    void endExpiredMissions() {
-        LocalDateTime now = TODAY.atTime(6, 0);
-        given(missionRepository.endExpired(TODAY, now)).willReturn(3);
+    @DisplayName("원본이 비공개로 바뀌면 취소로 확정하지 않고 ORIGIN_UNAVAILABLE 검수로 보낸다.")
+    void hide() {
+        Mission mission = periodMission(place(PLACE_NAME, ADDRESS, LATITUDE), TODAY, TODAY.plusDays(2));
+        ExternalRecord record = newRecord();
+        record.markProcessed(mission);
 
-        assertThat(missionGenerationService.endExpiredMissions(TODAY, now)).isEqualTo(3);
+        service(true).hide(record);
+
+        assertThat(record.getReviewReason()).isEqualTo(ReviewReason.ORIGIN_UNAVAILABLE);
+        assertThat(mission.getStatus()).isEqualTo(MissionStatus.CHECK_REQUIRED);
+    }
+
+    @Test
+    @DisplayName("공개 대기 미션은 자동 공개가 켜져 있을 때만 일괄 공개한다.")
+    void publishPendingMissions() {
+        LocalDateTime now = TODAY.atTime(0, 10);
+        given(missionRepository.publishPending(TODAY, now)).willReturn(4);
+
+        assertThat(service(false).publishPendingMissions(TODAY, now)).isZero();
+        assertThat(service(true).publishPendingMissions(TODAY, now)).isEqualTo(4);
+        verify(missionRepository).publishPending(TODAY, now);
+    }
+
+    @Test
+    @DisplayName("이름은 공백·대소문자, 주소는 공백·괄호 표기를 무시하고 비교한다.")
+    void normalize() {
+        assertThat(MissionGenerationService.sameName("여의도 한강공원", "여의도한강공원")).isTrue();
+        assertThat(MissionGenerationService.sameAddress(
+                "서울특별시 영등포구 여의동로 330 (여의도동)", "서울특별시  영등포구 여의동로 330")).isTrue();
+        assertThat(MissionGenerationService.sameAddress("여의동로 330", "여의동로 331")).isFalse();
     }
 
     @Test
@@ -237,7 +311,28 @@ class MissionGenerationServiceTest {
         assertThat(meters).isCloseTo(100.0, within(1.0));
     }
 
-    private List<MissionChecklistItem> captureChecklist() {
+    private MissionGenerationService service(boolean autoPublish) {
+        return new MissionGenerationService(placeRepository, missionRepository, missionChecklistItemRepository,
+                new MissionProperties(autoPublish));
+    }
+
+    private void givenNoPlaces() {
+        given(placeRepository.findAllWithin(any(), any(), any(), any())).willReturn(List.of());
+        given(placeRepository.findAllByName(PLACE_NAME)).willReturn(List.of());
+    }
+
+    private void givenSaves() {
+        given(placeRepository.save(any(Place.class))).willAnswer(invocation -> invocation.getArgument(0));
+        given(missionRepository.save(any(Mission.class))).willAnswer(invocation -> invocation.getArgument(0));
+    }
+
+    private Mission savedMission() {
+        ArgumentCaptor<Mission> mission = ArgumentCaptor.forClass(Mission.class);
+        verify(missionRepository).save(mission.capture());
+        return mission.getValue();
+    }
+
+    private List<MissionChecklistItem> savedChecklist() {
         @SuppressWarnings("unchecked")
         ArgumentCaptor<List<MissionChecklistItem>> items = ArgumentCaptor.forClass(List.class);
         verify(missionChecklistItemRepository).saveAll(items.capture());
@@ -248,54 +343,46 @@ class MissionGenerationServiceTest {
         return ExternalRecord.builder()
                 .externalSource(ExternalSource.TOUR_API)
                 .externalId("2786391")
-                .processStatus(ProcessStatus.IGNORED)
+                .processStatus(ProcessStatus.REVIEW_REQUIRED)
                 .contentHash("a".repeat(64))
                 .syncedAt(TODAY.atStartOfDay())
                 .build();
     }
 
-    private Place place(BigDecimal latitude, BigDecimal longitude) {
+    private Place place(String name, String address, BigDecimal latitude) {
         return Place.builder()
-                .name("여의도한강공원").placeType(PlaceType.EVENT_VENUE)
-                .latitude(latitude).longitude(longitude)
-                .address("서울특별시 영등포구 여의동로 330")
+                .name(name).placeType(PlaceType.EVENT_VENUE)
+                .latitude(latitude).longitude(LONGITUDE)
+                .address(address)
                 .build();
     }
 
     private Mission periodMission(Place place, LocalDate startDate, LocalDate endDate) {
         return Mission.builder()
-                .place(place).title("한강 뚜벅뚜벅 축제 방문하기").description("설명")
+                .place(place).title(TITLE).description("설명")
                 .category(Category.POPUP).missionType(MissionType.PERIOD)
                 .startDate(startDate).endDate(endDate)
                 .build();
     }
 
-    private Mission activeMission() {
-        return Mission.builder()
-                .title("한강 뚜벅뚜벅 축제 방문하기").description("설명")
-                .category(Category.POPUP).missionType(MissionType.PERIOD)
-                .startDate(TODAY).endDate(TODAY.plusDays(2))
-                .build();
-    }
-
-    private MissionDraft draft(LocalDate endDate) {
+    private MissionDraft draft(LocalDate startDate, LocalDate endDate) {
         return MissionDraft.builder()
-                .title("한강 뚜벅뚜벅 축제 방문하기")
+                .title(TITLE)
                 .description("한강을 걸으며 즐기는 축제")
                 .category(Category.POPUP)
                 .missionType(MissionType.PERIOD)
-                .startDate(endDate.minusDays(2))
+                .startDate(startDate)
                 .endDate(endDate)
                 .place(MissionDraft.PlaceDraft.builder()
-                        .name("여의도한강공원")
+                        .name(PLACE_NAME)
                         .placeType(PlaceType.EVENT_VENUE)
                         .latitude(LATITUDE)
                         .longitude(LONGITUDE)
-                        .address("서울특별시 영등포구 여의동로 330")
+                        .address(ADDRESS)
                         .build())
                 .checklist(List.of(
-                        new MissionDraft.ChecklistDraft(ItemType.STEP, "잠수교 걷기", null, 1),
-                        new MissionDraft.ChecklistDraft(ItemType.STEP, "버스킹 공연", null, 2)))
+                        new MissionDraft.ChecklistDraft(ItemType.STEP, ChecklistSource.ORIGIN, "잠수교 걷기", null, 1),
+                        new MissionDraft.ChecklistDraft(ItemType.STEP, ChecklistSource.KIRI, "가장 재미있었던 활동 공유하기", null, 2)))
                 .build();
     }
 }

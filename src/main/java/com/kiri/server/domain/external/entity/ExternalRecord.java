@@ -118,8 +118,12 @@ public class ExternalRecord extends BaseEntity {
         this.reviewReason = reviewReason;
     }
 
-    public void markIgnored() {
+    public void markIgnored(ReviewReason reason) {
         this.processStatus = ProcessStatus.IGNORED;
-        this.reviewReason = null;
+        this.reviewReason = reason;
+    }
+
+    public boolean isIgnored() {
+        return processStatus == ProcessStatus.IGNORED;
     }
 }

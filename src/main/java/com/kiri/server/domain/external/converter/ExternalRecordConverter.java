@@ -16,7 +16,7 @@ public class ExternalRecordConverter {
                 .externalSource(source)
                 .externalId(externalId)
                 .sourceUrl(sourceUrl)
-                .processStatus(ProcessStatus.IGNORED)
+                .processStatus(ProcessStatus.REVIEW_REQUIRED)
                 .rawData(rawData)
                 .contentHash(contentHash)
                 .originModifiedAt(originModifiedAt)

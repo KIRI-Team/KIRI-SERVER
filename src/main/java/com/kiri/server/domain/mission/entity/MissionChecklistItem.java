@@ -1,5 +1,6 @@
 package com.kiri.server.domain.mission.entity;
 
+import com.kiri.server.domain.mission.enums.ChecklistSource;
 import com.kiri.server.domain.mission.enums.ItemType;
 import com.kiri.server.global.entity.BaseEntity;
 import jakarta.persistence.Column;
@@ -46,6 +47,11 @@ public class MissionChecklistItem extends BaseEntity {
     @Enumerated(EnumType.STRING)
     @Column(name = "item_type", length = 20, nullable = false)
     private ItemType itemType;
+
+    @Builder.Default
+    @Enumerated(EnumType.STRING)
+    @Column(name = "source", length = 20, nullable = false)
+    private ChecklistSource source = ChecklistSource.ORIGIN;
 
     @Column(name = "title", length = 100, nullable = false)
     private String title;

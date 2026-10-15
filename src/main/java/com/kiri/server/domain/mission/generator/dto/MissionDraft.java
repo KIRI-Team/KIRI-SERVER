@@ -1,6 +1,7 @@
 package com.kiri.server.domain.mission.generator.dto;
 
 import com.kiri.server.domain.mission.enums.Category;
+import com.kiri.server.domain.mission.enums.ChecklistSource;
 import com.kiri.server.domain.mission.enums.IndoorOutdoor;
 import com.kiri.server.domain.mission.enums.ItemType;
 import com.kiri.server.domain.mission.enums.MissionType;
@@ -57,6 +58,6 @@ public record MissionDraft(
     ) {
     }
 
-    public record ChecklistDraft(ItemType itemType, String title, String description, int displayOrder) {
+    public record ChecklistDraft(ItemType itemType, ChecklistSource source, String title, String description, int displayOrder) {
     }
 }

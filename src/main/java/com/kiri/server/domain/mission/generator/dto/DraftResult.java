@@ -10,6 +10,6 @@ public sealed interface DraftResult {
     record ReviewRequired(ReviewReason reason) implements DraftResult {
     }
 
-    record Ignored() implements DraftResult {
+    record Ignored(ReviewReason reason) implements DraftResult {
     }
 }

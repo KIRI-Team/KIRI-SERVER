@@ -2,6 +2,7 @@ package com.kiri.server.domain.mission.converter;
 
 import com.kiri.server.domain.mission.entity.Mission;
 import com.kiri.server.domain.mission.entity.MissionChecklistItem;
+import com.kiri.server.domain.mission.enums.MissionStatus;
 import com.kiri.server.domain.mission.generator.dto.MissionDraft;
 import com.kiri.server.domain.place.entity.Place;
 
@@ -24,9 +25,10 @@ public class MissionConverter {
                 .build();
     }
 
-    public static Mission toMission(MissionDraft draft, Place place) {
+    public static Mission toMission(MissionDraft draft, Place place, MissionStatus status) {
         return Mission.builder()
                 .place(place)
+                .status(status)
                 .title(draft.title())
                 .description(draft.description())
                 .category(draft.category())
@@ -51,6 +53,7 @@ public class MissionConverter {
                 .map(draft -> MissionChecklistItem.builder()
                         .mission(mission)
                         .itemType(draft.itemType())
+                        .source(draft.source())
                         .title(draft.title())
                         .description(draft.description())
                         .displayOrder(draft.displayOrder())

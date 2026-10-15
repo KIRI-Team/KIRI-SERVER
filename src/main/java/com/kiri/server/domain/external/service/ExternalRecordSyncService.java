@@ -42,6 +42,9 @@ public class ExternalRecordSyncService {
     @Transactional(readOnly = true)
     public SyncDecision decide(TourApiResDTO.SyncItem item) {
         Optional<ExternalRecord> record = find(item.contentId());
+        if (record.isPresent() && record.get().isIgnored()) {
+            return SyncDecision.UNCHANGED;
+        }
         if (!item.shown()) {
             return record.isPresent() ? SyncDecision.HIDE : SyncDecision.SKIP;
         }
@@ -84,6 +87,9 @@ public class ExternalRecordSyncService {
             }
             externalRecordHistoryRepository.save(ExternalRecordConverter.toHistory(record));
             record.updateOrigin(rawData, contentHash, item.modifiedAt(), sourceUrl, now);
+            if (record.isIgnored()) {
+                return;
+            }
         }
 
         NormalizedContent content = TourApiConverter.toNormalizedContent(

@@ -75,14 +75,15 @@ class ExternalRecordTest {
     }
 
     @Test
-    @DisplayName("미션 대상이 아닌 원본은 IGNORED로 두고 검수 사유를 지운다.")
+    @DisplayName("제외된 원본은 IGNORED와 제외 사유를 함께 남긴다.")
     void markIgnored() {
         ExternalRecord record = reviewRequired(ReviewReason.CATEGORY_UNKNOWN);
 
-        record.markIgnored();
+        record.markIgnored(ReviewReason.EXCLUDED_TYPE);
 
         assertThat(record.getProcessStatus()).isEqualTo(ProcessStatus.IGNORED);
-        assertThat(record.getReviewReason()).isNull();
+        assertThat(record.getReviewReason()).isEqualTo(ReviewReason.EXCLUDED_TYPE);
+        assertThat(record.isIgnored()).isTrue();
     }
 
     @Test

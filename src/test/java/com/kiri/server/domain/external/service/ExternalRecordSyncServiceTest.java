@@ -6,6 +6,7 @@ import com.kiri.server.domain.external.entity.ExternalRecord;
 import com.kiri.server.domain.external.entity.ExternalRecordHistory;
 import com.kiri.server.domain.external.enums.ExternalSource;
 import com.kiri.server.domain.external.enums.ProcessStatus;
+import com.kiri.server.domain.external.enums.ReviewReason;
 import com.kiri.server.domain.external.enums.SyncDecision;
 import com.kiri.server.domain.external.repository.ExternalRecordHistoryRepository;
 import com.kiri.server.domain.external.repository.ExternalRecordRepository;
@@ -154,6 +155,31 @@ class ExternalRecordSyncServiceTest {
         assertThat(record.getSyncedAt()).isEqualTo(NOW.plusHours(6));
         verify(externalRecordHistoryRepository, never()).save(any());
         verify(missionGenerationService).apply(eq(record), any(DraftResult.class), eq(NOW.toLocalDate()));
+    }
+
+    @Test
+    @DisplayName("자동 제외된 원본은 수정 시각이 바뀌어도 상세를 다시 가져오지 않고 제외를 유지한다.")
+    void decide_ignoredStaysIgnored() {
+        ExternalRecord ignored = record(MODIFIED_AT);
+        ignored.markIgnored(ReviewReason.EXCLUDED_TYPE);
+        givenRecord(ignored);
+
+        assertThat(externalRecordSyncService.decide(syncItem("15", "1", "20261012090000"))).isEqualTo(SyncDecision.UNCHANGED);
+        assertThat(externalRecordSyncService.decide(syncItem("15", "0", "20261012090000"))).isEqualTo(SyncDecision.UNCHANGED);
+    }
+
+    @Test
+    @DisplayName("제외된 원본에 바뀐 원본이 들어와도 이력만 남기고 다시 가공하지 않는다.")
+    void apply_ignoredRecordKeepsExcluded() {
+        ExternalRecord ignored = record(MODIFIED_AT);
+        ignored.markIgnored(ReviewReason.PERIOD_OVER);
+        givenRecord(ignored);
+
+        externalRecordSyncService.apply(syncItem("15", "1", "20261012090000"), details(), NOW);
+
+        verify(externalRecordHistoryRepository).save(any(ExternalRecordHistory.class));
+        verify(missionGenerationService, never()).apply(any(), any(), any());
+        assertThat(ignored.getProcessStatus()).isEqualTo(ProcessStatus.IGNORED);
     }
 
     @Test
