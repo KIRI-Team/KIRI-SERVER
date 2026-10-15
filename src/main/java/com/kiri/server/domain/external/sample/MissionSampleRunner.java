@@ -37,7 +37,8 @@ import java.util.stream.Collectors;
 @ConditionalOnProperty(name = "mission.sample.enabled", havingValue = "true")
 public class MissionSampleRunner implements ApplicationRunner {
 
-    private static final int LIST_ROWS = 50;
+    private static final int LIST_ROWS = 300;
+    private static final int REVIEW_PER_TYPE = 1;
     private static final List<String> TARGET_TYPES = List.of("12", "14", "15", "28", "39", "38", "32");
     private static final Map<String, String> TYPE_NAMES = Map.of(
             "12", "관광지", "14", "문화시설", "15", "행사", "28", "레포츠", "38", "쇼핑", "39", "음식점", "32", "숙박");
@@ -56,14 +57,21 @@ public class MissionSampleRunner implements ApplicationRunner {
         List<String> rows = new ArrayList<>();
         int calls = 0;
         for (String type : TARGET_TYPES) {
-            List<TourApiResDTO.SyncItem> items = tourApiClient.fetchSyncList(1, null, type, LIST_ROWS).items().stream()
+            List<TourApiResDTO.SyncItem> listed = tourApiClient.fetchSyncList(1, null, type, LIST_ROWS).items().stream()
                     .map(TourApiConverter::toSyncItem)
                     .filter(TourApiResDTO.SyncItem::shown)
+                    .toList();
+            calls++;
+            List<TourApiResDTO.SyncItem> picked = listed.stream()
                     .sorted(Comparator.comparing((TourApiResDTO.SyncItem item) ->
                             !"SH06".equals(item.lclsSystm2())))
                     .limit(PER_TYPE.getOrDefault(type, DEFAULT_PER_TYPE))
                     .toList();
-            calls++;
+            List<TourApiResDTO.SyncItem> items = new ArrayList<>(picked);
+            listed.stream()
+                    .filter(item -> !picked.contains(item) && looksIncomplete(item))
+                    .limit(REVIEW_PER_TYPE)
+                    .forEach(items::add);
             for (TourApiResDTO.SyncItem item : items) {
                 DraftResult result;
                 if (CategoryClassifier.isIgnored(item.contentTypeId(), item.lclsSystm2(), item.lclsSystm3())) {
@@ -83,7 +91,8 @@ public class MissionSampleRunner implements ApplicationRunner {
         StringBuilder markdown = new StringBuilder()
                 .append("# 미션 자동 생성 샘플\n\n")
                 .append("- TourAPI 호출 ").append(calls).append("회\n")
-                .append("- DB에 저장하지 않은 결과라 장소 중복(애매한 장소)·미션 중복 판정은 반영되지 않음\n\n")
+                .append("- DB에 저장하지 않은 결과라 장소 중복(애매한 장소)·미션 중복 판정은 반영되지 않음\n")
+                .append("- 검수 사례 확인용으로 좌표 누락·취소 표시가 있는 원본을 유형별 최대 1건 추가함\n\n")
                 .append("| 원본명 | contentid | 유형 | 분류코드 | 결과 | 사유 | 카테고리 | 미션 제목 | 필수 활동 |\n")
                 .append("|---|---|---|---|---|---|---|---|---|\n");
         rows.forEach(row -> markdown.append(row).append('\n'));
@@ -91,6 +100,13 @@ public class MissionSampleRunner implements ApplicationRunner {
         Files.writeString(path, markdown.toString(), StandardCharsets.UTF_8);
         log.info("[Sample] {}건 생성, 호출 {}회, 결과 파일: {}", rows.size(), calls, path.toAbsolutePath());
         System.exit(SpringApplication.exit(context, () -> 0));
+    }
+
+    private static boolean looksIncomplete(TourApiResDTO.SyncItem item) {
+        return item.latitude() == null || item.longitude() == null
+                || item.latitude().signum() == 0 || item.longitude().signum() == 0
+                || item.title() == null || item.title().isBlank()
+                || MissionDraftFactory.isCancelled(item.title());
     }
 
     private static String row(TourApiResDTO.SyncItem item, DraftResult result) {
