@@ -55,8 +55,8 @@ class MissionDraftFactoryTest {
                         MissionDraft.ChecklistDraft::title, MissionDraft.ChecklistDraft::displayOrder)
                 .containsExactly(
                         tuple(ItemType.STEP, ChecklistSource.ORIGIN, "잠수교 걷기", 1),
-                        tuple(ItemType.STEP, ChecklistSource.ORIGIN, "푸드트럭 존", 2),
-                        tuple(ItemType.STEP, ChecklistSource.ORIGIN, "버스킹 공연", 3));
+                        tuple(ItemType.STEP, ChecklistSource.ORIGIN, "푸드트럭 존 함께 즐기기", 2),
+                        tuple(ItemType.STEP, ChecklistSource.ORIGIN, "버스킹 공연 관람하기", 3));
     }
 
     @Test

@@ -11,6 +11,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Pattern;
 
 public class ChecklistPlanner {
 
@@ -19,6 +20,10 @@ public class ChecklistPlanner {
     private static final int MAX_DESCRIPTION_LENGTH = 255;
     private static final String MENU_DESCRIPTION = "이곳의 대표 메뉴예요.";
     private static final String PROGRAM_DESCRIPTION = "공식 안내에 있는 프로그램이에요.";
+    private static final Pattern TRAILING_BRACKET = Pattern.compile("\\s*[(（][^)）]*[)）]$");
+    private static final Pattern DOING_NOUN = Pattern.compile("(?:체험|참여|관찰|감상|견학|산책|탐방|투어)$");
+    private static final Pattern WATCHING_NOUN = Pattern.compile("(?:공연|전시|쇼|퍼레이드|상영|콘서트|불꽃놀이)$");
+    private static final Pattern JOINING_NOUN = Pattern.compile("(?:식|대회|교실|클래스|워크숍|강연|특강)$");
 
     private static final Map<Category, List<Step>> DEFAULT_STEPS = Map.of(
             Category.EXHIBITION, List.of(
@@ -49,7 +54,7 @@ public class ChecklistPlanner {
         }
         for (String text : content.programTexts()) {
             for (String program : SourceTextParser.splitItems(text)) {
-                putIfRoom(origin, new Step(program, PROGRAM_DESCRIPTION));
+                putIfRoom(origin, new Step(toActivity(program), PROGRAM_DESCRIPTION));
             }
         }
 
@@ -65,6 +70,23 @@ public class ChecklistPlanner {
             drafts.add(draft(ChecklistSource.KIRI, step, order++));
         }
         return drafts;
+    }
+
+    static String toActivity(String program) {
+        String head = TRAILING_BRACKET.matcher(program).replaceFirst("");
+        if (head.endsWith("기")) {
+            return program;
+        }
+        if (DOING_NOUN.matcher(head).find()) {
+            return program + "하기";
+        }
+        if (WATCHING_NOUN.matcher(head).find()) {
+            return program + " 관람하기";
+        }
+        if (JOINING_NOUN.matcher(head).find()) {
+            return program + " 참여하기";
+        }
+        return program + " 함께 즐기기";
     }
 
     private static void putIfRoom(Map<String, Step> steps, Step step) {

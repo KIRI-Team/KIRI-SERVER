@@ -83,4 +83,29 @@ class SourceTextParserTest {
         assertThat(SourceTextParser.splitItems(text))
                 .containsExactly("도자기 만들기", "떡메치기", "전통 놀이 체험", "가족 퀴즈");
     }
+    @Test
+    @DisplayName("기간·장소 같은 안내 줄과 날짜 조각, 소제목은 활동으로 쓰지 않는다.")
+    void splitItems_skipsLabelsDatesAndSectionTitles() {
+        String text = "기간 : 2026년 10월 18일, 25일, 11월 8일\n장소 : 서울숲\n메인 프로그램\n요가, 러닝 클래스\n공식행사, 폐막식";
+
+        assertThat(SourceTextParser.splitItems(text)).containsExactly("요가", "러닝 클래스", "폐막식");
+    }
+
+    @Test
+    @DisplayName("괄호 안의 구분 기호에서는 나누지 않고, 닫히지 않은 괄호는 떼어낸다.")
+    void splitItems_keepsBrackets() {
+        assertThat(SourceTextParser.splitItems("무대공연, 초청공연(원슈타인, 이영지), 예술 등(燈)"))
+                .containsExactly("무대공연", "초청공연(원슈타인, 이영지)", "예술 등(燈)");
+        assertThat(SourceTextParser.splitItems("무대공연, 초청공연(원슈타인, 이영지"))
+                .containsExactly("무대공연", "초청공연");
+    }
+
+    @Test
+    @DisplayName("설명이 붙은 항목은 앞부분만 쓰고, 끝의 '등'·'외'는 뗀다.")
+    void splitItems_trimsDetailsAndEtc() {
+        assertThat(SourceTextParser.splitItems("서초-한강 아트투어(ART TOUR) : 고터에서 출발"))
+                .containsExactly("서초-한강 아트투어(ART TOUR)");
+        assertThat(SourceTextParser.splitItems("순대국, 술국, 수육 등\n돼지구이 외"))
+                .containsExactly("순대국", "술국", "수육", "돼지구이");
+    }
 }

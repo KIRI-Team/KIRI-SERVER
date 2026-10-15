@@ -30,8 +30,17 @@ public class SourceTextParser {
     private static final Pattern MINUTES = Pattern.compile("(\\d+)\\s*분");
     private static final int MAX_DURATION_MINUTES = 12 * 60;
 
-    private static final Pattern ITEM_SEPARATOR = Pattern.compile("\\n|,|/|·|ㆍ|•|▶|▷|■|□|◆|◇|○|●|[①-⑳]");
+    private static final String ITEM_SEPARATORS = ",/·ㆍ•▶▷■□◆◇○●";
+    private static final String OPEN_BRACKETS = "([（【";
+    private static final String CLOSE_BRACKETS = ")]）】";
     private static final Pattern ITEM_PREFIX = Pattern.compile("^(?:\\d+[.)]|[①-⑳]|[-*※])\\s*");
+    private static final Pattern LABEL_LINE = Pattern.compile(
+            "^(?:기간|일시|일정|날짜|시간|장소|위치|대상|요금|참가비|비용|문의|주최|주관|후원|신청|접수|운영|정원|인원)\\s*[:：]");
+    private static final Pattern AFTER_COLON = Pattern.compile("\\s*[:：].*$");
+    private static final Pattern DATE_ONLY = Pattern.compile("^[\\d\\s.~\\-–년월일시분()（）화수목금토요:]+$");
+    private static final Pattern SECTION_TITLE = Pattern.compile(
+            "^(?:메인|주요|연계|부대|공식|기타|특별|상설|세부|본)?\\s*(?:프로그램|행사|이벤트)$");
+    private static final Pattern TRAILING_ETC = Pattern.compile("\\s+(?:등|외)$");
     private static final int MIN_ITEM_LENGTH = 2;
     private static final int MAX_ITEM_LENGTH = 30;
 
@@ -129,13 +138,69 @@ public class SourceTextParser {
             return List.of();
         }
         Set<String> items = new LinkedHashSet<>();
-        for (String part : ITEM_SEPARATOR.split(text)) {
-            String item = ITEM_PREFIX.matcher(part.trim()).replaceFirst("").trim();
-            if (item.length() >= MIN_ITEM_LENGTH && item.length() <= MAX_ITEM_LENGTH) {
-                items.add(item);
+        for (String line : text.split("\\n")) {
+            if (LABEL_LINE.matcher(line.trim()).find()) {
+                continue;
+            }
+            for (String part : splitOutsideBrackets(line)) {
+                String item = cleanItem(part);
+                if (isActivity(item)) {
+                    items.add(item);
+                }
             }
         }
         return List.copyOf(items);
+    }
+
+    private static List<String> splitOutsideBrackets(String line) {
+        List<String> parts = new ArrayList<>();
+        StringBuilder current = new StringBuilder();
+        int depth = 0;
+        for (char c : line.toCharArray()) {
+            if (OPEN_BRACKETS.indexOf(c) >= 0) {
+                depth++;
+            } else if (CLOSE_BRACKETS.indexOf(c) >= 0 && depth > 0) {
+                depth--;
+            }
+            boolean circledNumber = c >= '①' && c <= '⑳';
+            if (depth == 0 && (ITEM_SEPARATORS.indexOf(c) >= 0 || circledNumber)) {
+                parts.add(current.toString());
+                current.setLength(0);
+            } else {
+                current.append(c);
+            }
+        }
+        parts.add(current.toString());
+        return parts;
+    }
+
+    private static String cleanItem(String part) {
+        String item = ITEM_PREFIX.matcher(part.trim()).replaceFirst("").trim();
+        item = AFTER_COLON.matcher(item).replaceFirst("");
+        item = TRAILING_ETC.matcher(item).replaceFirst("");
+        return dropUnclosedBracket(item).trim();
+    }
+
+    private static String dropUnclosedBracket(String item) {
+        int open = 0;
+        int lastOpen = -1;
+        for (int i = 0; i < item.length(); i++) {
+            char c = item.charAt(i);
+            if (OPEN_BRACKETS.indexOf(c) >= 0) {
+                open++;
+                lastOpen = i;
+            } else if (CLOSE_BRACKETS.indexOf(c) >= 0 && open > 0) {
+                open--;
+            }
+        }
+        return open > 0 ? item.substring(0, lastOpen) : item;
+    }
+
+    private static boolean isActivity(String item) {
+        return item.length() >= MIN_ITEM_LENGTH
+                && item.length() <= MAX_ITEM_LENGTH
+                && !DATE_ONLY.matcher(item).matches()
+                && !SECTION_TITLE.matcher(item).matches();
     }
 
     private static LocalTime toTime(String hourText, String minuteText) {
