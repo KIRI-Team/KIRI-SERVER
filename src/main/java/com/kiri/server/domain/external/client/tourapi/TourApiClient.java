@@ -34,11 +34,16 @@ public class TourApiClient {
     }
 
     public TourApiResDTO.Page fetchSyncList(int pageNo, String modifiedDate) {
+        return fetchSyncList(pageNo, modifiedDate, null, properties.numOfRows());
+    }
+
+    public TourApiResDTO.Page fetchSyncList(int pageNo, String modifiedDate, String contentTypeId, int numOfRows) {
         Map<String, String> params = new LinkedHashMap<>();
-        params.put("numOfRows", String.valueOf(properties.numOfRows()));
+        params.put("numOfRows", String.valueOf(numOfRows));
         params.put("pageNo", String.valueOf(pageNo));
         params.put("arrange", ARRANGE_BY_MODIFIED);
         putIfPresent(params, "lDongRegnCd", properties.regionCode());
+        putIfPresent(params, "contentTypeId", contentTypeId);
         putIfPresent(params, "modifiedtime", modifiedDate);
         return call(TourApiOperation.AREA_BASED_SYNC_LIST, params);
     }
