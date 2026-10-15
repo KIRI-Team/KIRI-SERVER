@@ -26,6 +26,7 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -211,6 +212,58 @@ class TourApiSyncServiceTest {
 
         verify(externalRecordSyncService).apply(any(), any(TourApiResDTO.Details.class), eq(NOW));
         verify(externalSyncRetryService).resolve(SOURCE, "9");
+    }
+
+    @Test
+    @DisplayName("첫 전체 수집이 끝나기 전에는 전체 점검을 하지 않는다.")
+    void fullCheck_beforeFirstSync() {
+        given(externalSyncStateService.hasCompletedSync(SOURCE)).willReturn(false);
+
+        SyncResult result = service("key", 240, 900).fullCheck();
+
+        assertThat(result.completed()).isFalse();
+        verify(externalSyncStateService, never()).tryLock(any(), any());
+        verifyNoInteractions(tourApiClient, externalRecordSyncService);
+    }
+
+    @Test
+    @DisplayName("전체 목록을 끝까지 훑으면 목록에 없는 원본을 비교하고, 수집 진행 위치는 건드리지 않는다.")
+    void fullCheck_reconcilesMissing() {
+        givenFullCheck(0);
+        given(tourApiClient.fetchSyncList(1, null)).willReturn(page(3, item("1"), item("2")));
+        given(tourApiClient.fetchSyncList(2, null)).willReturn(page(3, item("3")));
+        given(externalRecordSyncService.decide(any())).willReturn(SyncDecision.UNCHANGED);
+        given(externalRecordSyncService.reconcileMissing(Set.of("1", "2", "3"))).willReturn(1);
+
+        SyncResult result = service("key", 240, 900).fullCheck();
+
+        assertThat(result.completed()).isTrue();
+        assertThat(result.missing()).isEqualTo(1);
+        verify(externalSyncStateService, never()).moveTo(any(), any(), anyInt());
+        verify(externalSyncStateService).completeFullCheck(SOURCE, NOW);
+        verify(externalSyncStateService).addCalls(SOURCE, TODAY, 2);
+        verify(externalSyncStateService).unlock(SOURCE);
+    }
+
+    @Test
+    @DisplayName("전체 점검이 중간에 멈추면 목록 비교를 하지 않는다.")
+    void fullCheck_stoppedWithoutReconcile() {
+        givenFullCheck(0);
+        given(tourApiClient.fetchSyncList(1, null)).willReturn(page(3, item("1"), item("2")));
+        given(externalRecordSyncService.decide(any())).willReturn(SyncDecision.FETCH);
+
+        SyncResult result = service("key", 3, 900).fullCheck();
+
+        assertThat(result.completed()).isFalse();
+        verify(externalRecordSyncService, never()).reconcileMissing(any());
+        verify(externalSyncStateService, never()).completeFullCheck(any(), any());
+        verify(externalSyncStateService).unlock(SOURCE);
+    }
+
+    private void givenFullCheck(int callsUsedToday) {
+        given(externalSyncStateService.hasCompletedSync(SOURCE)).willReturn(true);
+        given(externalSyncStateService.tryLock(SOURCE, NOW)).willReturn(true);
+        given(externalSyncStateService.callsUsedOn(SOURCE, TODAY)).willReturn(callsUsedToday);
     }
 
     private void givenWindow(SyncWindow window) {

@@ -50,6 +50,25 @@ public class ExternalSyncStateService {
         return new SyncWindow(full, full ? null : from, today, 1, false, callsUsed);
     }
 
+    @Transactional(readOnly = true)
+    public boolean hasCompletedSync(ExternalSource source) {
+        return externalSyncStateRepository.findByExternalSource(source)
+                .map(ExternalSyncState::hasCompletedSync)
+                .orElse(false);
+    }
+
+    @Transactional(readOnly = true)
+    public int callsUsedOn(ExternalSource source, LocalDate today) {
+        return externalSyncStateRepository.findByExternalSource(source)
+                .map(state -> state.callsUsedOn(today))
+                .orElse(0);
+    }
+
+    @Transactional
+    public void completeFullCheck(ExternalSource source, LocalDateTime checkedAt) {
+        getOrCreate(source).completeFullCheck(checkedAt);
+    }
+
     @Transactional
     public void moveTo(ExternalSource source, LocalDate date, int page) {
         getOrCreate(source).moveTo(date, page);

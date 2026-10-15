@@ -82,6 +82,7 @@ CREATE TABLE external_record
     content_hash       VARCHAR(64)  NOT NULL,
     origin_modified_at TIMESTAMPTZ,
     synced_at          TIMESTAMPTZ  NOT NULL DEFAULT now(),
+    missing_count      INTEGER      NOT NULL DEFAULT 0,
     created_at         TIMESTAMPTZ  NOT NULL DEFAULT now(),
     updated_at         TIMESTAMPTZ,
     CONSTRAINT uk_external_record_source_id UNIQUE (external_source, external_id),
@@ -122,6 +123,7 @@ CREATE TABLE external_sync_state
     daily_call_date        DATE,
     daily_call_count       INTEGER     NOT NULL DEFAULT 0,
     running_since          TIMESTAMPTZ,
+    last_full_check_at     TIMESTAMPTZ,
     created_at             TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at             TIMESTAMPTZ,
     CONSTRAINT uk_external_sync_state_source UNIQUE (external_source)

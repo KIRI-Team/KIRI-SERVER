@@ -10,6 +10,7 @@ public record SyncResult(
         int hidden,
         int skipped,
         int failed,
+        int missing,
         int calls,
         String error
 ) {

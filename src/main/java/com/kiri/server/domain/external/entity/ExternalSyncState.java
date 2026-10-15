@@ -85,6 +85,17 @@ public class ExternalSyncState extends BaseEntity {
     @Column(name = "running_since")
     private LocalDateTime runningSince;
 
+    @Column(name = "last_full_check_at")
+    private LocalDateTime lastFullCheckAt;
+
+    public boolean hasCompletedSync() {
+        return lastCursor != null;
+    }
+
+    public void completeFullCheck(LocalDateTime checkedAt) {
+        this.lastFullCheckAt = checkedAt;
+    }
+
     public boolean hasOpenWindow() {
         return progressPage != null;
     }

@@ -85,6 +85,10 @@ public class ExternalRecord extends BaseEntity {
     @Column(name = "synced_at", nullable = false)
     private LocalDateTime syncedAt;
 
+    @Builder.Default
+    @Column(name = "missing_count", nullable = false)
+    private Integer missingCount = 0;
+
     public boolean isSameOrigin(LocalDateTime modifiedAt) {
         return originModifiedAt != null && originModifiedAt.equals(modifiedAt);
     }
@@ -125,5 +129,18 @@ public class ExternalRecord extends BaseEntity {
 
     public boolean isIgnored() {
         return processStatus == ProcessStatus.IGNORED;
+    }
+
+    public boolean isWaitingForOrigin() {
+        return processStatus == ProcessStatus.REVIEW_REQUIRED && reviewReason == ReviewReason.ORIGIN_UNAVAILABLE;
+    }
+
+    public void markSeen() {
+        this.missingCount = 0;
+    }
+
+    public int markMissing() {
+        this.missingCount = missingCount + 1;
+        return missingCount;
     }
 }

@@ -21,6 +21,7 @@ import java.time.Clock;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
@@ -76,14 +77,59 @@ public class TourApiSyncService {
         }
     }
 
+    public SyncResult fullCheck() {
+        LocalDateTime startedAt = LocalDateTime.now(clock);
+        LocalDate today = startedAt.toLocalDate();
+
+        if (!properties.hasServiceKey()) {
+            log.warn("[TourAPI] 인증키가 없어 전체 점검을 건너뜁니다.");
+            return SyncResult.builder().completed(false).error("인증키 없음").build();
+        }
+        if (!externalSyncStateService.hasCompletedSync(SOURCE)) {
+            log.info("[TourAPI] 첫 전체 수집이 끝나지 않아 전체 점검을 건너뜁니다.");
+            return SyncResult.builder().completed(false).error("첫 수집 미완료").build();
+        }
+        if (!externalSyncStateService.tryLock(SOURCE, startedAt)) {
+            log.warn("[TourAPI] 이미 수집이 실행 중이라 전체 점검을 건너뜁니다.");
+            return SyncResult.builder().completed(false).error("이미 실행 중").build();
+        }
+
+        Run run = null;
+        try {
+            int dailyRemaining = properties.dailyCallLimit() - externalSyncStateService.callsUsedOn(SOURCE, today);
+            run = new Run(Math.min(properties.maxCallsPerRun(), dailyRemaining),
+                    dailyRemaining < properties.maxCallsPerRun(), startedAt);
+            return executeFullCheck(run);
+        } finally {
+            if (run != null) {
+                externalSyncStateService.addCalls(SOURCE, today, run.calls);
+            }
+            externalSyncStateService.unlock(SOURCE);
+        }
+    }
+
+    private SyncResult executeFullCheck(Run run) {
+        try {
+            syncPages(null, 1, run, false);
+        } catch (BudgetExhaustedException e) {
+            return finish(run, false, run.limitedByDaily ? PAUSE_DAILY_LIMIT : PAUSE_RUN_BUDGET);
+        } catch (RuntimeException e) {
+            log.error("[TourAPI] 전체 점검 중 오류", e);
+            return finish(run, false, e.getMessage());
+        }
+        run.missing = externalRecordSyncService.reconcileMissing(run.seen);
+        externalSyncStateService.completeFullCheck(SOURCE, run.startedAt);
+        return finish(run, true, null);
+    }
+
     private SyncResult execute(SyncWindow window, Run run) {
         try {
             retryFailedItems(run);
             if (window.full()) {
-                syncPages(null, window.startPage(), run);
+                syncPages(null, window.startPage(), run, true);
             } else {
                 for (LocalDate date = window.fromDate(); !date.isAfter(window.endDate()); date = date.plusDays(1)) {
-                    syncPages(date, date.equals(window.fromDate()) ? window.startPage() : 1, run);
+                    syncPages(date, date.equals(window.fromDate()) ? window.startPage() : 1, run, true);
                 }
             }
         } catch (BudgetExhaustedException e) {
@@ -122,11 +168,13 @@ public class TourApiSyncService {
         }
     }
 
-    private void syncPages(LocalDate date, int startPage, Run run) {
+    private void syncPages(LocalDate date, int startPage, Run run, boolean saveProgress) {
         String modifiedDate = date == null ? null : date.format(DateTimeFormatter.BASIC_ISO_DATE);
         int pageNo = startPage;
         while (true) {
-            externalSyncStateService.moveTo(SOURCE, date, pageNo);
+            if (saveProgress) {
+                externalSyncStateService.moveTo(SOURCE, date, pageNo);
+            }
             run.use(LIST_CALLS);
             TourApiResDTO.Page page = tourApiClient.fetchSyncList(pageNo, modifiedDate);
             for (JsonNode node : page.items()) {
@@ -144,6 +192,7 @@ public class TourApiSyncService {
             run.skipped++;
             return true;
         }
+        run.seen.add(item.contentId());
         try {
             switch (externalRecordSyncService.decide(item)) {
                 case SKIP -> run.skipped++;
@@ -201,6 +250,8 @@ public class TourApiSyncService {
         private int hidden;
         private int skipped;
         private int failed;
+        private int missing;
+        private final Set<String> seen = new HashSet<>();
 
         private Run(int maxCalls, boolean limitedByDaily, LocalDateTime startedAt) {
             this.maxCalls = Math.max(0, maxCalls);
@@ -223,6 +274,7 @@ public class TourApiSyncService {
                     .hidden(hidden)
                     .skipped(skipped)
                     .failed(failed)
+                    .missing(missing)
                     .calls(calls)
                     .error(error)
                     .build();

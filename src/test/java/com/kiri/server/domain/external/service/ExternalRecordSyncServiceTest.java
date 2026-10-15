@@ -27,6 +27,8 @@ import tools.jackson.databind.json.JsonMapper;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
+import java.util.stream.IntStream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -192,6 +194,82 @@ class ExternalRecordSyncServiceTest {
 
         verify(missionGenerationService).hide(record);
         assertThat(record.getSyncedAt()).isEqualTo(NOW);
+    }
+
+    @Test
+    @DisplayName("원본 접근 불가로 검수 중인 원본이 다시 보이면 수정 시각이 같아도 다시 검증한다.")
+    void decide_waitingForOriginRechecks() {
+        ExternalRecord waiting = record(MODIFIED_AT);
+        waiting.markReviewRequired(ReviewReason.ORIGIN_UNAVAILABLE);
+        givenRecord(waiting);
+
+        assertThat(externalRecordSyncService.decide(syncItem("15", "1", "20261010153000"))).isEqualTo(SyncDecision.FETCH);
+        assertThat(externalRecordSyncService.decide(syncItem("15", "0", "20261010153000"))).isEqualTo(SyncDecision.HIDE);
+    }
+
+    @Test
+    @DisplayName("원본 접근 불가였던 원본은 내용이 같아도 이력 없이 다시 가공한다.")
+    void apply_waitingForOriginSameContent() {
+        givenRecord(null);
+        given(externalRecordRepository.save(any(ExternalRecord.class))).willAnswer(invocation -> invocation.getArgument(0));
+        TourApiResDTO.SyncItem item = syncItem("15", "1", "20261010153000");
+        externalRecordSyncService.apply(item, details(), NOW);
+        ArgumentCaptor<ExternalRecord> saved = ArgumentCaptor.forClass(ExternalRecord.class);
+        verify(externalRecordRepository).save(saved.capture());
+        ExternalRecord record = saved.getValue();
+        record.markReviewRequired(ReviewReason.ORIGIN_UNAVAILABLE);
+        givenRecord(record);
+
+        externalRecordSyncService.apply(item, details(), NOW.plusDays(1));
+
+        verify(externalRecordHistoryRepository, never()).save(any());
+        verify(missionGenerationService).apply(eq(record), any(DraftResult.class), eq(NOW.plusDays(1).toLocalDate()));
+    }
+
+    @Test
+    @DisplayName("전체 목록에 2회 연속 없는 원본만 원본 접근 불가 검수로 보내고, 다시 보이면 횟수를 초기화한다.")
+    void reconcileMissing() {
+        ExternalRecord seen = record("1", 1);
+        ExternalRecord firstMiss = record("2", 0);
+        ExternalRecord secondMiss = record("3", 1);
+        given(externalRecordRepository.findAllByExternalSourceAndProcessStatusNot(ExternalSource.TOUR_API, ProcessStatus.IGNORED))
+                .willReturn(List.of(seen, firstMiss, secondMiss));
+
+        int flagged = externalRecordSyncService.reconcileMissing(Set.of("1"));
+
+        assertThat(flagged).isEqualTo(1);
+        assertThat(seen.getMissingCount()).isZero();
+        assertThat(firstMiss.getMissingCount()).isEqualTo(1);
+        assertThat(secondMiss.getMissingCount()).isEqualTo(2);
+        verify(missionGenerationService).hide(secondMiss);
+        verify(missionGenerationService, never()).hide(firstMiss);
+    }
+
+    @Test
+    @DisplayName("목록에서 빠진 원본이 너무 많으면 응답 이상으로 보고 아무것도 바꾸지 않는다.")
+    void reconcileMissing_guard() {
+        List<ExternalRecord> records = IntStream.range(0, 200)
+                .mapToObj(i -> record(String.valueOf(i), 1))
+                .toList();
+        given(externalRecordRepository.findAllByExternalSourceAndProcessStatusNot(ExternalSource.TOUR_API, ProcessStatus.IGNORED))
+                .willReturn(records);
+
+        int flagged = externalRecordSyncService.reconcileMissing(Set.of("0"));
+
+        assertThat(flagged).isZero();
+        assertThat(records.get(1).getMissingCount()).isEqualTo(1);
+        verify(missionGenerationService, never()).hide(any());
+    }
+
+    private ExternalRecord record(String externalId, int missingCount) {
+        return ExternalRecord.builder()
+                .externalSource(ExternalSource.TOUR_API)
+                .externalId(externalId)
+                .processStatus(ProcessStatus.PROCESSED)
+                .contentHash("a".repeat(64))
+                .syncedAt(NOW)
+                .missingCount(missingCount)
+                .build();
     }
 
     private void givenRecord(ExternalRecord record) {

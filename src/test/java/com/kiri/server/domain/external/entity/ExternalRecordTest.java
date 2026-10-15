@@ -100,6 +100,25 @@ class ExternalRecordTest {
         assertThat(record.getSyncedAt()).isEqualTo(nextSyncedAt);
     }
 
+    @Test
+    @DisplayName("전체 목록에 없을 때마다 누락 횟수를 올리고, 다시 보이면 초기화한다.")
+    void markMissing() {
+        ExternalRecord record = reviewRequired(ReviewReason.NO_LOCATION);
+
+        assertThat(record.markMissing()).isEqualTo(1);
+        assertThat(record.markMissing()).isEqualTo(2);
+        record.markSeen();
+
+        assertThat(record.getMissingCount()).isZero();
+    }
+
+    @Test
+    @DisplayName("원본 접근 불가 사유로 검수 중일 때만 원본 재확인 대기 상태다.")
+    void isWaitingForOrigin() {
+        assertThat(reviewRequired(ReviewReason.ORIGIN_UNAVAILABLE).isWaitingForOrigin()).isTrue();
+        assertThat(reviewRequired(ReviewReason.NO_LOCATION).isWaitingForOrigin()).isFalse();
+    }
+
     private ExternalRecord reviewRequired(ReviewReason reason) {
         return ExternalRecord.builder()
                 .externalSource(ExternalSource.TOUR_API)

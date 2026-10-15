@@ -24,6 +24,11 @@ public class TourApiSyncScheduler {
         tourApiSyncService.sync();
     }
 
+    @Scheduled(cron = "${tour-api.full-check-cron:0 0 3 * * *}", zone = "Asia/Seoul")
+    public void fullCheck() {
+        tourApiSyncService.fullCheck();
+    }
+
     @Scheduled(cron = "${mission.end-cron:0 10 0 * * *}", zone = "Asia/Seoul")
     public void endExpiredMissions() {
         LocalDateTime now = LocalDateTime.now(clock);
