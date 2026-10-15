@@ -13,15 +13,18 @@ public record TourApiProperties(
         String regionCode,
         Duration connectTimeout,
         Duration readTimeout,
-        Integer maxCallsPerRun
+        Integer maxCallsPerRun,
+        Integer dailyCallLimit
 ) {
 
     private static final int DEFAULT_NUM_OF_ROWS = 1000;
     private static final int DEFAULT_MAX_CALLS_PER_RUN = 240;
+    private static final int DEFAULT_DAILY_CALL_LIMIT = 900;
 
     public TourApiProperties {
         numOfRows = numOfRows == null ? DEFAULT_NUM_OF_ROWS : numOfRows;
         maxCallsPerRun = maxCallsPerRun == null ? DEFAULT_MAX_CALLS_PER_RUN : maxCallsPerRun;
+        dailyCallLimit = dailyCallLimit == null ? DEFAULT_DAILY_CALL_LIMIT : dailyCallLimit;
     }
 
     public boolean hasServiceKey() {

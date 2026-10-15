@@ -11,7 +11,6 @@ public record SyncResult(
         int skipped,
         int failed,
         int calls,
-        int endedMissions,
         String error
 ) {
 }

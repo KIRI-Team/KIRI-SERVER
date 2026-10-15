@@ -5,6 +5,8 @@ import com.kiri.server.domain.external.client.tourapi.TourApiProperties;
 import com.kiri.server.domain.external.client.tourapi.dto.TourApiResDTO;
 import com.kiri.server.domain.external.converter.TourApiConverter;
 import com.kiri.server.domain.external.dto.SyncResult;
+import com.kiri.server.domain.external.dto.SyncWindow;
+import com.kiri.server.domain.external.entity.ExternalSyncRetry;
 import com.kiri.server.domain.external.enums.ExternalSource;
 import com.kiri.server.domain.external.exception.ExternalException;
 import com.kiri.server.domain.external.exception.code.ExternalErrorCode;
@@ -13,14 +15,12 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 
 import java.time.Clock;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.time.format.DateTimeParseException;
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
@@ -29,9 +29,10 @@ import java.util.Set;
 @RequiredArgsConstructor
 public class TourApiSyncService {
 
+    public static final String PAUSE_RUN_BUDGET = "RUN_BUDGET";
+    public static final String PAUSE_DAILY_LIMIT = "DAILY_LIMIT";
+    private static final String UNKNOWN_ERROR = "UNKNOWN";
     private static final ExternalSource SOURCE = ExternalSource.TOUR_API;
-    private static final DateTimeFormatter CURSOR_FORMAT = DateTimeFormatter.BASIC_ISO_DATE;
-    private static final int MAX_INCREMENTAL_DAYS = 30;
     private static final int LIST_CALLS = 1;
     private static final int DETAIL_CALLS = 3;
     private static final Set<ExternalErrorCode> FATAL_ERRORS = Set.of(
@@ -41,48 +42,93 @@ public class TourApiSyncService {
     private final TourApiProperties properties;
     private final ExternalRecordSyncService externalRecordSyncService;
     private final ExternalSyncStateService externalSyncStateService;
+    private final ExternalSyncRetryService externalSyncRetryService;
     private final MissionGenerationService missionGenerationService;
+    private final ObjectMapper objectMapper;
     private final Clock clock;
 
     public SyncResult sync() {
         LocalDateTime startedAt = LocalDateTime.now(clock);
         LocalDate today = startedAt.toLocalDate();
-        Run run = new Run(properties.maxCallsPerRun(), startedAt);
-        run.endedMissions = missionGenerationService.endExpiredMissions(today, startedAt);
 
         if (!properties.hasServiceKey()) {
             log.warn("[TourAPI] 인증키가 없어 수집을 건너뜁니다.");
-            return run.toResult(false, "인증키 없음");
+            return SyncResult.builder().completed(false).error("인증키 없음").build();
+        }
+        if (!externalSyncStateService.tryLock(SOURCE, startedAt)) {
+            log.warn("[TourAPI] 이미 수집이 실행 중이라 건너뜁니다.");
+            return SyncResult.builder().completed(false).error("이미 실행 중").build();
         }
 
+        Run run = null;
         try {
-            for (String date : targetDates(externalSyncStateService.getCursor(SOURCE), today)) {
-                syncDate(date, run);
+            missionGenerationService.publishPendingMissions(today, startedAt);
+            SyncWindow window = externalSyncStateService.begin(SOURCE, today);
+            int dailyRemaining = properties.dailyCallLimit() - window.callsUsedToday();
+            run = new Run(Math.min(properties.maxCallsPerRun(), dailyRemaining),
+                    dailyRemaining < properties.maxCallsPerRun(), startedAt);
+            return execute(window, run);
+        } finally {
+            if (run != null) {
+                externalSyncStateService.addCalls(SOURCE, today, run.calls);
+            }
+            externalSyncStateService.unlock(SOURCE);
+        }
+    }
+
+    private SyncResult execute(SyncWindow window, Run run) {
+        try {
+            retryFailedItems(run);
+            if (window.full()) {
+                syncPages(null, window.startPage(), run);
+            } else {
+                for (LocalDate date = window.fromDate(); !date.isAfter(window.endDate()); date = date.plusDays(1)) {
+                    syncPages(date, date.equals(window.fromDate()) ? window.startPage() : 1, run);
+                }
             }
         } catch (BudgetExhaustedException e) {
-            return fail(run, "호출 한도(" + properties.maxCallsPerRun() + "회) 소진으로 중단");
+            String reason = run.limitedByDaily ? PAUSE_DAILY_LIMIT : PAUSE_RUN_BUDGET;
+            externalSyncStateService.pause(SOURCE, reason, "호출 " + run.calls + "회 사용 후 일시 중단");
+            return finish(run, false, reason);
+        } catch (ExternalException e) {
+            externalSyncStateService.fail(SOURCE, e.getErrorCode().getCode(), e.getMessage());
+            return finish(run, false, e.getMessage());
         } catch (RuntimeException e) {
-            return fail(run, e.getMessage());
+            externalSyncStateService.fail(SOURCE, UNKNOWN_ERROR, e.getMessage());
+            log.error("[TourAPI] 수집 중 알 수 없는 오류", e);
+            return finish(run, false, e.getMessage());
         }
+        externalSyncStateService.complete(SOURCE, window.endDate(), run.startedAt);
+        return finish(run, true, null);
+    }
 
-        externalSyncStateService.recordSuccess(SOURCE, today.format(CURSOR_FORMAT), startedAt);
-        SyncResult result = run.toResult(true, null);
-        log.info("[TourAPI] 수집 완료 {}", result);
+    private SyncResult finish(Run run, boolean completed, String error) {
+        SyncResult result = run.toResult(completed, error);
+        if (completed) {
+            log.info("[TourAPI] 수집 완료 {}", result);
+        } else {
+            log.warn("[TourAPI] 수집 중단 {}", result);
+        }
         return result;
     }
 
-    private SyncResult fail(Run run, String error) {
-        externalSyncStateService.recordFailure(SOURCE, error);
-        SyncResult result = run.toResult(false, error);
-        log.warn("[TourAPI] 수집 중단 {}", result);
-        return result;
+    private void retryFailedItems(Run run) {
+        List<ExternalSyncRetry> retries = externalSyncRetryService.pending(SOURCE);
+        for (ExternalSyncRetry retry : retries) {
+            TourApiResDTO.SyncItem item = TourApiConverter.toSyncItem(objectMapper.readTree(retry.getRawItem()));
+            if (syncItem(item, run)) {
+                externalSyncRetryService.resolve(SOURCE, retry.getExternalId());
+            }
+        }
     }
 
-    private void syncDate(String date, Run run) {
-        int pageNo = 1;
+    private void syncPages(LocalDate date, int startPage, Run run) {
+        String modifiedDate = date == null ? null : date.format(DateTimeFormatter.BASIC_ISO_DATE);
+        int pageNo = startPage;
         while (true) {
+            externalSyncStateService.moveTo(SOURCE, date, pageNo);
             run.use(LIST_CALLS);
-            TourApiResDTO.Page page = tourApiClient.fetchSyncList(pageNo, date);
+            TourApiResDTO.Page page = tourApiClient.fetchSyncList(pageNo, modifiedDate);
             for (JsonNode node : page.items()) {
                 syncItem(TourApiConverter.toSyncItem(node), run);
             }
@@ -93,10 +139,10 @@ public class TourApiSyncService {
         }
     }
 
-    private void syncItem(TourApiResDTO.SyncItem item, Run run) {
+    private boolean syncItem(TourApiResDTO.SyncItem item, Run run) {
         if (item.contentId() == null) {
             run.skipped++;
-            return;
+            return true;
         }
         try {
             switch (externalRecordSyncService.decide(item)) {
@@ -115,18 +161,26 @@ public class TourApiSyncService {
                     run.processed++;
                 }
             }
+            return true;
         } catch (BudgetExhaustedException e) {
             throw e;
         } catch (ExternalException e) {
             if (FATAL_ERRORS.contains(e.getErrorCode())) {
                 throw e;
             }
-            run.failed++;
-            log.warn("[TourAPI] contentId={} 처리 실패: {}", item.contentId(), e.getMessage());
+            return failItem(item, run, e.getMessage(), e);
         } catch (RuntimeException e) {
-            run.failed++;
-            log.warn("[TourAPI] contentId={} 처리 실패", item.contentId(), e);
+            return failItem(item, run, e.getMessage(), e);
         }
+    }
+
+    private boolean failItem(TourApiResDTO.SyncItem item, Run run, String message, RuntimeException cause) {
+        run.failed++;
+        log.warn("[TourAPI] contentId={} 처리 실패, 다음 실행에서 재시도: {}", item.contentId(), message);
+        String raw = item.raw() == null ? "{}" : objectMapper.writeValueAsString(item.raw());
+        externalSyncRetryService.recordFailure(SOURCE, item.contentId(), raw,
+                cause.getClass().getSimpleName() + ": " + message);
+        return false;
     }
 
     private TourApiResDTO.Details fetchDetails(TourApiResDTO.SyncItem item) {
@@ -136,32 +190,10 @@ public class TourApiSyncService {
         return new TourApiResDTO.Details(common, intro, infos);
     }
 
-    static List<String> targetDates(String cursor, LocalDate today) {
-        LocalDate from = parseCursor(cursor);
-        if (from == null || from.isAfter(today) || from.isBefore(today.minusDays(MAX_INCREMENTAL_DAYS))) {
-            return Collections.singletonList(null);
-        }
-        List<String> dates = new ArrayList<>();
-        for (LocalDate date = from; !date.isAfter(today); date = date.plusDays(1)) {
-            dates.add(date.format(CURSOR_FORMAT));
-        }
-        return dates;
-    }
-
-    private static LocalDate parseCursor(String cursor) {
-        if (cursor == null || cursor.isBlank()) {
-            return null;
-        }
-        try {
-            return LocalDate.parse(cursor, CURSOR_FORMAT);
-        } catch (DateTimeParseException e) {
-            return null;
-        }
-    }
-
     private static class Run {
 
         private final int maxCalls;
+        private final boolean limitedByDaily;
         private final LocalDateTime startedAt;
         private int calls;
         private int processed;
@@ -169,10 +201,10 @@ public class TourApiSyncService {
         private int hidden;
         private int skipped;
         private int failed;
-        private int endedMissions;
 
-        private Run(int maxCalls, LocalDateTime startedAt) {
-            this.maxCalls = maxCalls;
+        private Run(int maxCalls, boolean limitedByDaily, LocalDateTime startedAt) {
+            this.maxCalls = Math.max(0, maxCalls);
+            this.limitedByDaily = limitedByDaily;
             this.startedAt = startedAt;
         }
 
@@ -192,7 +224,6 @@ public class TourApiSyncService {
                     .skipped(skipped)
                     .failed(failed)
                     .calls(calls)
-                    .endedMissions(endedMissions)
                     .error(error)
                     .build();
         }
