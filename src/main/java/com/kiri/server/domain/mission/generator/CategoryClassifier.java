@@ -41,11 +41,15 @@ public class CategoryClassifier {
             return Optional.empty();
         }
         return switch (type) {
-            case "14" -> Optional.of(classifyCultureFacility(content.lclsSystm2()));
+            case "14" -> content.lclsSystm2() == null
+                    ? Optional.empty()
+                    : Optional.of(classifyCultureFacility(content.lclsSystm2()));
             case "15" -> Optional.of(new Classification(classifyEvent(content), PlaceType.EVENT_VENUE, null));
             case "28" -> Optional.of(new Classification(Category.EXPERIENCE, PlaceType.LEISURE, null));
             case "38" -> Optional.of(new Classification(Category.FOOD_CAFE, PlaceType.TOURIST_SPOT, IndoorOutdoor.BOTH));
-            case "39" -> Optional.of(new Classification(Category.FOOD_CAFE, PlaceType.RESTAURANT, IndoorOutdoor.INDOOR));
+            case "39" -> content.lclsSystm2() == null
+                    ? Optional.empty()
+                    : Optional.of(new Classification(Category.FOOD_CAFE, PlaceType.RESTAURANT, IndoorOutdoor.INDOOR));
             case "12" -> classifyTouristSpot(content.lclsSystm1(), content.lclsSystm2());
             default -> Optional.empty();
         };

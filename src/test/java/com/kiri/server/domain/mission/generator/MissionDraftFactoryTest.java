@@ -17,11 +17,14 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.List;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.tuple;
 
 class MissionDraftFactoryTest {
+
+    private static final Map<String, String> DEFAULT_LCLS2 = Map.of("39", "FD01", "14", "VE07");
 
     private final MissionDraftFactory factory = new MissionDraftFactory(new RuleOnlyTitlePolisher());
 
@@ -148,12 +151,34 @@ class MissionDraftFactoryTest {
     }
 
     @Test
-    @DisplayName("좌표나 주소가 없으면 NO_LOCATION 검수 대기로 보낸다.")
+    @DisplayName("좌표가 없으면 NO_LOCATION 검수 대기로 보낸다.")
     void noLocation() {
         assertThat(factory.create(base("15", "행사").latitude(null).build()))
                 .isEqualTo(new DraftResult.ReviewRequired(ReviewReason.NO_LOCATION));
-        assertThat(factory.create(base("14", "박물관").address(" ").build()))
+        assertThat(factory.create(base("14", "박물관").longitude(null).build()))
                 .isEqualTo(new DraftResult.ReviewRequired(ReviewReason.NO_LOCATION));
+    }
+
+    @Test
+    @DisplayName("주소가 없어도 좌표가 유효하면 공개 대상이 된다.")
+    void noAddress() {
+        MissionDraft museum = ready(factory.create(base("14", "박물관").address(null).build()));
+        MissionDraft festival = ready(factory.create(base("15", "주소 없는 축제").address(" ")
+                .lclsSystm1("EV").lclsSystm2("EV01").lclsSystm3("EV010100")
+                .startDate(LocalDate.of(2026, 10, 10)).endDate(LocalDate.of(2026, 10, 20))
+                .build()));
+
+        assertThat(museum.place().address()).isNull();
+        assertThat(festival.description()).contains("주소 없는 축제에서 열려요.");
+    }
+
+    @Test
+    @DisplayName("음식점·문화시설인데 분류 코드가 없으면 제외 업종인지 알 수 없어 CATEGORY_UNKNOWN으로 보낸다.")
+    void unknownBusinessType() {
+        assertThat(factory.create(base("39", "어느 식당").lclsSystm2(null).build()))
+                .isEqualTo(new DraftResult.ReviewRequired(ReviewReason.CATEGORY_UNKNOWN));
+        assertThat(factory.create(base("14", "어느 시설").lclsSystm2(null).build()))
+                .isEqualTo(new DraftResult.ReviewRequired(ReviewReason.CATEGORY_UNKNOWN));
     }
 
     @Test
@@ -307,6 +332,7 @@ class MissionDraftFactoryTest {
     private NormalizedContent.NormalizedContentBuilder base(String contentTypeId, String title) {
         return NormalizedContent.builder()
                 .contentTypeId(contentTypeId)
+                .lclsSystm2(DEFAULT_LCLS2.get(contentTypeId))
                 .externalId("1")
                 .title(title)
                 .address("서울특별시 종로구 사직로 161")

@@ -49,7 +49,7 @@ public class Place extends BaseEntity {
     @Column(name = "longitude", precision = 10, scale = 7, nullable = false)
     private BigDecimal longitude;
 
-    @Column(name = "address", length = 255, nullable = false)
+    @Column(name = "address", length = 255)
     private String address;
 
     @Column(name = "opening_time")
@@ -67,6 +67,9 @@ public class Place extends BaseEntity {
     public void fillMissingFrom(MissionDraft.PlaceDraft draft) {
         if (regionCode == null) {
             this.regionCode = draft.regionCode();
+        }
+        if (address == null || address.isBlank()) {
+            this.address = draft.address();
         }
         if (openingTime == null && closingTime == null) {
             this.openingTime = draft.openingTime();

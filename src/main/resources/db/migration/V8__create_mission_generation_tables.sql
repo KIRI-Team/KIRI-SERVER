@@ -6,7 +6,7 @@ CREATE TABLE place
     region_code  VARCHAR(10),
     latitude     DECIMAL(10, 7) NOT NULL,
     longitude    DECIMAL(10, 7) NOT NULL,
-    address      VARCHAR(255)   NOT NULL,
+    address      VARCHAR(255),
     opening_time TIME,
     closing_time TIME,
     image_url    VARCHAR(500),

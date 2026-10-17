@@ -173,7 +173,7 @@ public class MissionGenerationService {
 
     private boolean isSamePlace(Place place, MissionDraft.PlaceDraft draft) {
         return sameName(place.getName(), draft.name())
-                && sameAddress(place.getAddress(), draft.address())
+                && addressMatches(place.getAddress(), draft.address())
                 && isNear(place, draft);
     }
 
@@ -205,6 +205,10 @@ public class MissionGenerationService {
 
     static boolean sameName(String a, String b) {
         return a != null && b != null && normalizeName(a).equals(normalizeName(b));
+    }
+
+    static boolean addressMatches(String a, String b) {
+        return a == null || b == null || a.isBlank() || b.isBlank() || sameAddress(a, b);
     }
 
     static boolean sameAddress(String a, String b) {

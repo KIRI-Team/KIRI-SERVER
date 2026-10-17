@@ -39,7 +39,7 @@ public record NormalizedContent(
     }
 
     public boolean hasLocation() {
-        return latitude != null && longitude != null && address != null && !address.isBlank();
+        return latitude != null && longitude != null;
     }
 
     public String placeName() {

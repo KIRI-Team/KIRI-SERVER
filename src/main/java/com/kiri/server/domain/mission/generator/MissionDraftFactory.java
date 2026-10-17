@@ -149,7 +149,10 @@ public class MissionDraftFactory {
     }
 
     private static String eventLocation(NormalizedContent content) {
-        return isBlank(content.venueName()) ? content.address() : content.venueName();
+        if (!isBlank(content.venueName())) {
+            return content.venueName();
+        }
+        return isBlank(content.address()) ? content.title() : content.address();
     }
 
     private static String imageSource(NormalizedContent content) {

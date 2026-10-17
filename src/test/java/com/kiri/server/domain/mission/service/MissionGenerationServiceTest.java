@@ -106,6 +106,20 @@ class MissionGenerationServiceTest {
     }
 
     @Test
+    @DisplayName("한쪽 주소가 없으면 정규화한 이름이 같고 100m 안일 때 같은 장소로 재사용한다.")
+    void apply_reusesPlaceWithoutAddress() {
+        Place existing = place(PLACE_NAME, null, new BigDecimal("37.5287000"));
+        given(placeRepository.findAllWithin(any(), any(), any(), any())).willReturn(List.of(existing));
+        given(missionRepository.save(any(Mission.class))).willAnswer(invocation -> invocation.getArgument(0));
+
+        service(true).apply(newRecord(), new DraftResult.Ready(draft(TODAY, TODAY.plusDays(2))), TODAY);
+
+        verify(placeRepository, never()).save(any());
+        assertThat(savedMission().getPlace()).isSameAs(existing);
+        assertThat(existing.getAddress()).isEqualTo(ADDRESS);
+    }
+
+    @Test
     @DisplayName("근처에 이름은 같은데 주소가 다른 장소가 있으면 병합하지 않고 PLACE_AMBIGUOUS 검수로 보낸다.")
     void apply_ambiguousPlace() {
         ExternalRecord record = newRecord();
