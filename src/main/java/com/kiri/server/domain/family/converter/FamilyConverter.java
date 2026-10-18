@@ -24,6 +24,7 @@ public class FamilyConverter {
                 .name(family.getName())
                 .inviteCode(family.getInviteCode())
                 .inviteUrl(inviteUrl)
+                .inviteExpiresAt(family.getInviteExpiresAt())
                 .build();
     }
 }
