@@ -13,7 +13,8 @@ import java.time.LocalDateTime;
 @Table(
         name ="member",
         uniqueConstraints ={
-                @UniqueConstraint(name = "uk_member_social_provider", columnNames = { "social_provider", "social_provider_uid"})
+                @UniqueConstraint(name = "uk_member_social_provider", columnNames = { "social_provider", "social_provider_uid"}),
+                @UniqueConstraint(name = "uk_member_nickname", columnNames = {"nickname"})
         }
 )
 @Getter
@@ -31,7 +32,7 @@ public class Member extends BaseEntity {
     @JoinColumn(name = "family_id")
     private Family family;
 
-    @Column(name = "nickname")
+    @Column(name = "nickname", unique = true)
     private String nickname;
 
     @Enumerated(EnumType.STRING)
@@ -58,5 +59,9 @@ public class Member extends BaseEntity {
 
     public void assignFamily(Family family) {
         this.family = family;
+    }
+
+    public void updateNickname(String nickname) {
+        this.nickname = nickname;
     }
 }

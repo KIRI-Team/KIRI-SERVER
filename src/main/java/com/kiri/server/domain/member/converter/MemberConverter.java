@@ -28,4 +28,12 @@ public class MemberConverter {
                 .termsAgreed(termsAgreed)
                 .build();
     }
+
+    public static MemberResDTO.Nickname toNicknameResponse(
+            String nickname
+    ) {
+        return MemberResDTO.Nickname.builder()
+                .nickname(nickname)
+                .build();
+    }
 }
