@@ -21,11 +21,21 @@ public class MemberController implements MemberControllerDocs {
 
     private final MemberService memberService;
 
+    @Override
     @PostMapping("/v1/auth/login")
     public ApiResponse<MemberResDTO.Login> login(
             @RequestBody @Valid MemberReqDTO.Login dto
     ) {
         BaseSuccessCode code = AuthSuccessCode.LOGIN_SUCCESS;
         return ApiResponse.onSuccess(code, memberService.login(dto));
+    }
+
+    @Override
+    @PostMapping("/v1/auth/reissue")
+    public ApiResponse<MemberResDTO.TokenReissue> tokenReissue(
+            @RequestBody @Valid MemberReqDTO.TokenReissue dto
+    ) {
+        BaseSuccessCode code = AuthSuccessCode.TOKEN_REISSUE_SUCCESS;
+        return ApiResponse.onSuccess(code, memberService.tokenReissue(dto));
     }
 }

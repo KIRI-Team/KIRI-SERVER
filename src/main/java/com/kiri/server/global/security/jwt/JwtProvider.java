@@ -36,11 +36,41 @@ public class JwtProvider {
     }
 
     public Long getMemberIdFromAccessToken(String token) {
-        Claims claims=parseClaims(token);
-        if(!ACCESS_TYPE.equals(claims.get(TOKEN_TYPE_CLAIM, String.class))){
-            throw new JwtException("access 토큰이 아닙니다.");
+        return getMemberId(token, ACCESS_TYPE);
+    }
+
+    public Long getMemberIdFromRefreshToken(String token) {
+        return getMemberId(token, REFRESH_TYPE);
+    }
+
+    private Long getMemberId(String token, String expectedType) {
+        Claims claims = parseClaims(token);
+
+        if (!expectedType.equals(claims.get(TOKEN_TYPE_CLAIM, String.class))) {
+            throw new JwtException("올바른 토큰 타입이 아닙니다.");
         }
+
         return Long.valueOf(claims.getSubject());
+    }
+
+    // 토큰 유효성(서명·만료) 검증
+    public boolean isValid(String token) {
+        try {
+            parseClaims(token);
+            return true;
+        } catch (JwtException | IllegalArgumentException e) {
+            return false;
+        }
+    }
+
+    // accessToken인지 검증
+    public boolean isAccessToken(String token) {
+        return ACCESS_TYPE.equals(parseClaims(token).get(TOKEN_TYPE_CLAIM, String.class));
+    }
+
+    // refreshToken인지 검증
+    public boolean isRefreshToken(String token) {
+        return REFRESH_TYPE.equals(parseClaims(token).get(TOKEN_TYPE_CLAIM, String.class));
     }
 
     private String createToken(Long memberId, String type, Duration expiration) {
