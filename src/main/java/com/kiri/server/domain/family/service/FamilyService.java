@@ -4,6 +4,7 @@ import com.kiri.server.domain.family.converter.FamilyConverter;
 import com.kiri.server.domain.family.dto.FamilyReqDTO;
 import com.kiri.server.domain.family.dto.FamilyResDTO;
 import com.kiri.server.domain.family.entity.Family;
+import com.kiri.server.domain.family.event.FamilyCreatedEvent;
 import com.kiri.server.domain.family.exception.code.FamilyErrorCode;
 import com.kiri.server.domain.family.repository.FamilyRepository;
 import com.kiri.server.domain.member.entity.Member;
@@ -11,6 +12,7 @@ import com.kiri.server.domain.member.exception.code.MemberErrorCode;
 import com.kiri.server.domain.member.repository.MemberRepository;
 import com.kiri.server.global.apiPayload.exception.ProjectException;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -25,6 +27,7 @@ public class FamilyService {
 
     private final FamilyRepository familyRepository;
     private final MemberRepository memberRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Transactional
     public FamilyResDTO.Create createFamily(Long memberId, FamilyReqDTO.Create dto) {
@@ -44,6 +47,8 @@ public class FamilyService {
         familyRepository.save(family);
 
         member.assignFamily(family);
+
+        eventPublisher.publishEvent(new FamilyCreatedEvent(family.getId()));
 
         String inviteUrl = generateInviteUrl(inviteToken);
 

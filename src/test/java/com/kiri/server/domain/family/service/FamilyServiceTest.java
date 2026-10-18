@@ -3,6 +3,7 @@ package com.kiri.server.domain.family.service;
 import com.kiri.server.domain.family.dto.FamilyReqDTO;
 import com.kiri.server.domain.family.dto.FamilyResDTO;
 import com.kiri.server.domain.family.entity.Family;
+import com.kiri.server.domain.family.event.FamilyCreatedEvent;
 import com.kiri.server.domain.family.exception.code.FamilyErrorCode;
 import com.kiri.server.domain.family.repository.FamilyRepository;
 import com.kiri.server.domain.member.entity.Member;
@@ -16,6 +17,8 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.LocalDateTime;
 import java.util.Optional;
@@ -32,6 +35,9 @@ class FamilyServiceTest {
 
     @Mock
     private MemberRepository memberRepository;
+
+    @Mock
+    private ApplicationEventPublisher eventPublisher;
 
     @InjectMocks
     private FamilyService familyService;
@@ -52,12 +58,19 @@ class FamilyServiceTest {
         when(familyRepository.existsByInviteCode(anyString()))
                 .thenReturn(false);
 
+        when(familyRepository.save(any(Family.class)))
+                .thenAnswer(invocation -> {
+                    Family family = invocation.getArgument(0);
+                    ReflectionTestUtils.setField(family, "id", 1L);
+                    return family;
+                });
+
         FamilyResDTO.Create response =
                 familyService.createFamily(memberId, dto);
 
         assertThat(response).isNotNull();
         assertThat(response.name()).isEqualTo("끼리네 가족");
-        assertThat(response.familyId()).isNull();
+        assertThat(response.familyId()).isEqualTo(1L);
         assertThat(response.inviteCode()).isNotNull();
         assertThat(response.inviteCode()).hasSize(6);
         assertThat(response.inviteUrl()).startsWith("https://kiri.app/invite/");
@@ -67,6 +80,7 @@ class FamilyServiceTest {
         verify(familyRepository).existsByName(dto.name());
         verify(familyRepository).save(any(Family.class));
         verify(member).assignFamily(any(Family.class));
+        verify(eventPublisher).publishEvent(new FamilyCreatedEvent(1L));
     }
 
     @Test
@@ -132,6 +146,13 @@ class FamilyServiceTest {
         when(familyRepository.existsByInviteCode(anyString()))
                 .thenReturn(false);
 
+        when(familyRepository.save(any(Family.class)))
+                .thenAnswer(invocation -> {
+                    Family family = invocation.getArgument(0);
+                    ReflectionTestUtils.setField(family, "id", 1L);
+                    return family;
+                });
+
         ArgumentCaptor<Family> familyCaptor =
                 ArgumentCaptor.forClass(Family.class);
 
@@ -161,5 +182,7 @@ class FamilyServiceTest {
 
         assertThat(response.inviteUrl())
                 .isEqualTo("https://kiri.app/invite/" + family.getInviteToken());
+
+        verify(eventPublisher).publishEvent(new FamilyCreatedEvent(1L));
     }
 }
