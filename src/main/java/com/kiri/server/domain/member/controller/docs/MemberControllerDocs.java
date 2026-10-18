@@ -203,7 +203,7 @@ public interface MemberControllerDocs {
                             mediaType = "application/json",
                             examples = {
                                     @ExampleObject(
-                                            name = "위조·형식 오류·refresh 토큰 사용",
+                                            name = "위조·형식 오류 토큰 사용",
                                             value = """
                                                 {
                                                     "isSuccess": false,
