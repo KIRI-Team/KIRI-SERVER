@@ -60,7 +60,7 @@ public class MemberService {
             throw new ProjectException(AuthErrorCode.INVALID_TOKEN);
         }
 
-        Long memberId = jwtProvider.getMemberIdFromAccessToken(refreshToken);
+        Long memberId = jwtProvider.getMemberIdFromRefreshToken(refreshToken);
         Member member = memberRepository.findByIdForUpdate(memberId)
                 .orElseThrow(() -> new ProjectException(MemberErrorCode.NOT_FOUND));
 
