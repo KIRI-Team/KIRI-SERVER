@@ -146,7 +146,7 @@ public interface MemberControllerDocs {
             summary = "닉네임 설정 API",
             description = """
                     # 닉네임 설정
-                    로그인 회원의 가족 내 역할을 설정합니다. 가족 역할은 아빠·엄마·아들·딸 중 하나를 선택합니다.
+                    로그인 회원의 닉네임을 설정하거나 변경합니다. 닉네임은 한글·영문·숫자로 구성된 2~12자의 값을 사용합니다.
                     
                     ## 요청 형식
                     - **Header**
