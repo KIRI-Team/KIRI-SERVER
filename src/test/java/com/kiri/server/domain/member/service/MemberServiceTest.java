@@ -3,6 +3,7 @@ package com.kiri.server.domain.member.service;
 import com.kiri.server.domain.member.dto.MemberReqDTO;
 import com.kiri.server.domain.member.dto.MemberResDTO;
 import com.kiri.server.domain.member.entity.Member;
+import com.kiri.server.domain.member.enums.FamilyRole;
 import com.kiri.server.domain.member.enums.SocialProvider;
 import com.kiri.server.domain.member.exception.code.MemberErrorCode;
 import com.kiri.server.domain.member.exception.MemberException;
@@ -352,5 +353,48 @@ class MemberServiceTest {
         verify(member, never()).updateRefreshTokenToHash(anyString());
 
         verify(memberTermRepository, never()).areAllRequiredTermsAgreed(anyLong());
+    }
+
+    @Test
+    @DisplayName("가족 역할 설정 성공")
+    void updateFamilyRoleSuccess() {
+        Long memberId = 1L;
+        FamilyRole familyRole = FamilyRole.FATHER;
+
+        MemberReqDTO.SelectFamilyRole dto = new MemberReqDTO.SelectFamilyRole(familyRole);
+
+        Member member = mock(Member.class);
+
+        when(memberRepository.findByIdForUpdate(memberId))
+                .thenReturn(Optional.of(member));
+
+        MemberResDTO.SelectFamilyRole response = memberService.selectFamilyRole(memberId, dto);
+
+        assertThat(response).isNotNull();
+        assertThat(response.familyRole()).isEqualTo(familyRole);
+
+        verify(memberRepository).findByIdForUpdate(memberId);
+        verify(member).updateFamilyRole(familyRole);
+    }
+
+    @Test
+    @DisplayName("가족 역할 설정 실패 - 존재하지 않는 회원")
+    void updateFamilyRoleMemberNotFound() {
+        Long memberId = 1L;
+
+        MemberReqDTO.SelectFamilyRole dto =
+                new MemberReqDTO.SelectFamilyRole(FamilyRole.FATHER);
+
+        when(memberRepository.findByIdForUpdate(memberId))
+                .thenReturn(Optional.empty());
+
+        ProjectException exception = assertThrows(
+                ProjectException.class,
+                () -> memberService.selectFamilyRole(memberId, dto)
+        );
+
+        assertThat(exception.getErrorCode()).isEqualTo(MemberErrorCode.NOT_FOUND);
+
+        verify(memberRepository).findByIdForUpdate(memberId);
     }
 }

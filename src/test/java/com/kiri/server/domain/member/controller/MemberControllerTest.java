@@ -3,6 +3,7 @@ package com.kiri.server.domain.member.controller;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.kiri.server.domain.member.dto.MemberReqDTO;
 import com.kiri.server.domain.member.dto.MemberResDTO;
+import com.kiri.server.domain.member.enums.FamilyRole;
 import com.kiri.server.domain.member.exception.code.MemberSuccessCode;
 import com.kiri.server.domain.member.service.MemberService;
 import com.kiri.server.global.config.SecurityConfig;
@@ -235,5 +236,103 @@ class MemberControllerTest {
                 .andExpect(jsonPath("$.code").value("COMMON400_1"));
 
         verify(memberService, never()).updateNickname(anyLong(), any(MemberReqDTO.Nickname.class));
+    }
+
+    @Test
+    @DisplayName("가족 역할 선택 성공")
+    void selectFamilyRoleSuccess() throws Exception {
+        MemberReqDTO.SelectFamilyRole request =
+                new MemberReqDTO.SelectFamilyRole(FamilyRole.FATHER);
+
+        MemberResDTO.SelectFamilyRole response =
+                MemberResDTO.SelectFamilyRole.builder()
+                        .familyRole(FamilyRole.FATHER)
+                        .build();
+
+        given(memberService.selectFamilyRole(eq(1L), any(MemberReqDTO.SelectFamilyRole.class)))
+                .willReturn(response);
+
+        mockMvc.perform(
+                        patch("/api/v1/members/family-role")
+                                .with(authentication(
+                                        new UsernamePasswordAuthenticationToken(
+                                                1L,
+                                                null,
+                                                List.of()
+                                        )
+                                ))
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(objectMapper.writeValueAsString(request))
+                )
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.isSuccess").value(true))
+                .andExpect(jsonPath("$.code")
+                        .value(MemberSuccessCode.FAMILY_ROLE_SET.getCode()))
+                .andExpect(jsonPath("$.message")
+                        .value(MemberSuccessCode.FAMILY_ROLE_SET.getMessage()))
+                .andExpect(jsonPath("$.result.familyRole")
+                        .value("FATHER"));
+
+        verify(memberService)
+                .selectFamilyRole(eq(1L), any(MemberReqDTO.SelectFamilyRole.class));
+    }
+
+    @Test
+    @DisplayName("가족 역할 설정 실패 - 가족 역할 미입력")
+    void updateFamilyRoleBlank() throws Exception {
+        String request = """
+            {
+                "familyRole": null
+            }
+            """;
+
+        mockMvc.perform(
+                        patch("/api/v1/members/family-role")
+                                .with(authentication(
+                                        new UsernamePasswordAuthenticationToken(
+                                                1L,
+                                                null,
+                                                List.of()
+                                        )
+                                ))
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(request)
+                )
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.isSuccess").value(false))
+                .andExpect(jsonPath("$.code").value("COMMON400_1"))
+                .andExpect(jsonPath("$.message").value("잘못된 요청입니다."));
+
+        verify(memberService, never())
+                .selectFamilyRole(anyLong(), any(MemberReqDTO.SelectFamilyRole.class));
+    }
+
+    @Test
+    @DisplayName("가족 역할 설정 실패 - 허용되지 않은 가족 역할")
+    void updateFamilyRoleInvalidRole() throws Exception {
+        String request = """
+            {
+                "familyRole": "BROTHER"
+            }
+            """;
+
+        mockMvc.perform(
+                        patch("/api/v1/members/family-role")
+                                .with(authentication(
+                                        new UsernamePasswordAuthenticationToken(
+                                                1L,
+                                                null,
+                                                List.of()
+                                        )
+                                ))
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(request)
+                )
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.isSuccess").value(false))
+                .andExpect(jsonPath("$.code").value("COMMON400_1"));
+
+        verify(memberService, never())
+                .selectFamilyRole(anyLong(), any(MemberReqDTO.SelectFamilyRole.class));
     }
 }
