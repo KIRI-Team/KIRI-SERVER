@@ -1,0 +1,2 @@
+ALTER TABLE family
+    ALTER COLUMN invite_token TYPE VARCHAR(32);

@@ -10,4 +10,8 @@ public interface FamilyRepository extends JpaRepository<Family, Long> {
 
     @Query("select f.id from Family f")
     List<Long> findAllIds();
+
+    boolean existsByName(String name);
+
+    boolean existsByInviteCode(String code);
 }
