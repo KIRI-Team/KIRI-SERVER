@@ -38,4 +38,13 @@ public class MemberController implements MemberControllerDocs {
         BaseSuccessCode code = MemberSuccessCode.NICKNAME_SET;
         return ApiResponse.onSuccess(code, memberService.updateNickname(memberId, dto));
     }
+
+    @Override
+    @PostMapping("/v1/auth/reissue")
+    public ApiResponse<MemberResDTO.TokenReissue> tokenReissue(
+            @RequestBody @Valid MemberReqDTO.TokenReissue dto
+    ) {
+        BaseSuccessCode code = AuthSuccessCode.TOKEN_REISSUE_SUCCESS;
+        return ApiResponse.onSuccess(code, memberService.tokenReissue(dto));
+    }
 }

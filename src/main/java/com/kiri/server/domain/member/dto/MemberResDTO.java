@@ -16,4 +16,11 @@ public class MemberResDTO {
     public record Nickname(
             String nickname
     ) {}
+
+    @Builder
+    public record TokenReissue(
+            String accessToken,
+            String refreshToken,
+            Boolean termsAgreed
+    ) {}
 }

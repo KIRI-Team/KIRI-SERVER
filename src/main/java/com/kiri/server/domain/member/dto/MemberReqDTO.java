@@ -28,4 +28,10 @@ public class MemberReqDTO {
             )
             String nickname
     ) {}
+
+    // 토큰 재발급
+    public record TokenReissue(
+            @NotBlank(message = "refreshToken은 필수입니다.")
+            String refreshToken
+    ) {}
 }
