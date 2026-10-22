@@ -420,14 +420,32 @@ public interface QuestionControllerDocs {
                     description = "인증 실패 - 토큰 미삽입(COMMON401_1) / 유효하지 않은 토큰(AUTH401_1) / 토큰 만료(AUTH401_2)",
                     content = @Content(
                             mediaType = "application/json",
-                            examples = @ExampleObject(value = """
-                                    {
-                                      "isSuccess": false,
-                                      "code": "AUTH401_2",
-                                      "message": "토큰이 만료되었습니다.",
-                                      "result": null
-                                    }
-                                    """)
+                            examples = {
+                                    @ExampleObject(name = "토큰 미삽입", value = """
+                                            {
+                                              "isSuccess": false,
+                                              "code": "COMMON401_1",
+                                              "message": "인증이 필요합니다.",
+                                              "result": null
+                                            }
+                                            """),
+                                    @ExampleObject(name = "유효하지 않은 토큰", value = """
+                                            {
+                                              "isSuccess": false,
+                                              "code": "AUTH401_1",
+                                              "message": "유효하지 않은 토큰입니다.",
+                                              "result": null
+                                            }
+                                            """),
+                                    @ExampleObject(name = "토큰 만료", value = """
+                                            {
+                                              "isSuccess": false,
+                                              "code": "AUTH401_2",
+                                              "message": "토큰이 만료되었습니다.",
+                                              "result": null
+                                            }
+                                            """)
+                            }
                     )
             ),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
@@ -435,14 +453,24 @@ public interface QuestionControllerDocs {
                     description = "질문이 없거나 내 가족의 질문이 아니거나 아직 공개되지 않음(QUESTION404_2) / 토큰의 회원이 존재하지 않음(MEMBER404_1)",
                     content = @Content(
                             mediaType = "application/json",
-                            examples = @ExampleObject(value = """
-                                    {
-                                      "isSuccess": false,
-                                      "code": "QUESTION404_2",
-                                      "message": "질문이 존재하지 않습니다.",
-                                      "result": null
-                                    }
-                                    """)
+                            examples = {
+                                    @ExampleObject(name = "질문 없음/내 가족의 질문 아님/미공개", value = """
+                                            {
+                                              "isSuccess": false,
+                                              "code": "QUESTION404_2",
+                                              "message": "질문이 존재하지 않습니다.",
+                                              "result": null
+                                            }
+                                            """),
+                                    @ExampleObject(name = "회원 없음", value = """
+                                            {
+                                              "isSuccess": false,
+                                              "code": "MEMBER404_1",
+                                              "message": "존재하지 않는 회원입니다.",
+                                              "result": null
+                                            }
+                                            """)
+                            }
                     )
             )
     })
