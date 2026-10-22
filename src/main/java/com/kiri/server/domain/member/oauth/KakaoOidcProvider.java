@@ -14,20 +14,20 @@ public class KakaoOidcProvider extends AbstractOidcProvider{
     private final String issuer;
 
     public KakaoOidcProvider(
-            @Value("${kakao.client-id}") String clientIds,
+            @Value("${kakao.client-id}") String clientId,
             @Value("${kakao.jwks-uri}") String jwksUri,
             @Value("${kakao.issuer}") String issuer,
             OidcJwksClient oidcJwksClient
     ) {
         super(oidcJwksClient);
-        this.clientId = clientIds;
+        this.clientId = clientId;
         this.jwksUri = jwksUri;
         this.issuer = issuer;
     }
 
     @Override
-    protected List<String> getClientIds() {
-        return List.of(clientId);
+    protected String getClientId() {
+        return clientId;
     }
 
     @Override
