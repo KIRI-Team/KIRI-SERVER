@@ -23,7 +23,12 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
 import java.time.LocalDate;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -63,14 +68,7 @@ public class QuestionService {
         Member member = memberRepository.findById(memberId)
                 .orElseThrow(() -> new MemberException(MemberErrorCode.NOT_FOUND));
 
-        FamilyQuestion familyQuestion = familyQuestionRepository.findById(questionId)
-                .orElseThrow(() -> new QuestionException(QuestionErrorCode.FAMILY_QUESTION_NOT_FOUND));
-
-        // 내 가족에게 배정된 질문인지 확인
-        Family family = member.getFamily();
-        if (family == null || !family.getId().equals(familyQuestion.getFamily().getId())) {
-            throw new QuestionException(QuestionErrorCode.FAMILY_QUESTION_NOT_FOUND);
-        }
+        FamilyQuestion familyQuestion = getMyFamilyQuestion(member, questionId);
 
         // 답변 작성/수정은 질문이 배정된 당일에만 가능
         if (!familyQuestion.getQuestionDate().equals(LocalDate.now(clock))) {
@@ -101,5 +99,44 @@ public class QuestionService {
         }
         ServerErrorMessage serverError = psqlException.getServerErrorMessage();
         return serverError != null && "uk_member_answer".equals(serverError.getConstraint());
+    }
+
+    @Transactional(readOnly = true)
+    public QuestionResDTO.FamilyAnswers getFamilyAnswers(Long memberId, Long questionId) {
+
+        Member member = memberRepository.findById(memberId)
+                .orElseThrow(() -> new MemberException(MemberErrorCode.NOT_FOUND));
+
+        FamilyQuestion familyQuestion = getMyFamilyQuestion(member, questionId);
+
+        // 미리 배정된 미래 질문은 아직 공개되지 않았으므로 존재하지 않는 것처럼 응답
+        if (familyQuestion.getQuestionDate().isAfter(LocalDate.now(clock))) {
+            throw new QuestionException(QuestionErrorCode.FAMILY_QUESTION_NOT_FOUND);
+        }
+
+        // 가족 조회 (나를 맨 앞에 두고, 나머지는 FamilyRole 선언 순서대로)
+        List<Member> familyMembers = memberRepository.findAllByFamily(member.getFamily()).stream()
+                .sorted(Comparator.comparing((Member m) ->
+                                !m.getId().equals(memberId))
+                        .thenComparing(Member::getFamilyRole, Comparator.naturalOrder()))
+                .toList();
+
+        // 가족 답변 조회
+        Map<Long, MemberAnswer> answerByMemberId = memberAnswerRepository.findAllByFamilyQuestion(familyQuestion).stream()
+                .collect(Collectors.toMap(answer -> answer.getMember().getId(), Function.identity()));
+
+        return QuestionConverter.toFamilyAnswers(familyQuestion, familyMembers, answerByMemberId, memberId);
+    }
+
+    // 내 가족에게 배정된 질문만 조회 (다른 가족의 질문은 존재 여부를 숨기기 위해 같은 404)
+    private FamilyQuestion getMyFamilyQuestion(Member member, Long questionId) {
+        FamilyQuestion familyQuestion = familyQuestionRepository.findById(questionId)
+                .orElseThrow(() -> new QuestionException(QuestionErrorCode.FAMILY_QUESTION_NOT_FOUND));
+
+        Family family = member.getFamily();
+        if (family == null || !family.getId().equals(familyQuestion.getFamily().getId())) {
+            throw new QuestionException(QuestionErrorCode.FAMILY_QUESTION_NOT_FOUND);
+        }
+        return familyQuestion;
     }
 }

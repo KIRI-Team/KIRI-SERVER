@@ -2,6 +2,7 @@ package com.kiri.server.domain.question.service;
 
 import com.kiri.server.domain.family.entity.Family;
 import com.kiri.server.domain.member.entity.Member;
+import com.kiri.server.domain.member.enums.FamilyRole;
 import com.kiri.server.domain.member.exception.MemberException;
 import com.kiri.server.domain.member.exception.code.MemberErrorCode;
 import com.kiri.server.domain.member.repository.MemberRepository;
@@ -29,6 +30,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -302,5 +304,120 @@ class QuestionServiceTest {
 
         assertThatThrownBy(() -> questionService.writeAnswer(MEMBER_ID, FAMILY_QUESTION_ID, WRITE_REQUEST))
                 .isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    @Test
+    @DisplayName("가족 답변 조회 시 질문이 존재하지 않으면 QUESTION404_2 예외가 발생한다.")
+    void getFamilyAnswers_familyQuestionNotFound() {
+        given(memberRepository.findById(MEMBER_ID)).willReturn(Optional.of(member));
+        given(familyQuestionRepository.findById(FAMILY_QUESTION_ID)).willReturn(Optional.empty());
+
+        assertThatThrownBy(() -> questionService.getFamilyAnswers(MEMBER_ID, FAMILY_QUESTION_ID))
+                .isInstanceOf(QuestionException.class)
+                .extracting("errorCode")
+                .isEqualTo(QuestionErrorCode.FAMILY_QUESTION_NOT_FOUND);
+    }
+
+    @Test
+    @DisplayName("다른 가족의 질문으로 가족 답변을 조회하면 QUESTION404_2 예외가 발생하고 가족을 조회하지 않는다.")
+    void getFamilyAnswers_otherFamilyQuestion() {
+        Family otherFamily = Family.builder().id(2L).name("옆집").build();
+        FamilyQuestion otherFamilyQuestion = FamilyQuestion.builder()
+                .id(FAMILY_QUESTION_ID)
+                .family(otherFamily)
+                .question(question)
+                .questionDate(today)
+                .build();
+        given(memberRepository.findById(MEMBER_ID)).willReturn(Optional.of(member));
+        given(familyQuestionRepository.findById(FAMILY_QUESTION_ID)).willReturn(Optional.of(otherFamilyQuestion));
+
+        assertThatThrownBy(() -> questionService.getFamilyAnswers(MEMBER_ID, FAMILY_QUESTION_ID))
+                .isInstanceOf(QuestionException.class)
+                .extracting("errorCode")
+                .isEqualTo(QuestionErrorCode.FAMILY_QUESTION_NOT_FOUND);
+        verify(memberRepository, never()).findAllByFamily(any());
+    }
+
+    @Test
+    @DisplayName("아직 공개되지 않은 미래 질문으로 가족 답변을 조회하면 QUESTION404_2 예외가 발생한다.")
+    void getFamilyAnswers_futureQuestion() {
+        FamilyQuestion tomorrowQuestion = FamilyQuestion.builder()
+                .id(FAMILY_QUESTION_ID)
+                .family(family)
+                .question(question)
+                .questionDate(today.plusDays(1))
+                .build();
+        given(memberRepository.findById(MEMBER_ID)).willReturn(Optional.of(member));
+        given(familyQuestionRepository.findById(FAMILY_QUESTION_ID)).willReturn(Optional.of(tomorrowQuestion));
+
+        assertThatThrownBy(() -> questionService.getFamilyAnswers(MEMBER_ID, FAMILY_QUESTION_ID))
+                .isInstanceOf(QuestionException.class)
+                .extracting("errorCode")
+                .isEqualTo(QuestionErrorCode.FAMILY_QUESTION_NOT_FOUND);
+        verify(memberRepository, never()).findAllByFamily(any());
+    }
+
+    @Test
+    @DisplayName("가족 답변 조회 시 나를 맨 앞에 두고 나머지는 가족 역할 순서로 정렬하며, 답변하지 않은 구성원도 포함한다.")
+    void getFamilyAnswers_success() {
+        Long myId = 1000L;
+        Member me = Member.builder().id(myId).nickname("끼리").familyRole(FamilyRole.SON).family(family).build();
+        Member mother = Member.builder().id(1001L).nickname("엄마").familyRole(FamilyRole.MOTHER).family(family).build();
+        Member father = Member.builder().id(1002L).nickname("아빠").familyRole(FamilyRole.FATHER).family(family).build();
+        Member daughter = Member.builder().id(1003L).nickname("딸").familyRole(FamilyRole.DAUGHTER).family(family).build();
+        MemberAnswer myAnswer = MemberAnswer.builder()
+                .content("강아지가 산책하다 넘어졌어요.")
+                .familyQuestion(familyQuestion)
+                .member(me)
+                .build();
+        MemberAnswer motherAnswer = MemberAnswer.builder()
+                .content("뚝배기불고기")
+                .familyQuestion(familyQuestion)
+                .member(mother)
+                .build();
+        given(memberRepository.findById(myId)).willReturn(Optional.of(me));
+        given(familyQuestionRepository.findById(FAMILY_QUESTION_ID)).willReturn(Optional.of(familyQuestion));
+        given(memberRepository.findAllByFamily(family)).willReturn(List.of(daughter, father, me, mother));
+        given(memberAnswerRepository.findAllByFamilyQuestion(familyQuestion)).willReturn(List.of(myAnswer, motherAnswer));
+
+        QuestionResDTO.FamilyAnswers result = questionService.getFamilyAnswers(myId, FAMILY_QUESTION_ID);
+
+        // 나(아들) → 엄마 → 아빠 → 딸
+        assertThat(result.question()).isEqualTo("오늘 가장 웃겼던 일은?");
+        assertThat(result.answers())
+                .extracting(QuestionResDTO.FamilyAnswer::memberId)
+                .containsExactly(myId, 1001L, 1002L, 1003L);
+        assertThat(result.answers())
+                .extracting(QuestionResDTO.FamilyAnswer::isMe)
+                .containsExactly(true, false, false, false);
+
+        QuestionResDTO.FamilyAnswer fatherResult = result.answers().get(2);
+        assertThat(fatherResult.isAnswered()).isFalse();
+        assertThat(fatherResult.answer()).isNull();
+
+        QuestionResDTO.FamilyAnswer motherResult = result.answers().get(1);
+        assertThat(motherResult.nickname()).isEqualTo("엄마");
+        assertThat(motherResult.isAnswered()).isTrue();
+        assertThat(motherResult.answer()).isEqualTo("뚝배기불고기");
+    }
+
+    @Test
+    @DisplayName("지난 날짜의 질문도 가족 답변을 조회할 수 있다.")
+    void getFamilyAnswers_pastQuestion() {
+        FamilyQuestion yesterdayQuestion = FamilyQuestion.builder()
+                .id(FAMILY_QUESTION_ID)
+                .family(family)
+                .question(question)
+                .questionDate(today.minusDays(1))
+                .build();
+        given(memberRepository.findById(MEMBER_ID)).willReturn(Optional.of(member));
+        given(familyQuestionRepository.findById(FAMILY_QUESTION_ID)).willReturn(Optional.of(yesterdayQuestion));
+        given(memberRepository.findAllByFamily(family)).willReturn(List.of(member));
+        given(memberAnswerRepository.findAllByFamilyQuestion(yesterdayQuestion)).willReturn(List.of());
+
+        QuestionResDTO.FamilyAnswers result = questionService.getFamilyAnswers(MEMBER_ID, FAMILY_QUESTION_ID);
+
+        assertThat(result.answers()).hasSize(1);
+        assertThat(result.answers().get(0).isAnswered()).isFalse();
     }
 }

@@ -5,6 +5,8 @@ import com.kiri.server.domain.question.dto.QuestionResDTO;
 import com.kiri.server.domain.question.entity.FamilyQuestion;
 import com.kiri.server.domain.question.entity.MemberAnswer;
 
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 public class QuestionConverter {
@@ -34,6 +36,30 @@ public class QuestionConverter {
                 .content(content)
                 .familyQuestion(familyQuestion)
                 .member(member)
+                .build();
+    }
+
+    public static QuestionResDTO.FamilyAnswers toFamilyAnswers(
+            FamilyQuestion familyQuestion, List<Member> familyMembers, Map<Long, MemberAnswer> answerByMemberId, Long myId
+    ) {
+        List<QuestionResDTO.FamilyAnswer> answers = familyMembers.stream()
+                .map(familyMember -> toFamilyAnswer(familyMember, answerByMemberId.get(familyMember.getId()), myId))
+                .toList();
+
+        return QuestionResDTO.FamilyAnswers.builder()
+                .question(familyQuestion.getQuestion().getContent())
+                .answers(answers)
+                .build();
+    }
+
+    private static QuestionResDTO.FamilyAnswer toFamilyAnswer(Member member, MemberAnswer answer, Long myId) {
+
+        return QuestionResDTO.FamilyAnswer.builder()
+                .isMe(member.getId().equals(myId))
+                .memberId(member.getId())
+                .nickname(member.getNickname())
+                .isAnswered(answer != null)
+                .answer(answer == null ? null : answer.getContent())
                 .build();
     }
 }

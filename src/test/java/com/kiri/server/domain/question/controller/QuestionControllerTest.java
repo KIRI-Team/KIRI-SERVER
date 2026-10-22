@@ -21,6 +21,8 @@ import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+import java.util.List;
+
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.never;
@@ -39,6 +41,7 @@ class QuestionControllerTest {
     private static final Long MEMBER_ID = 1L;
     private static final Long QUESTION_ID = 10L;
     private static final String WRITE_ANSWER_URL = "/api/v1/questions/{questionId}/answers/me";
+    private static final String FAMILY_ANSWERS_URL = "/api/v1/questions/{questionId}/answers";
 
     @Autowired
     private MockMvc mockMvc;
@@ -167,5 +170,61 @@ class QuestionControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"answer\":\"" + "가".repeat(500) + "\"}"))
                 .andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("토큰 없이 가족 답변을 조회하면 COMMON401_1로 응답한다.")
+    void getFamilyAnswers_noToken() throws Exception {
+        mockMvc.perform(get(FAMILY_ANSWERS_URL, QUESTION_ID))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("COMMON401_1"));
+    }
+
+    @Test
+    @DisplayName("가족 답변 조회에 성공하면 QUESTION200_3과 질문 및 구성원별 답변을 반환한다.")
+    void getFamilyAnswers_success() throws Exception {
+        QuestionResDTO.FamilyAnswers familyAnswers = QuestionResDTO.FamilyAnswers.builder()
+                .question("오늘 가장 웃겼던 일은?")
+                .answers(List.of(
+                        QuestionResDTO.FamilyAnswer.builder()
+                                .isMe(true)
+                                .memberId(MEMBER_ID)
+                                .nickname("끼리")
+                                .isAnswered(true)
+                                .answer("강아지가 산책하다 넘어졌어요.")
+                                .build(),
+                        QuestionResDTO.FamilyAnswer.builder()
+                                .isMe(false)
+                                .memberId(2L)
+                                .nickname("엄마")
+                                .isAnswered(false)
+                                .build()
+                ))
+                .build();
+        given(questionService.getFamilyAnswers(MEMBER_ID, QUESTION_ID)).willReturn(familyAnswers);
+
+        mockMvc.perform(get(FAMILY_ANSWERS_URL, QUESTION_ID)
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value("QUESTION200_3"))
+                .andExpect(jsonPath("$.result.question").value("오늘 가장 웃겼던 일은?"))
+                .andExpect(jsonPath("$.result.answers.length()").value(2))
+                .andExpect(jsonPath("$.result.answers[0].isMe").value(true))
+                .andExpect(jsonPath("$.result.answers[0].answer").value("강아지가 산책하다 넘어졌어요."))
+                .andExpect(jsonPath("$.result.answers[1].memberId").value(2))
+                .andExpect(jsonPath("$.result.answers[1].isAnswered").value(false))
+                .andExpect(jsonPath("$.result.answers[1].answer").isEmpty());
+    }
+
+    @Test
+    @DisplayName("내 가족의 질문이 아니면 404와 QUESTION404_2로 응답한다.")
+    void getFamilyAnswers_familyQuestionNotFound() throws Exception {
+        given(questionService.getFamilyAnswers(MEMBER_ID, QUESTION_ID))
+                .willThrow(new QuestionException(QuestionErrorCode.FAMILY_QUESTION_NOT_FOUND));
+
+        mockMvc.perform(get(FAMILY_ANSWERS_URL, QUESTION_ID)
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("QUESTION404_2"));
     }
 }

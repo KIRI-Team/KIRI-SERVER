@@ -336,4 +336,146 @@ public interface QuestionControllerDocs {
             @Parameter(description = "가족에게 배정된 질문 ID", example = "12") Long questionId,
             QuestionReqDTO.WriteAnswer request
     );
+
+    @Operation(
+            summary = "가족 답변 조회 API",
+            description = """
+                    # 가족 답변 조회
+
+                    ## 요청 형식
+                    - 헤더: Authorization: Bearer {JWT 토큰}
+                    - path: questionId (오늘의 질문 조회 API가 반환한 questionId)
+
+                    질문 하나에 대한 가족 구성원 전체(나 포함)의 답변을 조회합니다.
+                    답변하지 않은 구성원도 목록에 포함되며, isAnswered로 답변 여부를 구분합니다.
+                    지난 질문도 조회할 수 있습니다.
+
+                    ## 응답 필드
+                    - question: 질문 내용
+                    - answers: 가족 구성원별 답변 목록 (나를 맨 앞에 두고, 나머지는 가족 역할 순서)
+                      - isMe: 나인지 여부
+                      - memberId: 회원 ID (콕 찌르기 대상 지정에 사용)
+                      - nickname: 닉네임
+                      - isAnswered: 답변 여부
+                      - answer: 답변 내용 (답변 전이면 null)
+
+                    ## 동작 방식
+                    1. 인증된 회원이 존재하는지 확인합니다. 없으면 404(MEMBER404_1)를 반환합니다.
+                    2. 질문이 없거나 내 가족에게 배정된 질문이 아니면 404(QUESTION404_2)를 반환합니다.
+                    3. 아직 공개되지 않은 미래 날짜의 질문이면 404(QUESTION404_2)를 반환합니다.
+                    4. 가족 구성원 전체와 각자의 답변 여부를 반환합니다.
+                    """
+    )
+    @ApiResponses(value = {
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200",
+                    description = "조회 성공",
+                    content = @Content(
+                            mediaType = "application/json",
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "isSuccess": true,
+                                      "code": "QUESTION200_3",
+                                      "message": "가족 답변을 성공적으로 조회하였습니다.",
+                                      "result": {
+                                        "question": "오늘 가장 웃겼던 일은 무엇인가요?",
+                                        "answers": [
+                                          {
+                                            "isMe": true,
+                                            "memberId": 1,
+                                            "nickname": "끼리",
+                                            "isAnswered": true,
+                                            "answer": "강아지가 산책하다 넘어졌어요."
+                                          },
+                                          {
+                                            "isMe": false,
+                                            "memberId": 2,
+                                            "nickname": "엄마",
+                                            "isAnswered": false,
+                                            "answer": null
+                                          }
+                                        ]
+                                      }
+                                    }
+                                    """)
+                    )
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "400",
+                    description = "questionId가 숫자가 아님(COMMON400_1)",
+                    content = @Content(
+                            mediaType = "application/json",
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "isSuccess": false,
+                                      "code": "COMMON400_1",
+                                      "message": "잘못된 요청입니다.",
+                                      "result": null
+                                    }
+                                    """)
+                    )
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "401",
+                    description = "인증 실패 - 토큰 미삽입(COMMON401_1) / 유효하지 않은 토큰(AUTH401_1) / 토큰 만료(AUTH401_2)",
+                    content = @Content(
+                            mediaType = "application/json",
+                            examples = {
+                                    @ExampleObject(name = "토큰 미삽입", value = """
+                                            {
+                                              "isSuccess": false,
+                                              "code": "COMMON401_1",
+                                              "message": "인증이 필요합니다.",
+                                              "result": null
+                                            }
+                                            """),
+                                    @ExampleObject(name = "유효하지 않은 토큰", value = """
+                                            {
+                                              "isSuccess": false,
+                                              "code": "AUTH401_1",
+                                              "message": "유효하지 않은 토큰입니다.",
+                                              "result": null
+                                            }
+                                            """),
+                                    @ExampleObject(name = "토큰 만료", value = """
+                                            {
+                                              "isSuccess": false,
+                                              "code": "AUTH401_2",
+                                              "message": "토큰이 만료되었습니다.",
+                                              "result": null
+                                            }
+                                            """)
+                            }
+                    )
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "404",
+                    description = "질문이 없거나 내 가족의 질문이 아니거나 아직 공개되지 않음(QUESTION404_2) / 토큰의 회원이 존재하지 않음(MEMBER404_1)",
+                    content = @Content(
+                            mediaType = "application/json",
+                            examples = {
+                                    @ExampleObject(name = "질문 없음/내 가족의 질문 아님/미공개", value = """
+                                            {
+                                              "isSuccess": false,
+                                              "code": "QUESTION404_2",
+                                              "message": "질문이 존재하지 않습니다.",
+                                              "result": null
+                                            }
+                                            """),
+                                    @ExampleObject(name = "회원 없음", value = """
+                                            {
+                                              "isSuccess": false,
+                                              "code": "MEMBER404_1",
+                                              "message": "존재하지 않는 회원입니다.",
+                                              "result": null
+                                            }
+                                            """)
+                            }
+                    )
+            )
+    })
+    ApiResponse<QuestionResDTO.FamilyAnswers> getFamilyAnswers(
+            @Parameter(hidden = true) Long memberId,
+            @Parameter(description = "가족에게 배정된 질문 ID", example = "12") Long questionId
+    );
 }
