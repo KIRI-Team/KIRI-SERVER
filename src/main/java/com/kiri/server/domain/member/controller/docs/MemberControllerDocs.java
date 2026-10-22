@@ -153,7 +153,7 @@ public interface MemberControllerDocs {
                     1. Refresh Token의 서명, 만료 여부 및 토큰 타입을 검증합니다.
                     2. 회원 DB에 저장된 Refresh Token과 일치하는지 검증합니다.
                     3. 검증에 성공하면 새로운 Access Token과 Refresh Token을 발급합니다.
-                    4. onboardingCompleted와 termsAgreed 상태를 함께 반환합니다.
+                    4. termsAgreed 상태를 함께 반환합니다.
                     5. 기존 Refresh Token은 무효화되고 새 Refresh Token으로 교체됩니다.
                     """
     )
@@ -218,8 +218,8 @@ public interface MemberControllerDocs {
                                             value = """
                                                 {
                                                     "isSuccess": false,
-                                                    "code": "AUTH401_2",
-                                                    "message": "토큰이 만료되었습니다",
+                                                    "code": "AUTH401_1",
+                                                    "message": "유효하지 않은 토큰입니다.",
                                                     "result": null
                                                 }
                                             """

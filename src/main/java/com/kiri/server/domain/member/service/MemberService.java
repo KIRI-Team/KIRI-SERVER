@@ -5,6 +5,7 @@ import com.kiri.server.domain.member.dto.MemberReqDTO;
 import com.kiri.server.domain.member.dto.MemberResDTO;
 import com.kiri.server.domain.member.entity.Member;
 import com.kiri.server.domain.member.enums.SocialProvider;
+import com.kiri.server.domain.member.exception.MemberException;
 import com.kiri.server.domain.member.exception.code.MemberErrorCode;
 import com.kiri.server.domain.member.oauth.AbstractOidcProvider;
 import com.kiri.server.domain.member.oauth.OidcProviderFactory;
@@ -64,7 +65,7 @@ public class MemberService {
 
         Long memberId = jwtProvider.getMemberIdFromRefreshToken(refreshToken);
         Member member = memberRepository.findByIdForUpdate(memberId)
-                .orElseThrow(() -> new ProjectException(MemberErrorCode.NOT_FOUND));
+                .orElseThrow(() -> new MemberException(AuthErrorCode.INVALID_TOKEN));
 
         if (!hashUtil.matches(refreshToken, member.getRefreshTokenHash())) {
             throw new ProjectException(AuthErrorCode.INVALID_TOKEN);
