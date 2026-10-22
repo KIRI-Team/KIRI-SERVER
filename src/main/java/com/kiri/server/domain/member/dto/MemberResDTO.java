@@ -1,5 +1,6 @@
 package com.kiri.server.domain.member.dto;
 
+import com.kiri.server.domain.member.enums.FamilyRole;
 import lombok.Builder;
 
 public class MemberResDTO {
@@ -22,5 +23,10 @@ public class MemberResDTO {
             String accessToken,
             String refreshToken,
             Boolean termsAgreed
+    ) {}
+
+    @Builder
+    public record SelectFamilyRole (
+            FamilyRole familyRole
     ) {}
 }

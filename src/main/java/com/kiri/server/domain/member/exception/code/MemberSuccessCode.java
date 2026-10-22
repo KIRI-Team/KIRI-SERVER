@@ -9,7 +9,8 @@ import org.springframework.http.HttpStatus;
 @RequiredArgsConstructor
 public enum MemberSuccessCode implements BaseSuccessCode {
 
-    NICKNAME_SET(HttpStatus.OK, "MEMBER200_1", "닉네임이 설정되었습니다.");
+    NICKNAME_SET(HttpStatus.OK, "MEMBER200_1", "닉네임이 설정되었습니다."),
+    FAMILY_ROLE_SET(HttpStatus.OK, "MEMBER200_2", "가족 역할이 설정되었습니다.");
 
     private final HttpStatus httpStatus;
     private final String code;

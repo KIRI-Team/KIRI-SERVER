@@ -1,6 +1,8 @@
 package com.kiri.server.domain.member.dto;
 
+import com.kiri.server.domain.member.enums.FamilyRole;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
@@ -33,5 +35,11 @@ public class MemberReqDTO {
     public record TokenReissue(
             @NotBlank(message = "refreshToken은 필수입니다.")
             String refreshToken
+    ) {}
+
+    // 가족 역할 선택
+    public record SelectFamilyRole(
+            @NotNull(message = "가족 역할은 필수입니다.")
+            FamilyRole familyRole
     ) {}
 }

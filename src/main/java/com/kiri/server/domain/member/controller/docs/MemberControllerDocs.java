@@ -449,4 +449,158 @@ public interface MemberControllerDocs {
         ),
     })
     ApiResponse<MemberResDTO.Nickname> updateNickname(@Parameter(hidden = true) @AuthenticationPrincipal Long memberId, @Valid @RequestBody MemberReqDTO.Nickname dto);
+
+    // 가족 역할 선택
+    @Operation(
+            summary = "가족 역할 선택 API",
+            description = """
+                    # 가족 역할 선택
+                    로그인 회원의 가족 내 역할을 설정합니다. 가족 역할은 아빠·엄마·아들·딸 중 하나를 선택합니다.
+                    
+                    ## 요청 형식
+                    - **Header**
+                        - Authorization: Bearer {Access_Token}
+                        - Content-Type: application/json
+                    - **Body**
+                        - familyRole: 선택할 가족 역할
+                    
+                    ## 동작 방식
+                    1. Access Token을 검증하여 로그인 회원의 memberId를 확인합니다.
+                    2. 요청받은 familyRole이 허용된 가족 역할인지 검증합니다.
+                    3. memberId로 회원을 조회합니다.
+                    4. 회원의 가족 역할을 요청받은 역할로 변경합니다.
+                    5. 변경된 가족 역할을 응답합니다.
+                    """
+    )
+    @ApiResponses(value = {
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200",
+                    description = "성공 예시",
+                    content = @Content(
+                            mediaType = "application/json",
+                            examples = @ExampleObject(
+                                    value = """
+                                    {
+                                        "isSuccess": true,
+                                        "code": "MEMBER200_2",
+                                        "message": "가족 역할이 설정되었습니다.",
+                                        "result": {
+                                            "familyRole": "FATHER"
+                                        }
+                                    }
+                                    """
+                            )
+                    )
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "400",
+                    description = "가족 역할이 누락되었거나 허용되지 않은 값인 경우",
+                    content = @Content(
+                            mediaType = "application/json",
+                            examples = {
+                                    @ExampleObject(
+                                            name = "familyRole 누락",
+                                            value = """
+                                            {
+                                                "isSuccess": false,
+                                                "code": "COMMON400_1",
+                                                "message": "잘못된 요청입니다.",
+                                                "result": {
+                                                    "familyRole": "가족 역할은 필수입니다."
+                                                }
+                                            }
+                                            """
+                                    ),
+                                    @ExampleObject(
+                                            name = "유효하지 않은 familyRole",
+                                            value = """
+                                            {
+                                                "isSuccess": false,
+                                                "code": "COMMON400_1",
+                                                "message": "잘못된 요청입니다.",
+                                                "result": {
+                                                    "familyRole": "유효하지 않은 가족 역할입니다."
+                                                }
+                                            }
+                                            """
+                                    )
+                            })
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "401",
+                    description = "인증 실패 (Authorization 헤더 누락, 유효하지 않은 토큰, 만료된 토큰)",
+                    content = @Content(
+                            mediaType = "application/json",
+                            examples = {
+                                    @ExampleObject(
+                                            name = "Authorization 헤더 없음",
+                                            value = """
+                                            {
+                                                "isSuccess": false,
+                                                "code": "COMMON401_1",
+                                                "message": "인증이 필요합니다.",
+                                                "result": null
+                                            }
+                                            """
+                                    ),
+                                    @ExampleObject(
+                                            name = "위조·형식 오류·refresh 토큰 사용",
+                                            value = """
+                                            {
+                                                "isSuccess": false,
+                                                "code": "AUTH401_1",
+                                                "message": "유효하지 않은 토큰입니다.",
+                                                "result": null
+                                            }
+                                            """
+                                    ),
+                                    @ExampleObject(
+                                            name = "accessToken 만료",
+                                            value = """
+                                            {
+                                                "isSuccess": false,
+                                                "code": "AUTH401_2",
+                                                "message": "토큰이 만료되었습니다",
+                                                "result": null
+                                            }
+                                            """
+                                    )
+                            }
+                    )
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "404",
+                    description = "memberId에 해당하는 회원 없음",
+                    content = @Content(
+                            mediaType = "application/json",
+                            examples = @ExampleObject(
+                                    value = """
+                                    {
+                                        "isSuccess": false,
+                                        "code": "MEMBER404_1",
+                                        "message": "존재하지 않는 회원입니다.",
+                                        "result": null
+                                    }
+                                    """
+                            )
+                    )
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "500",
+                    description = "서버 오류",
+                    content = @Content(
+                            mediaType = "application/json",
+                            examples = @ExampleObject(value = """
+                                    {
+                                        "isSuccess": false,
+                                        "code": "COMMON500_1",
+                                        "message": "서버 내부 오류가 발생했습니다.",
+                                        "result": null
+                                    }
+                                    """
+                            )
+                    )
+            ),
+    })
+    ApiResponse<MemberResDTO.SelectFamilyRole> selectFamilyRole(@Parameter(hidden = true) @AuthenticationPrincipal Long memberId, @Valid @RequestBody MemberReqDTO.SelectFamilyRole dto);
 }

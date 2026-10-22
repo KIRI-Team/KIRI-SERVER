@@ -47,4 +47,14 @@ public class MemberController implements MemberControllerDocs {
         BaseSuccessCode code = AuthSuccessCode.TOKEN_REISSUE_SUCCESS;
         return ApiResponse.onSuccess(code, memberService.tokenReissue(dto));
     }
+
+    @Override
+    @PatchMapping("/v1/members/family-role")
+    public ApiResponse<MemberResDTO.SelectFamilyRole> selectFamilyRole(
+            @AuthenticationPrincipal Long memberId,
+            @Valid @RequestBody MemberReqDTO.SelectFamilyRole dto
+    ) {
+        BaseSuccessCode code = MemberSuccessCode.FAMILY_ROLE_SET;
+        return ApiResponse.onSuccess(code, memberService.selectFamilyRole(memberId, dto));
+    }
 }
