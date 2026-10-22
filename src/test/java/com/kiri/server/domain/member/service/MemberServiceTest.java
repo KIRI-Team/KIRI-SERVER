@@ -4,7 +4,7 @@ import com.kiri.server.domain.member.dto.MemberReqDTO;
 import com.kiri.server.domain.member.dto.MemberResDTO;
 import com.kiri.server.domain.member.entity.Member;
 import com.kiri.server.domain.member.enums.SocialProvider;
-import com.kiri.server.domain.member.exception.code.MemberErrorCode;
+import com.kiri.server.domain.member.exception.MemberException;
 import com.kiri.server.domain.member.oauth.AbstractOidcProvider;
 import com.kiri.server.domain.member.oauth.OidcProviderFactory;
 import com.kiri.server.domain.member.oauth.OidcUserInfo;
@@ -240,9 +240,9 @@ class MemberServiceTest {
         assertThatThrownBy(() ->
                 memberService.tokenReissue(dto)
         )
-                .isInstanceOf(ProjectException.class)
+                .isInstanceOf(MemberException.class)
                 .extracting("errorCode")
-                .isEqualTo(MemberErrorCode.NOT_FOUND);
+                .isEqualTo(AuthErrorCode.INVALID_TOKEN);
 
         verify(memberRepository).findByIdForUpdate(memberId);
 
