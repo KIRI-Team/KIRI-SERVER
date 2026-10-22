@@ -21,9 +21,6 @@ import org.postgresql.util.PSQLException;
 import org.postgresql.util.ServerErrorMessage;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
-import org.postgresql.util.PSQLException;
-import org.postgresql.util.ServerErrorMessage;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
