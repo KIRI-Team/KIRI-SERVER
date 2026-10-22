@@ -22,7 +22,7 @@ public abstract class AbstractOidcProvider {
         this.oidcJwksClient = oidcJwksClient;
     }
 
-    protected abstract List<String> getClientIds();
+    protected abstract String getClientId();
 
     protected abstract String getIssuer();
 
@@ -32,11 +32,6 @@ public abstract class AbstractOidcProvider {
 
     protected boolean isValidIssuer(String issuer) {
         return getIssuer().equals(issuer);
-    }
-
-    protected boolean isValidAudience(List<String> audience) {
-        return audience != null &&
-                audience.stream().anyMatch(getClientIds()::contains);
     }
 
     public final OidcUserInfo verify(String socialProviderToken, String nonce) {
@@ -64,7 +59,7 @@ public abstract class AbstractOidcProvider {
                 throw new ProjectException(AuthErrorCode.INVALID_PROVIDER_TOKEN);
             }
 
-            if (!isValidAudience(claims.getAudience())) {
+            if (claims.getAudience() == null || !claims.getAudience().contains(getClientId())) {
                 log.warn("[OidcVerify] socialProvider={} 검증 실패: audience 불일치", getSocialProvider());
                 throw new ProjectException(AuthErrorCode.INVALID_PROVIDER_TOKEN);
             }
