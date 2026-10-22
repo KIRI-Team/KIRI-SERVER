@@ -405,15 +405,30 @@ public interface MemberControllerDocs {
                     description = "동일한 닉네임이 이미 존재하는 경우",
                     content = @Content(
                             mediaType = "application/json",
-                            examples = @ExampleObject(value = """
-                                    {
-                                        "isSuccess": false,
-                                        "code": "MEMBER409_1",
-                                        "message": "이미 사용 중인 닉네임입니다.",
-                                        "result": null
-                                    }
-                                    """
-                            )
+                            examples = {
+                                    @ExampleObject(
+                                            name = "닉네임 중복",
+                                            value = """
+                                                {
+                                                    "isSuccess": false,
+                                                    "code": "MEMBER409_1",
+                                                    "message": "이미 사용 중인 닉네임입니다.",
+                                                    "result": null
+                                                }
+                                            """
+                                    ),
+                                    @ExampleObject(
+                                            name = "동시 요청으로 인한 중복",
+                                            value = """
+                                                {
+                                                    "isSuccess": false,
+                                                    "code": "COMMON409_1",
+                                                    "message": "이미 존재하는 데이터이거나 요청이 충돌합니다.",
+                                                    "result": null
+                                                }
+                                            """
+                                    )
+                            }
                     )
             ),
         @io.swagger.v3.oas.annotations.responses.ApiResponse(
