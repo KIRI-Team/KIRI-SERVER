@@ -29,6 +29,13 @@ public class MemberConverter {
                 .build();
     }
 
+    public static MemberResDTO.Nickname toNicknameResponse(
+            String nickname
+    ) {
+        return MemberResDTO.Nickname.builder()
+                .nickname(nickname)
+                .build();
+    }
     public static MemberResDTO.TokenReissue toTokenReissueResponse(
             String accessToken,
             String refreshToken,

@@ -4,6 +4,7 @@ import com.kiri.server.domain.member.dto.MemberReqDTO;
 import com.kiri.server.domain.member.dto.MemberResDTO;
 import com.kiri.server.domain.member.entity.Member;
 import com.kiri.server.domain.member.enums.SocialProvider;
+import com.kiri.server.domain.member.exception.code.MemberErrorCode;
 import com.kiri.server.domain.member.exception.MemberException;
 import com.kiri.server.domain.member.oauth.AbstractOidcProvider;
 import com.kiri.server.domain.member.oauth.OidcProviderFactory;
@@ -28,6 +29,7 @@ import java.util.stream.Stream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.*;
 
@@ -122,6 +124,66 @@ class MemberServiceTest {
         verify(oidcProvider).verify("invalid-token", "test-nonce");
 
         verifyNoInteractions(memberWriter);
+    }
+
+    @Test
+    @DisplayName("닉네임 설정 성공")
+    void updateNicknameSuccess() {
+        Long memberId = 1L;
+        String nickname = "nickname";
+
+        MemberReqDTO.Nickname dto = new MemberReqDTO.Nickname(nickname);
+        Member member = mock(Member.class);
+
+        when(memberRepository.findByIdForUpdate(memberId)).thenReturn(Optional.of(member));
+        when(memberRepository.existsByNickname(nickname)).thenReturn(false);
+
+        MemberResDTO.Nickname response = memberService.updateNickname(memberId, dto);
+
+        assertThat(response).isNotNull();
+        assertThat(response.nickname()).isEqualTo(nickname);
+
+        verify(memberRepository).findByIdForUpdate(memberId);
+        verify(memberRepository).existsByNickname(nickname);
+        verify(member).updateNickname(nickname);
+    }
+
+    @Test
+    @DisplayName("닉네임 설정 실패 - 존재하지 않는 회원")
+    void updateNicknameMemberNotFound() {
+        Long memberId = 1L;
+        MemberReqDTO.Nickname dto = new MemberReqDTO.Nickname("nickname");
+
+        when(memberRepository.findByIdForUpdate(memberId)).thenReturn(Optional.empty());
+
+        ProjectException exception = assertThrows(ProjectException.class, () -> memberService.updateNickname(memberId, dto));
+
+        assertThat(exception.getErrorCode()).isEqualTo(MemberErrorCode.NOT_FOUND);
+
+        verify(memberRepository).findByIdForUpdate(memberId);
+        verify(memberRepository, never()).existsByNickname(anyString());
+    }
+
+    @Test
+    @DisplayName("닉네임 설정 실패 - 이미 사용 중인 닉네임")
+    void updateNicknameDuplicate() {
+        Long memberId = 1L;
+        String nickname = "nickname";
+
+        MemberReqDTO.Nickname dto = new MemberReqDTO.Nickname(nickname);
+
+        Member member = mock(Member.class);
+
+        when(memberRepository.findByIdForUpdate(memberId)).thenReturn(Optional.of(member));
+        when(memberRepository.existsByNickname(nickname)).thenReturn(true);
+
+        ProjectException exception = assertThrows(ProjectException.class, () -> memberService.updateNickname(memberId, dto));
+
+        assertThat(exception.getErrorCode()).isEqualTo(MemberErrorCode.DUPLICATE_NICKNAME);
+
+        verify(memberRepository).findByIdForUpdate(memberId);
+        verify(memberRepository).existsByNickname(nickname);
+        verify(member, never()).updateNickname(anyString());
     }
 
     @Test

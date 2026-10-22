@@ -16,7 +16,6 @@ import com.kiri.server.global.apiPayload.code.AuthErrorCode;
 import com.kiri.server.global.apiPayload.exception.ProjectException;
 import com.kiri.server.global.security.jwt.JwtProvider;
 import com.kiri.server.global.util.HashUtil;
-import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -56,6 +55,21 @@ public class MemberService {
     }
 
     @Transactional
+    public MemberResDTO.Nickname updateNickname(Long memberId, MemberReqDTO.Nickname dto) {
+        Member member = memberRepository.findByIdForUpdate(memberId)
+                .orElseThrow(() -> new ProjectException(MemberErrorCode.NOT_FOUND));
+
+        String nickname = dto.nickname();
+
+        if (memberRepository.existsByNickname(nickname)) {
+            throw new ProjectException(MemberErrorCode.DUPLICATE_NICKNAME);
+        }
+
+        member.updateNickname(nickname);
+
+        return MemberConverter.toNicknameResponse(nickname);
+    }
+
     public MemberResDTO.TokenReissue tokenReissue(MemberReqDTO.TokenReissue dto) {
         String refreshToken = dto.refreshToken();
 

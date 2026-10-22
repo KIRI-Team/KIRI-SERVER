@@ -1,6 +1,8 @@
 package com.kiri.server.domain.member.dto;
 
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Size;
 
 public class MemberReqDTO {
 
@@ -14,6 +16,17 @@ public class MemberReqDTO {
 
             @NotBlank(message = "nonce는 필수입니다.")
             String nonce
+    ) {}
+
+    // 닉네임 설정
+    public record Nickname(
+            @NotBlank(message = "닉네임은 필수입니다.")
+            @Size(min = 2, max = 12, message = "닉네임은 2~12자로 입력해주세요.")
+            @Pattern(
+                    regexp = "^[가-힣a-zA-Z0-9]*$",
+                    message = "닉네임은 한글, 영문, 숫자만 사용할 수 있습니다."
+            )
+            String nickname
     ) {}
 
     // 토큰 재발급

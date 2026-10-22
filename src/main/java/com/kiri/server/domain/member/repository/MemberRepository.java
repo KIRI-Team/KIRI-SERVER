@@ -32,4 +32,6 @@ public interface MemberRepository extends JpaRepository<Member, Long> {
         where m.id = :id
        """)
     Optional<Member> findByIdForUpdate(@Param("id") Long id);
+
+    boolean existsByNickname(String nickname);
 }
