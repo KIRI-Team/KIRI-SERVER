@@ -11,4 +11,11 @@ public class MemberResDTO {
             Boolean isNewUser,
             Boolean termsAgreed
     ) {}
+
+    @Builder
+    public record TokenReissue(
+            String accessToken,
+            String refreshToken,
+            Boolean termsAgreed
+    ) {}
 }

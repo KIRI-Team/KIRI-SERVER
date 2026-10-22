@@ -28,4 +28,16 @@ public class MemberConverter {
                 .termsAgreed(termsAgreed)
                 .build();
     }
+
+    public static MemberResDTO.TokenReissue toTokenReissueResponse(
+            String accessToken,
+            String refreshToken,
+            Boolean termsAgreed
+    ) {
+        return MemberResDTO.TokenReissue.builder()
+                .accessToken(accessToken)
+                .refreshToken(refreshToken)
+                .termsAgreed(termsAgreed)
+                .build();
+    }
 }
