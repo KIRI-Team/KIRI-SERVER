@@ -36,4 +36,5 @@ public interface MemberRepository extends JpaRepository<Member, Long> {
        """)
     Optional<Member> findByIdForUpdate(@Param("id") Long id);
     List<Member> findAllByFamily(Family family);
+    boolean existsByNickname(String nickname);
 }

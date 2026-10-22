@@ -52,7 +52,7 @@ public class Family extends BaseEntity {
     @Column(name = "invite_code", length = 6)
     private String inviteCode;
 
-    @Column(name = "invite_token", length = 64)
+    @Column(name = "invite_token", length = 32)
     private String inviteToken;
 
     @Column(name = "invite_expires_at")
@@ -69,4 +69,10 @@ public class Family extends BaseEntity {
 
     @Column(name = "address")
     private String address;
+
+    public void renewInvite(String inviteCode, String inviteToken, LocalDateTime inviteExpiresAt) {
+        this.inviteCode = inviteCode;
+        this.inviteToken = inviteToken;
+        this.inviteExpiresAt = inviteExpiresAt;
+    }
 }

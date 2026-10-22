@@ -25,17 +25,17 @@ import lombok.NoArgsConstructor;
 import java.time.LocalDateTime;
 
 @Entity
-@Getter
-@NoArgsConstructor(access = AccessLevel.PROTECTED)
-@Builder
-@AllArgsConstructor(access = AccessLevel.PRIVATE)
 @Table(
-        name = "member",
-        uniqueConstraints = {
+        name ="member",
+        uniqueConstraints ={
                 @UniqueConstraint(name = "uk_member_social", columnNames = {"social_provider", "social_provider_uid"}),
                 @UniqueConstraint(name = "uk_member_nickname", columnNames = {"nickname"})
         }
 )
+@Getter
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
+@Builder
+@AllArgsConstructor(access = AccessLevel.PRIVATE)
 public class Member extends BaseEntity {
 
     @Id
@@ -43,7 +43,11 @@ public class Member extends BaseEntity {
     @Column(name = "member_id")
     private Long id;
 
-    @Column(name = "nickname", length = 20)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "family_id")
+    private Family family;
+
+    @Column(name = "nickname", unique = true, length=20)
     private String nickname;
 
     @Enumerated(EnumType.STRING)
@@ -66,12 +70,15 @@ public class Member extends BaseEntity {
     @Column(name = "last_access_at")
     private LocalDateTime lastAccessAt;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "family_id")
-    private Family family;
-
     public void updateRefreshTokenToHash(String refreshTokenHash) {
         this.refreshTokenHash = refreshTokenHash;
     }
 
+    public void assignFamily(Family family) {
+        this.family = family;
+    }
+
+    public void updateNickname(String nickname) {
+        this.nickname = nickname;
+    }
 }
