@@ -26,8 +26,8 @@ public class AppleOidcProvider extends AbstractOidcProvider {
     }
 
     @Override
-    protected List<String> getClientIds() {
-        return List.of(clientId);
+    protected String getClientId() {
+        return clientId;
     }
 
     @Override
