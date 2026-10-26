@@ -103,4 +103,11 @@ public class MemberService {
 
         return MemberConverter.toFamilyRoleResponse(dto.familyRole());
     }
+
+    @Transactional
+    public void logout(Long memberId) {
+        Member member = memberRepository.findByIdForUpdate(memberId)
+                .orElseThrow(() -> new MemberException(MemberErrorCode.NOT_FOUND));
+        member.deleteRefreshToken();
+    }
 }

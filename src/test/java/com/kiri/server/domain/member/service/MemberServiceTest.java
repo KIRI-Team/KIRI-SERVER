@@ -397,4 +397,36 @@ class MemberServiceTest {
 
         verify(memberRepository).findByIdForUpdate(memberId);
     }
+
+    @Test
+    @DisplayName("로그아웃 성공")
+    void logoutSuccess() {
+        Long memberId = 1L;
+
+        Member member = mock(Member.class);
+
+        given(memberRepository.findByIdForUpdate(memberId))
+                .willReturn(Optional.of(member));
+
+        memberService.logout(memberId);
+
+        verify(memberRepository).findByIdForUpdate(memberId);
+        verify(member).deleteRefreshToken();
+    }
+
+    @Test
+    @DisplayName("로그아웃하려는 회원이 존재하지 않으면 실패")
+    void logoutMemberNotFound() {
+        Long memberId = 1L;
+
+        given(memberRepository.findByIdForUpdate(memberId))
+                .willReturn(Optional.empty());
+
+        assertThatThrownBy(() -> memberService.logout(memberId))
+                .isInstanceOf(MemberException.class)
+                .extracting("errorCode")
+                .isEqualTo(MemberErrorCode.NOT_FOUND);
+
+        verify(memberRepository).findByIdForUpdate(memberId);
+    }
 }

@@ -85,4 +85,8 @@ public class Member extends BaseEntity {
     public void updateFamilyRole(FamilyRole familyRole) {
         this.familyRole = familyRole;
     }
+
+    public void deleteRefreshToken() {
+        this.refreshTokenHash = null;
+    }
 }

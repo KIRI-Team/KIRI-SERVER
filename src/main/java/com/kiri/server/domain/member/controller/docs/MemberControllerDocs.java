@@ -603,4 +603,120 @@ public interface MemberControllerDocs {
             ),
     })
     ApiResponse<MemberResDTO.SelectFamilyRole> selectFamilyRole(@Parameter(hidden = true) @AuthenticationPrincipal Long memberId, @Valid @RequestBody MemberReqDTO.SelectFamilyRole dto);
+
+    // 로그아웃
+    @Operation(
+            summary = "로그아웃 API",
+            description = """
+                    # 로그아웃
+                    accessToken의 memberId로 서버가 해당 refreshToken을 찾아 무효화합니다.
+                    
+                    ## 요청 형식
+                    - **Header**
+                        - Authorization: Bearer {Access_Token}
+                        - Content-Type: application/json
+                    - **Body**
+                        - nickname: 설정할 닉네임
+                    
+                    ## 동작 방식
+                    1. Access Token으로 현재 회원을 인증합니다.
+                    2. 회원 DB에 저장된 Refresh Token을 삭제합니다.
+                    3. 이후 기존 Refresh Token으로는 토큰 재발급을 할 수 없습니다.
+                    """
+    )
+    @ApiResponses(value = {
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200",
+                    description = "성공 예시",
+                    content = @Content(
+                            mediaType = "application/json",
+                            examples = @ExampleObject(
+                                    value = """
+                                    {
+                                        "isSuccess": true,
+                                        "code": "AUTH200_3",
+                                        "message": "로그아웃 성공",
+                                        "result": null
+                                    }
+                                    """
+                            )
+                    )
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "401",
+                    description = "인증 실패 (Authorization 헤더 누락, 유효하지 않은 토큰, 만료된 토큰)",
+                    content = @Content(
+                            mediaType = "application/json",
+                            examples = {
+                                    @ExampleObject(
+                                            name = "Authorization 헤더 없음",
+                                            value = """
+                                            {
+                                                "isSuccess": false,
+                                                "code": "COMMON401_1",
+                                                "message": "인증이 필요합니다.",
+                                                "result": null
+                                            }
+                                            """
+                                    ),
+                                    @ExampleObject(
+                                            name = "위조·형식 오류·refresh 토큰 사용",
+                                            value = """
+                                            {
+                                                "isSuccess": false,
+                                                "code": "AUTH401_1",
+                                                "message": "유효하지 않은 토큰입니다.",
+                                                "result": null
+                                            }
+                                            """
+                                    ),
+                                    @ExampleObject(
+                                            name = "accessToken 만료",
+                                            value = """
+                                            {
+                                                "isSuccess": false,
+                                                "code": "AUTH401_2",
+                                                "message": "토큰이 만료되었습니다",
+                                                "result": null
+                                            }
+                                            """
+                                    )
+                            }
+                    )
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "404",
+                    description = "memberId에 해당하는 회원 없음",
+                    content = @Content(
+                            mediaType = "application/json",
+                            examples = @ExampleObject(
+                                    value = """
+                                    {
+                                        "isSuccess": false,
+                                        "code": "MEMBER404_1",
+                                        "message": "존재하지 않는 회원입니다.",
+                                        "result": null
+                                    }
+                                    """
+                            )
+                    )
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "500",
+                    description = "서버 오류",
+                    content = @Content(
+                            mediaType = "application/json",
+                            examples = @ExampleObject(value = """
+                                    {
+                                        "isSuccess": false,
+                                        "code": "COMMON500_1",
+                                        "message": "서버 내부 오류가 발생했습니다.",
+                                        "result": null
+                                    }
+                                    """
+                            )
+                    )
+            ),
+    })
+    ApiResponse<Void> logout(@Parameter(hidden = true) @AuthenticationPrincipal Long memberId);
 }

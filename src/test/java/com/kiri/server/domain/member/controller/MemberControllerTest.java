@@ -6,6 +6,7 @@ import com.kiri.server.domain.member.dto.MemberResDTO;
 import com.kiri.server.domain.member.enums.FamilyRole;
 import com.kiri.server.domain.member.exception.code.MemberSuccessCode;
 import com.kiri.server.domain.member.service.MemberService;
+import com.kiri.server.global.apiPayload.code.AuthSuccessCode;
 import com.kiri.server.global.config.SecurityConfig;
 import com.kiri.server.global.security.handler.CustomAccessDeniedHandler;
 import com.kiri.server.global.security.handler.CustomAuthenticationEntryPoint;
@@ -24,8 +25,10 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import java.util.List;
 
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.willDoNothing;
 import static org.mockito.Mockito.*;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
@@ -36,7 +39,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @WebMvcTest(MemberController.class)
 @Import({
         MemberControllerTest.TestConfig.class,
-        SecurityConfig.class
+        SecurityConfig.class,
+        CustomAuthenticationEntryPoint.class,
+        CustomAccessDeniedHandler.class
 })
 class MemberControllerTest {
 
@@ -48,12 +53,6 @@ class MemberControllerTest {
 
     @MockitoBean
     private MemberService memberService;
-
-    @MockitoBean
-    private CustomAuthenticationEntryPoint authenticationEntryPoint;
-
-    @MockitoBean
-    private CustomAccessDeniedHandler accessDeniedHandler;
 
     @MockitoBean
     private JwtProvider jwtProvider;
@@ -334,5 +333,46 @@ class MemberControllerTest {
 
         verify(memberService, never())
                 .selectFamilyRole(anyLong(), any(MemberReqDTO.SelectFamilyRole.class));
+    }
+
+    @Test
+    @DisplayName("로그아웃 성공")
+    void logoutSuccess() throws Exception {
+        Long memberId = 1L;
+
+        willDoNothing()
+                .given(memberService)
+                .logout(memberId);
+
+        mockMvc.perform(
+                        post("/api/v1/auth/logout")
+                                .with(authentication(
+                                        new UsernamePasswordAuthenticationToken(
+                                                memberId,
+                                                null,
+                                                List.of()
+                                        )
+                                ))
+                )
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.isSuccess").value(true))
+                .andExpect(jsonPath("$.code")
+                        .value(AuthSuccessCode.LOGOUT_SUCCESS.getCode()))
+                .andExpect(jsonPath("$.message")
+                        .value(AuthSuccessCode.LOGOUT_SUCCESS.getMessage()))
+                .andExpect(jsonPath("$.result").value(nullValue()));
+
+        verify(memberService).logout(memberId);
+    }
+
+    @Test
+    @DisplayName("인증되지 않은 사용자는 로그아웃 불가")
+    void logoutUnauthorized() throws Exception {
+        mockMvc.perform(
+                        post("/api/v1/auth/logout")
+                )
+                .andExpect(status().isUnauthorized());
+
+        verifyNoInteractions(memberService);
     }
 }

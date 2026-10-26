@@ -57,4 +57,14 @@ public class MemberController implements MemberControllerDocs {
         BaseSuccessCode code = MemberSuccessCode.FAMILY_ROLE_SET;
         return ApiResponse.onSuccess(code, memberService.selectFamilyRole(memberId, dto));
     }
+
+    @Override
+    @PostMapping("v1/auth/logout")
+    public ApiResponse<Void> logout(
+            @AuthenticationPrincipal Long memberId
+    ) {
+        memberService.logout(memberId);
+        BaseSuccessCode code = AuthSuccessCode.LOGOUT_SUCCESS;
+        return ApiResponse.onSuccess(code);
+    }
 }
