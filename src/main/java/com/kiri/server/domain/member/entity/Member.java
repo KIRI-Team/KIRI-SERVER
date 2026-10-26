@@ -4,8 +4,23 @@ import com.kiri.server.domain.family.entity.Family;
 import com.kiri.server.domain.member.enums.FamilyRole;
 import com.kiri.server.domain.member.enums.SocialProvider;
 import com.kiri.server.global.entity.BaseEntity;
-import jakarta.persistence.*;
-import lombok.*;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
+import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
+import lombok.AccessLevel;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
 
@@ -13,7 +28,7 @@ import java.time.LocalDateTime;
 @Table(
         name ="member",
         uniqueConstraints ={
-                @UniqueConstraint(name = "uk_member_social_provider", columnNames = { "social_provider", "social_provider_uid"}),
+                @UniqueConstraint(name = "uk_member_social", columnNames = {"social_provider", "social_provider_uid"}),
                 @UniqueConstraint(name = "uk_member_nickname", columnNames = {"nickname"})
         }
 )
@@ -32,10 +47,11 @@ public class Member extends BaseEntity {
     @JoinColumn(name = "family_id")
     private Family family;
 
-    @Column(name = "nickname", unique = true)
+    @Column(name = "nickname", unique = true, length=20)
     private String nickname;
 
     @Enumerated(EnumType.STRING)
+    @Column(name = "social_provider", length = 20)
     private SocialProvider socialProvider;
 
     @Column(name = "social_provider_uid")
@@ -44,10 +60,11 @@ public class Member extends BaseEntity {
     @Column(name = "email")
     private String email;
 
-    @Column(name = "refreshTokenHash", length = 64)
+    @Column(name = "refresh_token_hash", length = 64)
     private String refreshTokenHash;
 
     @Enumerated(EnumType.STRING)
+    @Column(name = "family_role", length = 20)
     private FamilyRole familyRole;
 
     @Column(name = "last_access_at")
