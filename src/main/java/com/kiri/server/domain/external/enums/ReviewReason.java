@@ -1,0 +1,16 @@
+package com.kiri.server.domain.external.enums;
+
+public enum ReviewReason {
+    NO_LOCATION,
+    CATEGORY_UNKNOWN,
+    MISSING_REQUIRED,
+    TITLE_INVALID,
+    ACTIVITY_SHORTAGE,
+    PLACE_AMBIGUOUS,
+    DUPLICATE_SUSPECT,
+    ORIGIN_UNAVAILABLE,
+    EXCLUDED_TYPE,
+    PERIOD_OVER,
+    DUPLICATE,
+    EXTERNAL_CANCELLED
+}
