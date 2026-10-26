@@ -142,13 +142,14 @@ class MissionControllerTest {
     }
 
     @Test
-    @DisplayName("조회 개수가 1~50을 벗어나면 COMMON400_1로 응답한다.")
+    @DisplayName("조회 개수가 1~50을 벗어나면 COMMON400_1과 size 오류 메시지로 응답한다.")
     void getFeed_invalidSize() throws Exception {
         mockMvc.perform(get("/api/v1/missions")
                         .header(HttpHeaders.AUTHORIZATION, bearerToken)
                         .param("size", "51"))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.code").value("COMMON400_1"));
+                .andExpect(jsonPath("$.code").value("COMMON400_1"))
+                .andExpect(jsonPath("$.result.size").value("size는 1 이상 50 이하여야 합니다."));
         verifyNoInteractions(missionQueryService);
     }
 

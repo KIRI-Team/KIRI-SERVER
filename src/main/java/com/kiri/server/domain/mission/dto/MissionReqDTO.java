@@ -42,14 +42,15 @@ public class MissionReqDTO {
             Boolean isFree,
 
             @Parameter(description = "최대 가격(원)", example = "20000")
-            @PositiveOrZero
+            @PositiveOrZero(message = "maxPrice는 0 이상이어야 합니다.")
             Integer maxPrice,
 
             @Parameter(description = "이전 응답의 nextCursor. 첫 조회는 생략", example = "128")
             Long cursor,
 
             @Parameter(description = "조회 개수. 1~50, 기본 20", example = "20")
-            @Min(1) @Max(50)
+            @Min(value = 1, message = "size는 1 이상 50 이하여야 합니다.")
+            @Max(value = 50, message = "size는 1 이상 50 이하여야 합니다.")
             Integer size
     ) {
 
