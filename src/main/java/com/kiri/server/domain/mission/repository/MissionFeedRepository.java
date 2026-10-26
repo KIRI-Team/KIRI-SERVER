@@ -24,7 +24,11 @@ public class MissionFeedRepository {
 
     private final EntityManager entityManager;
 
-    public List<Long> findFeedIds(MissionReqDTO.FeedCondition condition, LocalDate today, int limit) {
+    public record BaseLocation(double latitude, double longitude) {
+    }
+
+    public List<Long> findFeedIds(MissionReqDTO.FeedCondition condition, BaseLocation base,
+                                  LocalDate today, int limit) {
         StringBuilder sql = new StringBuilder("""
                 SELECT m.mission_id
                   FROM mission m
@@ -43,8 +47,8 @@ public class MissionFeedRepository {
             sql.append(" AND p.region_code LIKE :regionCode");
             params.put("regionCode", condition.regionCode() + "%");
         }
-        if (condition.distance() != null && condition.hasBaseLocation()) {
-            appendDistance(sql, params, condition);
+        if (condition.distance() != null && base != null) {
+            appendDistance(sql, params, base, condition.distance());
         }
         if (condition.date() != null) {
             sql.append("""
@@ -84,10 +88,10 @@ public class MissionFeedRepository {
     }
 
     private void appendDistance(StringBuilder sql, Map<String, Object> params,
-                                MissionReqDTO.FeedCondition condition) {
-        double latitude = condition.latitude();
-        double longitude = condition.longitude();
-        double distance = condition.distance();
+                                BaseLocation base, int distanceKm) {
+        double latitude = base.latitude();
+        double longitude = base.longitude();
+        double distance = distanceKm;
         double latitudeDelta = distance / KM_PER_DEGREE;
         double longitudeDelta = distance / (KM_PER_DEGREE * Math.cos(Math.toRadians(latitude)));
 

@@ -9,6 +9,7 @@ import com.kiri.server.global.apiPayload.ApiResponse;
 import com.kiri.server.global.apiPayload.code.BaseSuccessCode;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -24,10 +25,11 @@ public class MissionController implements MissionControllerDocs {
 
     @GetMapping
     public ApiResponse<MissionResDTO.Feed> getFeed(
+            @AuthenticationPrincipal Long memberId,
             @Valid @ModelAttribute MissionReqDTO.FeedCondition condition
     ) {
         BaseSuccessCode code = MissionSuccessCode.FEED_SUCCESS;
-        return ApiResponse.onSuccess(code, missionQueryService.getFeed(condition));
+        return ApiResponse.onSuccess(code, missionQueryService.getFeed(memberId, condition));
     }
 
     @GetMapping("/{missionId}")

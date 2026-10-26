@@ -2,6 +2,10 @@ package com.kiri.server.domain.mission.service;
 
 import com.kiri.server.domain.external.entity.ExternalRecord;
 import com.kiri.server.domain.external.repository.ExternalRecordRepository;
+import com.kiri.server.domain.family.entity.Family;
+import com.kiri.server.domain.member.exception.MemberException;
+import com.kiri.server.domain.member.exception.code.MemberErrorCode;
+import com.kiri.server.domain.member.repository.MemberRepository;
 import com.kiri.server.domain.mission.converter.MissionConverter;
 import com.kiri.server.domain.mission.dto.MissionReqDTO;
 import com.kiri.server.domain.mission.dto.MissionResDTO;
@@ -11,6 +15,7 @@ import com.kiri.server.domain.mission.exception.MissionException;
 import com.kiri.server.domain.mission.exception.code.MissionErrorCode;
 import com.kiri.server.domain.mission.repository.MissionChecklistItemRepository;
 import com.kiri.server.domain.mission.repository.MissionFeedRepository;
+import com.kiri.server.domain.mission.repository.MissionFeedRepository.BaseLocation;
 import com.kiri.server.domain.mission.repository.MissionRepository;
 import com.kiri.server.domain.place.entity.Place;
 import lombok.RequiredArgsConstructor;
@@ -41,14 +46,16 @@ public class MissionQueryService {
     private final MissionFeedRepository missionFeedRepository;
     private final MissionChecklistItemRepository missionChecklistItemRepository;
     private final ExternalRecordRepository externalRecordRepository;
+    private final MemberRepository memberRepository;
     private final Clock clock;
 
     @Transactional(readOnly = true)
-    public MissionResDTO.Feed getFeed(MissionReqDTO.FeedCondition condition) {
+    public MissionResDTO.Feed getFeed(Long memberId, MissionReqDTO.FeedCondition condition) {
         validate(condition);
+        BaseLocation base = resolveBaseLocation(memberId, condition);
         int size = condition.size() == null ? DEFAULT_SIZE : condition.size();
 
-        List<Long> ids = missionFeedRepository.findFeedIds(condition, LocalDate.now(clock), size + 1);
+        List<Long> ids = missionFeedRepository.findFeedIds(condition, base, LocalDate.now(clock), size + 1);
         boolean hasNext = ids.size() > size;
         List<Long> pageIds = hasNext ? ids.subList(0, size) : ids;
         if (pageIds.isEmpty()) {
@@ -60,7 +67,7 @@ public class MissionQueryService {
         List<MissionResDTO.FeedItem> items = pageIds.stream()
                 .map(missions::get)
                 .filter(Objects::nonNull)
-                .map(mission -> MissionConverter.toFeedItem(mission, distanceFrom(condition, mission.getPlace())))
+                .map(mission -> MissionConverter.toFeedItem(mission, distanceFrom(base, mission.getPlace())))
                 .toList();
 
         return MissionConverter.toFeed(items, hasNext ? pageIds.getLast() : null, hasNext);
@@ -92,14 +99,27 @@ public class MissionQueryService {
         }
     }
 
-    private Double distanceFrom(MissionReqDTO.FeedCondition condition, Place place) {
-        if (!condition.hasBaseLocation()) {
+    private BaseLocation resolveBaseLocation(Long memberId, MissionReqDTO.FeedCondition condition) {
+        if (condition.hasCoordinates()) {
+            return new BaseLocation(condition.latitude(), condition.longitude());
+        }
+        Family family = memberRepository.findById(memberId)
+                .orElseThrow(() -> new MemberException(MemberErrorCode.NOT_FOUND))
+                .getFamily();
+        if (family == null || family.getLatitude() == null || family.getLongitude() == null) {
             return null;
         }
-        double phi1 = Math.toRadians(condition.latitude());
+        return new BaseLocation(family.getLatitude().doubleValue(), family.getLongitude().doubleValue());
+    }
+
+    private Double distanceFrom(BaseLocation base, Place place) {
+        if (base == null) {
+            return null;
+        }
+        double phi1 = Math.toRadians(base.latitude());
         double phi2 = Math.toRadians(place.getLatitude().doubleValue());
         double deltaPhi = phi2 - phi1;
-        double deltaLambda = Math.toRadians(place.getLongitude().doubleValue() - condition.longitude());
+        double deltaLambda = Math.toRadians(place.getLongitude().doubleValue() - base.longitude());
         double a = Math.pow(Math.sin(deltaPhi / 2), 2)
                 + Math.cos(phi1) * Math.cos(phi2) * Math.pow(Math.sin(deltaLambda / 2), 2);
         double km = 2 * EARTH_RADIUS_KM * Math.asin(Math.sqrt(a));

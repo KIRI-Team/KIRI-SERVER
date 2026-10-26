@@ -24,10 +24,10 @@ public class MissionReqDTO {
             @Parameter(description = "거리(km). 1, 3, 5, 10", example = "3")
             Integer distance,
 
-            @Parameter(description = "기준 위도. longitude와 함께 입력", example = "37.5446")
+            @Parameter(description = "기준 위도. longitude와 함께 입력, 없으면 우리 집 위치 사용", example = "37.5446")
             Double latitude,
 
-            @Parameter(description = "기준 경도. latitude와 함께 입력", example = "127.0557")
+            @Parameter(description = "기준 경도. latitude와 함께 입력, 없으면 우리 집 위치 사용", example = "127.0557")
             Double longitude,
 
             @Parameter(description = "방문 날짜(yyyy-MM-dd)", example = "2026-10-18")
@@ -54,7 +54,7 @@ public class MissionReqDTO {
             Integer size
     ) {
 
-        public boolean hasBaseLocation() {
+        public boolean hasCoordinates() {
             return latitude != null && longitude != null;
         }
 

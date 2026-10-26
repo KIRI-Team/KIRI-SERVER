@@ -2,6 +2,11 @@ package com.kiri.server.domain.mission.service;
 
 import com.kiri.server.domain.external.entity.ExternalRecord;
 import com.kiri.server.domain.external.repository.ExternalRecordRepository;
+import com.kiri.server.domain.family.entity.Family;
+import com.kiri.server.domain.member.entity.Member;
+import com.kiri.server.domain.member.exception.MemberException;
+import com.kiri.server.domain.member.exception.code.MemberErrorCode;
+import com.kiri.server.domain.member.repository.MemberRepository;
 import com.kiri.server.domain.mission.dto.MissionReqDTO;
 import com.kiri.server.domain.mission.dto.MissionResDTO;
 import com.kiri.server.domain.mission.entity.Mission;
@@ -14,6 +19,7 @@ import com.kiri.server.domain.mission.exception.MissionException;
 import com.kiri.server.domain.mission.exception.code.MissionErrorCode;
 import com.kiri.server.domain.mission.repository.MissionChecklistItemRepository;
 import com.kiri.server.domain.mission.repository.MissionFeedRepository;
+import com.kiri.server.domain.mission.repository.MissionFeedRepository.BaseLocation;
 import com.kiri.server.domain.mission.repository.MissionRepository;
 import com.kiri.server.domain.place.entity.Place;
 import com.kiri.server.domain.place.enums.PlaceType;
@@ -46,6 +52,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 @ExtendWith(MockitoExtension.class)
 class MissionQueryServiceTest {
 
+    private static final Long MEMBER_ID = 1L;
     private static final LocalDate TODAY = LocalDate.of(2026, 10, 19);
     private static final Clock CLOCK = Clock.fixed(Instant.parse("2026-10-18T15:30:00Z"), ZoneId.of("Asia/Seoul"));
 
@@ -61,23 +68,27 @@ class MissionQueryServiceTest {
     @Mock
     private ExternalRecordRepository externalRecordRepository;
 
+    @Mock
+    private MemberRepository memberRepository;
+
     private MissionQueryService missionQueryService;
 
     @BeforeEach
     void setUp() {
         missionQueryService = new MissionQueryService(missionRepository, missionFeedRepository,
-                missionChecklistItemRepository, externalRecordRepository, CLOCK);
+                missionChecklistItemRepository, externalRecordRepository, memberRepository, CLOCK);
     }
 
     @Test
     @DisplayName("피드는 한 건 더 조회해 다음 페이지 여부를 판단하고, 조회한 순서대로 카드를 만든다.")
     void getFeed_hasNext() {
         MissionReqDTO.FeedCondition condition = MissionReqDTO.FeedCondition.builder().size(2).build();
-        given(missionFeedRepository.findFeedIds(condition, TODAY, 3)).willReturn(List.of(30L, 20L, 10L));
+        given(memberRepository.findById(MEMBER_ID)).willReturn(Optional.of(member(null)));
+        given(missionFeedRepository.findFeedIds(condition, null, TODAY, 3)).willReturn(List.of(30L, 20L, 10L));
         given(missionRepository.findAllWithPlaceByIdIn(List.of(30L, 20L)))
                 .willReturn(List.of(mission(20L, MissionStatus.ACTIVE), mission(30L, MissionStatus.ACTIVE)));
 
-        MissionResDTO.Feed feed = missionQueryService.getFeed(condition);
+        MissionResDTO.Feed feed = missionQueryService.getFeed(MEMBER_ID, condition);
 
         assertThat(feed.missions()).extracting(MissionResDTO.FeedItem::missionId).containsExactly(30L, 20L);
         assertThat(feed.hasNext()).isTrue();
@@ -88,10 +99,11 @@ class MissionQueryServiceTest {
     @DisplayName("마지막 페이지면 nextCursor는 null이고 hasNext는 false다.")
     void getFeed_lastPage() {
         MissionReqDTO.FeedCondition condition = MissionReqDTO.FeedCondition.builder().build();
-        given(missionFeedRepository.findFeedIds(condition, TODAY, 21)).willReturn(List.of(10L));
+        given(memberRepository.findById(MEMBER_ID)).willReturn(Optional.of(member(null)));
+        given(missionFeedRepository.findFeedIds(condition, null, TODAY, 21)).willReturn(List.of(10L));
         given(missionRepository.findAllWithPlaceByIdIn(List.of(10L))).willReturn(List.of(mission(10L, MissionStatus.ACTIVE)));
 
-        MissionResDTO.Feed feed = missionQueryService.getFeed(condition);
+        MissionResDTO.Feed feed = missionQueryService.getFeed(MEMBER_ID, condition);
 
         assertThat(feed.missions()).hasSize(1);
         assertThat(feed.hasNext()).isFalse();
@@ -102,9 +114,10 @@ class MissionQueryServiceTest {
     @DisplayName("조회 결과가 없으면 미션을 다시 조회하지 않고 빈 목록을 반환한다.")
     void getFeed_empty() {
         MissionReqDTO.FeedCondition condition = MissionReqDTO.FeedCondition.builder().build();
-        given(missionFeedRepository.findFeedIds(condition, TODAY, 21)).willReturn(List.of());
+        given(memberRepository.findById(MEMBER_ID)).willReturn(Optional.of(member(null)));
+        given(missionFeedRepository.findFeedIds(condition, null, TODAY, 21)).willReturn(List.of());
 
-        MissionResDTO.Feed feed = missionQueryService.getFeed(condition);
+        MissionResDTO.Feed feed = missionQueryService.getFeed(MEMBER_ID, condition);
 
         assertThat(feed.missions()).isEmpty();
         assertThat(feed.hasNext()).isFalse();
@@ -112,26 +125,69 @@ class MissionQueryServiceTest {
     }
 
     @Test
-    @DisplayName("기준 좌표가 있으면 카드마다 거리(km)를 소수 첫째 자리까지 담는다.")
+    @DisplayName("요청 좌표가 있으면 우리 집 위치 대신 요청 좌표 기준으로 거리(km)를 소수 첫째 자리까지 담는다.")
     void getFeed_distance() {
         MissionReqDTO.FeedCondition condition = MissionReqDTO.FeedCondition.builder()
                 .latitude(37.5446).longitude(127.0557).build();
-        given(missionFeedRepository.findFeedIds(condition, TODAY, 21)).willReturn(List.of(10L));
+        given(missionFeedRepository.findFeedIds(condition, new BaseLocation(37.5446, 127.0557), TODAY, 21))
+                .willReturn(List.of(10L));
         given(missionRepository.findAllWithPlaceByIdIn(List.of(10L))).willReturn(List.of(mission(10L, MissionStatus.ACTIVE)));
 
-        MissionResDTO.Feed feed = missionQueryService.getFeed(condition);
+        MissionResDTO.Feed feed = missionQueryService.getFeed(MEMBER_ID, condition);
+
+        assertThat(feed.missions().getFirst().distance()).isEqualTo(1.6);
+        verifyNoInteractions(memberRepository);
+    }
+
+    @Test
+    @DisplayName("요청 좌표가 없으면 가족의 우리 집 위치를 기준으로 거리를 계산한다.")
+    void getFeed_homeLocation() {
+        MissionReqDTO.FeedCondition condition = MissionReqDTO.FeedCondition.builder().distance(3).build();
+        given(memberRepository.findById(MEMBER_ID))
+                .willReturn(Optional.of(member(family(new BigDecimal("37.5446000"), new BigDecimal("127.0557000")))));
+        given(missionFeedRepository.findFeedIds(condition, new BaseLocation(37.5446, 127.0557), TODAY, 21))
+                .willReturn(List.of(10L));
+        given(missionRepository.findAllWithPlaceByIdIn(List.of(10L))).willReturn(List.of(mission(10L, MissionStatus.ACTIVE)));
+
+        MissionResDTO.Feed feed = missionQueryService.getFeed(MEMBER_ID, condition);
 
         assertThat(feed.missions().getFirst().distance()).isEqualTo(1.6);
     }
 
     @Test
-    @DisplayName("기준 좌표가 없으면 거리는 null이다.")
-    void getFeed_noDistance() {
+    @DisplayName("우리 집 위치를 등록하지 않은 가족이면 기준 위치 없이 조회한다.")
+    void getFeed_familyWithoutLocation() {
         MissionReqDTO.FeedCondition condition = MissionReqDTO.FeedCondition.builder().distance(3).build();
-        given(missionFeedRepository.findFeedIds(condition, TODAY, 21)).willReturn(List.of(10L));
+        given(memberRepository.findById(MEMBER_ID)).willReturn(Optional.of(member(family(null, null))));
+        given(missionFeedRepository.findFeedIds(condition, null, TODAY, 21)).willReturn(List.of(10L));
         given(missionRepository.findAllWithPlaceByIdIn(List.of(10L))).willReturn(List.of(mission(10L, MissionStatus.ACTIVE)));
 
-        MissionResDTO.Feed feed = missionQueryService.getFeed(condition);
+        MissionResDTO.Feed feed = missionQueryService.getFeed(MEMBER_ID, condition);
+
+        assertThat(feed.missions().getFirst().distance()).isNull();
+    }
+
+    @Test
+    @DisplayName("토큰의 회원이 없으면 MEMBER404_1을 던진다.")
+    void getFeed_memberNotFound() {
+        MissionReqDTO.FeedCondition condition = MissionReqDTO.FeedCondition.builder().build();
+        given(memberRepository.findById(MEMBER_ID)).willReturn(Optional.empty());
+
+        assertThatThrownBy(() -> missionQueryService.getFeed(MEMBER_ID, condition))
+                .isInstanceOf(MemberException.class)
+                .extracting("errorCode").isEqualTo(MemberErrorCode.NOT_FOUND);
+        verifyNoInteractions(missionFeedRepository);
+    }
+
+    @Test
+    @DisplayName("가족이 없는 회원(둘러보기)은 기준 위치 없이 조회하고 거리는 null이다.")
+    void getFeed_noDistance() {
+        MissionReqDTO.FeedCondition condition = MissionReqDTO.FeedCondition.builder().distance(3).build();
+        given(memberRepository.findById(MEMBER_ID)).willReturn(Optional.of(member(null)));
+        given(missionFeedRepository.findFeedIds(condition, null, TODAY, 21)).willReturn(List.of(10L));
+        given(missionRepository.findAllWithPlaceByIdIn(List.of(10L))).willReturn(List.of(mission(10L, MissionStatus.ACTIVE)));
+
+        MissionResDTO.Feed feed = missionQueryService.getFeed(MEMBER_ID, condition);
 
         assertThat(feed.missions().getFirst().distance()).isNull();
     }
@@ -141,7 +197,7 @@ class MissionQueryServiceTest {
     void getFeed_invalidDistance() {
         MissionReqDTO.FeedCondition condition = MissionReqDTO.FeedCondition.builder().distance(2).build();
 
-        assertThatThrownBy(() -> missionQueryService.getFeed(condition))
+        assertThatThrownBy(() -> missionQueryService.getFeed(MEMBER_ID, condition))
                 .isInstanceOf(MissionException.class)
                 .extracting("errorCode").isEqualTo(MissionErrorCode.INVALID_DISTANCE);
         verifyNoInteractions(missionFeedRepository);
@@ -152,7 +208,7 @@ class MissionQueryServiceTest {
     void getFeed_coordinatePair() {
         MissionReqDTO.FeedCondition condition = MissionReqDTO.FeedCondition.builder().latitude(37.5).build();
 
-        assertThatThrownBy(() -> missionQueryService.getFeed(condition))
+        assertThatThrownBy(() -> missionQueryService.getFeed(MEMBER_ID, condition))
                 .isInstanceOf(MissionException.class)
                 .extracting("errorCode").isEqualTo(MissionErrorCode.COORDINATE_PAIR_REQUIRED);
     }
@@ -162,7 +218,7 @@ class MissionQueryServiceTest {
     void getFeed_invalidRegionCode() {
         MissionReqDTO.FeedCondition condition = MissionReqDTO.FeedCondition.builder().regionCode("112").build();
 
-        assertThatThrownBy(() -> missionQueryService.getFeed(condition))
+        assertThatThrownBy(() -> missionQueryService.getFeed(MEMBER_ID, condition))
                 .isInstanceOf(MissionException.class)
                 .extracting("errorCode").isEqualTo(MissionErrorCode.INVALID_REGION_CODE);
     }
@@ -267,6 +323,14 @@ class MissionQueryServiceTest {
         assertThatThrownBy(() -> missionQueryService.getDetail(99L))
                 .isInstanceOf(MissionException.class)
                 .extracting("errorCode").isEqualTo(MissionErrorCode.NOT_FOUND);
+    }
+
+    private Member member(Family family) {
+        return Member.builder().id(MEMBER_ID).family(family).build();
+    }
+
+    private Family family(BigDecimal latitude, BigDecimal longitude) {
+        return Family.builder().id(1L).name("끼리네").latitude(latitude).longitude(longitude).build();
     }
 
     private Place place() {

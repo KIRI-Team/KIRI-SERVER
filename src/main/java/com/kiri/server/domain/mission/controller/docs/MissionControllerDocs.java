@@ -29,7 +29,9 @@ public interface MissionControllerDocs {
                     ## 필터
                     - category: 6개 카테고리 중 하나
                     - regionCode: 2자리면 시·도, 5자리면 시·군·구 기준
-                    - distance: 기준 위치(latitude, longitude)로부터 km 이내. 기준 위치가 없으면 거리 필터와 distance 값 없이 조회합니다.
+                    - distance: 기준 위치로부터 km 이내
+                    - 기준 위치: latitude·longitude가 있으면 그 좌표, 없으면 가족공간의 우리 집 위치입니다.
+                      둘 다 없으면(가족이 없거나 우리 집 위치 미등록) 거리 필터와 distance 값 없이 조회합니다.
                     - date: 기간형은 기간 안일 때만, 상시 장소형은 항상 포함
                     - time: 그 시각에 운영 중인 미션. 미션 운영시간이 없으면 장소 운영시간 기준
                     - isFree / maxPrice: 무료만 또는 최대 가격 이하. isFree가 true면 maxPrice는 무시합니다.
@@ -169,9 +171,25 @@ public interface MissionControllerDocs {
                                     )
                             }
                     )
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "404",
+                    description = "토큰의 회원이 존재하지 않음(MEMBER404_1)",
+                    content = @Content(
+                            mediaType = "application/json",
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "isSuccess": false,
+                                      "code": "MEMBER404_1",
+                                      "message": "존재하지 않는 회원입니다.",
+                                      "result": null
+                                    }
+                                    """)
+                    )
             )
     })
     ApiResponse<MissionResDTO.Feed> getFeed(
+            @Parameter(hidden = true) Long memberId,
             @Valid @ParameterObject MissionReqDTO.FeedCondition condition
     );
 

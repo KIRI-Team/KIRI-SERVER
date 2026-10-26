@@ -31,6 +31,7 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -82,7 +83,7 @@ class MissionControllerTest {
                 .price(0)
                 .distance(2.4)
                 .build();
-        given(missionQueryService.getFeed(any())).willReturn(MissionResDTO.Feed.builder()
+        given(missionQueryService.getFeed(any(), any())).willReturn(MissionResDTO.Feed.builder()
                 .missions(List.of(item)).nextCursor(130L).hasNext(true).build());
 
         mockMvc.perform(get("/api/v1/missions").header(HttpHeaders.AUTHORIZATION, bearerToken))
@@ -96,9 +97,9 @@ class MissionControllerTest {
     }
 
     @Test
-    @DisplayName("쿼리 파라미터를 조회 조건으로 받는다.")
+    @DisplayName("로그인 회원 ID와 쿼리 파라미터를 조회 조건으로 받는다.")
     void getFeed_bindsCondition() throws Exception {
-        given(missionQueryService.getFeed(any())).willReturn(MissionResDTO.Feed.builder()
+        given(missionQueryService.getFeed(any(), any())).willReturn(MissionResDTO.Feed.builder()
                 .missions(List.of()).hasNext(false).build());
 
         mockMvc.perform(get("/api/v1/missions")
@@ -116,7 +117,7 @@ class MissionControllerTest {
                 .andExpect(status().isOk());
 
         ArgumentCaptor<MissionReqDTO.FeedCondition> captor = ArgumentCaptor.forClass(MissionReqDTO.FeedCondition.class);
-        verify(missionQueryService).getFeed(captor.capture());
+        verify(missionQueryService).getFeed(eq(MEMBER_ID), captor.capture());
         MissionReqDTO.FeedCondition condition = captor.getValue();
         assertThat(condition.category()).isEqualTo(Category.EXHIBITION);
         assertThat(condition.regionCode()).isEqualTo("11200");
@@ -167,7 +168,7 @@ class MissionControllerTest {
     @Test
     @DisplayName("거리 값이 잘못되면 MISSION400_1로 응답한다.")
     void getFeed_invalidDistance() throws Exception {
-        given(missionQueryService.getFeed(any())).willThrow(new MissionException(MissionErrorCode.INVALID_DISTANCE));
+        given(missionQueryService.getFeed(any(), any())).willThrow(new MissionException(MissionErrorCode.INVALID_DISTANCE));
 
         mockMvc.perform(get("/api/v1/missions")
                         .header(HttpHeaders.AUTHORIZATION, bearerToken)

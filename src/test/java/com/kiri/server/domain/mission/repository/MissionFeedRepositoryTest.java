@@ -5,6 +5,7 @@ import com.kiri.server.domain.mission.entity.Mission;
 import com.kiri.server.domain.mission.enums.Category;
 import com.kiri.server.domain.mission.enums.MissionStatus;
 import com.kiri.server.domain.mission.enums.MissionType;
+import com.kiri.server.domain.mission.repository.MissionFeedRepository.BaseLocation;
 import com.kiri.server.domain.place.entity.Place;
 import com.kiri.server.domain.place.enums.PlaceType;
 import com.kiri.server.domain.place.repository.PlaceRepository;
@@ -84,9 +85,9 @@ class MissionFeedRepositoryTest {
     }
 
     @Test
-    @DisplayName("기준 좌표에서 거리 안에 있는 장소의 미션만 남기고, 좌표가 없으면 거리 조건을 무시한다.")
+    @DisplayName("기준 위치에서 거리 안에 있는 장소의 미션만 남기고, 기준 위치가 없으면 거리 조건을 무시한다.")
     void distance() {
-        assertThat(find(condition().latitude(37.5446).longitude(127.0557).distance(3).build()))
+        assertThat(find(condition().distance(3).build(), new BaseLocation(37.5446, 127.0557)))
                 .containsExactly(festival);
         assertThat(find(condition().distance(3).build())).hasSize(4);
     }
@@ -115,13 +116,17 @@ class MissionFeedRepositoryTest {
     @Test
     @DisplayName("커서보다 작은 ID부터 limit만큼 조회한다.")
     void cursor() {
-        List<Long> ids = missionFeedRepository.findFeedIds(condition().cursor(nightBar).build(), TODAY, 1);
+        List<Long> ids = missionFeedRepository.findFeedIds(condition().cursor(nightBar).build(), null, TODAY, 1);
 
         assertThat(ids).containsExactly(museum);
     }
 
     private List<Long> find(MissionReqDTO.FeedCondition condition) {
-        return missionFeedRepository.findFeedIds(condition, TODAY, 1000).stream()
+        return find(condition, null);
+    }
+
+    private List<Long> find(MissionReqDTO.FeedCondition condition, BaseLocation base) {
+        return missionFeedRepository.findFeedIds(condition, base, TODAY, 1000).stream()
                 .filter(created::contains)
                 .toList();
     }
