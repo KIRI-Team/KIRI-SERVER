@@ -78,14 +78,54 @@ public interface MissionControllerDocs {
                     description = "파라미터 형식 오류(COMMON400_1) / 거리 값 오류(MISSION400_1) / 위도·경도 중 하나만 입력(MISSION400_2) / 지역 코드 형식 오류(MISSION400_3)",
                     content = @Content(
                             mediaType = "application/json",
-                            examples = @ExampleObject(value = """
-                                    {
-                                      "isSuccess": false,
-                                      "code": "MISSION400_1",
-                                      "message": "거리는 1, 3, 5, 10km 중 하나여야 합니다.",
-                                      "result": null
-                                    }
-                                    """)
+                            examples = {
+                                    @ExampleObject(
+                                            name = "파라미터 형식 오류",
+                                            value = """
+                                                    {
+                                                      "isSuccess": false,
+                                                      "code": "COMMON400_1",
+                                                      "message": "잘못된 요청입니다.",
+                                                      "result": {
+                                                        "size": "size는 1 이상 50 이하여야 합니다."
+                                                      }
+                                                    }
+                                                    """
+                                    ),
+                                    @ExampleObject(
+                                            name = "거리 값 오류",
+                                            value = """
+                                                    {
+                                                      "isSuccess": false,
+                                                      "code": "MISSION400_1",
+                                                      "message": "거리는 1, 3, 5, 10km 중 하나여야 합니다.",
+                                                      "result": null
+                                                    }
+                                                    """
+                                    ),
+                                    @ExampleObject(
+                                            name = "위도·경도 중 하나만 입력",
+                                            value = """
+                                                    {
+                                                      "isSuccess": false,
+                                                      "code": "MISSION400_2",
+                                                      "message": "위도와 경도는 함께 입력해야 합니다.",
+                                                      "result": null
+                                                    }
+                                                    """
+                                    ),
+                                    @ExampleObject(
+                                            name = "지역 코드 형식 오류",
+                                            value = """
+                                                    {
+                                                      "isSuccess": false,
+                                                      "code": "MISSION400_3",
+                                                      "message": "지역 코드는 2자리 또는 5자리여야 합니다.",
+                                                      "result": null
+                                                    }
+                                                    """
+                                    )
+                            }
                     )
             ),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
@@ -93,14 +133,41 @@ public interface MissionControllerDocs {
                     description = "인증 실패 - 토큰 미삽입(COMMON401_1) / 유효하지 않은 토큰(AUTH401_1) / 토큰 만료(AUTH401_2)",
                     content = @Content(
                             mediaType = "application/json",
-                            examples = @ExampleObject(value = """
-                                    {
-                                      "isSuccess": false,
-                                      "code": "AUTH401_2",
-                                      "message": "토큰이 만료되었습니다.",
-                                      "result": null
-                                    }
-                                    """)
+                            examples = {
+                                    @ExampleObject(
+                                            name = "토큰 미삽입",
+                                            value = """
+                                                    {
+                                                      "isSuccess": false,
+                                                      "code": "COMMON401_1",
+                                                      "message": "인증이 필요합니다.",
+                                                      "result": null
+                                                    }
+                                                    """
+                                    ),
+                                    @ExampleObject(
+                                            name = "유효하지 않은 토큰",
+                                            value = """
+                                                    {
+                                                      "isSuccess": false,
+                                                      "code": "AUTH401_1",
+                                                      "message": "유효하지 않은 토큰입니다.",
+                                                      "result": null
+                                                    }
+                                                    """
+                                    ),
+                                    @ExampleObject(
+                                            name = "토큰 만료",
+                                            value = """
+                                                    {
+                                                      "isSuccess": false,
+                                                      "code": "AUTH401_2",
+                                                      "message": "토큰이 만료되었습니다.",
+                                                      "result": null
+                                                    }
+                                                    """
+                                    )
+                            }
                     )
             )
     })
@@ -199,14 +266,41 @@ public interface MissionControllerDocs {
                     description = "인증 실패 - 토큰 미삽입(COMMON401_1) / 유효하지 않은 토큰(AUTH401_1) / 토큰 만료(AUTH401_2)",
                     content = @Content(
                             mediaType = "application/json",
-                            examples = @ExampleObject(value = """
-                                    {
-                                      "isSuccess": false,
-                                      "code": "AUTH401_2",
-                                      "message": "토큰이 만료되었습니다.",
-                                      "result": null
-                                    }
-                                    """)
+                            examples = {
+                                    @ExampleObject(
+                                            name = "토큰 미삽입",
+                                            value = """
+                                                    {
+                                                      "isSuccess": false,
+                                                      "code": "COMMON401_1",
+                                                      "message": "인증이 필요합니다.",
+                                                      "result": null
+                                                    }
+                                                    """
+                                    ),
+                                    @ExampleObject(
+                                            name = "유효하지 않은 토큰",
+                                            value = """
+                                                    {
+                                                      "isSuccess": false,
+                                                      "code": "AUTH401_1",
+                                                      "message": "유효하지 않은 토큰입니다.",
+                                                      "result": null
+                                                    }
+                                                    """
+                                    ),
+                                    @ExampleObject(
+                                            name = "토큰 만료",
+                                            value = """
+                                                    {
+                                                      "isSuccess": false,
+                                                      "code": "AUTH401_2",
+                                                      "message": "토큰이 만료되었습니다.",
+                                                      "result": null
+                                                    }
+                                                    """
+                                    )
+                            }
                     )
             ),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
