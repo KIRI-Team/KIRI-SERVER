@@ -2,8 +2,21 @@ package com.kiri.server.domain.family.entity;
 
 import com.kiri.server.domain.member.entity.Member;
 import com.kiri.server.global.entity.BaseEntity;
-import jakarta.persistence.*;
-import lombok.*;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.OneToOne;
+import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
+import lombok.AccessLevel;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -42,16 +55,16 @@ public class Family extends BaseEntity {
     @Column(name = "invite_token", length = 32)
     private String inviteToken;
 
-    @Column(name = "inviteExpiresAt")
+    @Column(name = "invite_expires_at")
     private LocalDateTime inviteExpiresAt;
 
     @Column(name = "region_code", length = 10)
     private String regionCode;
 
-    @Column(name = "latitude")
+    @Column(name = "latitude", precision = 10, scale = 7)
     private BigDecimal latitude;
 
-    @Column(name = "longitude")
+    @Column(name = "longitude", precision = 10, scale = 7)
     private BigDecimal longitude;
 
     @Column(name = "address")
