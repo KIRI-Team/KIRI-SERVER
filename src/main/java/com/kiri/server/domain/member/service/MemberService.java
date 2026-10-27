@@ -1,10 +1,12 @@
 package com.kiri.server.domain.member.service;
 
+import com.kiri.server.domain.family.entity.Family;
 import com.kiri.server.domain.member.converter.MemberConverter;
 import com.kiri.server.domain.member.dto.MemberReqDTO;
 import com.kiri.server.domain.member.dto.MemberResDTO;
 import com.kiri.server.domain.member.entity.Member;
 import com.kiri.server.domain.member.enums.SocialProvider;
+import com.kiri.server.domain.member.event.MemberWithdrawnEvent;
 import com.kiri.server.domain.member.exception.MemberException;
 import com.kiri.server.domain.member.exception.code.MemberErrorCode;
 import com.kiri.server.domain.member.oauth.AbstractOidcProvider;
@@ -18,6 +20,7 @@ import com.kiri.server.global.security.jwt.JwtProvider;
 import com.kiri.server.global.util.HashUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -32,6 +35,7 @@ public class MemberService {
     private final MemberWriter memberWriter;
     private final JwtProvider jwtProvider;
     private final HashUtil hashUtil;
+    private final ApplicationEventPublisher applicationEventPublisher;
 
     public MemberResDTO.Login login(MemberReqDTO.Login dto) {
 
@@ -109,5 +113,33 @@ public class MemberService {
         Member member = memberRepository.findByIdForUpdate(memberId)
                 .orElseThrow(() -> new MemberException(MemberErrorCode.NOT_FOUND));
         member.deleteRefreshToken();
+    }
+
+    @Transactional
+    public void withdraw(Long memberId) {
+        Member member = memberRepository.findByIdForUpdate(memberId)
+                .orElseThrow(() -> new MemberException(MemberErrorCode.NOT_FOUND));
+
+        if (member.isWithdrawn()) {
+            throw new ProjectException(MemberErrorCode.ALREADY_WITHDRAWN);
+        }
+
+        Family family = member.getFamily();
+
+        if (family != null && family.isOwner(member)) {
+
+            Member nextOwner = memberRepository.findFirstByFamilyAndDeletedAtIsNullAndIdNotOrderByFamilyJoinedAtAsc(family, memberId).orElse(null);
+
+            if (nextOwner != null) {
+                // 다른 활성 구성원이 있으면 owner 승계
+                family.changeOwner(nextOwner);
+            } else {
+                // 마지막 구성원이면 가족 공간 종료
+                // family.delete();
+            }
+        }
+
+        applicationEventPublisher.publishEvent(new MemberWithdrawnEvent(memberId));
+        member.withdraw();
     }
 }

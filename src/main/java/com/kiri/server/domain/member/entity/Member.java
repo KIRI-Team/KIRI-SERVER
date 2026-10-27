@@ -67,8 +67,11 @@ public class Member extends BaseEntity {
     @Column(name = "family_role", length = 20)
     private FamilyRole familyRole;
 
-    @Column(name = "last_access_at")
-    private LocalDateTime lastAccessAt;
+    @Column(name = "deleted_at")
+    private LocalDateTime deletedAt;
+
+    @Column(name = "family_joined_at")
+    private LocalDateTime familyJoinedAt;
 
     public void updateRefreshTokenToHash(String refreshTokenHash) {
         this.refreshTokenHash = refreshTokenHash;
@@ -76,6 +79,10 @@ public class Member extends BaseEntity {
 
     public void assignFamily(Family family) {
         this.family = family;
+    }
+
+    public void joinFamily(Family family) {
+        this.familyJoinedAt = LocalDateTime.now();
     }
 
     public void updateNickname(String nickname) {
@@ -88,5 +95,22 @@ public class Member extends BaseEntity {
 
     public void deleteRefreshToken() {
         this.refreshTokenHash = null;
+    }
+
+    public void withdraw() {
+        this.deletedAt = LocalDateTime.now();
+        this.nickname = null;
+        this.email = null;
+        this.socialProvider = null;
+        this.socialProviderUid = null;
+        this.refreshTokenHash = null;
+    }
+
+    public boolean isWithdrawn() {
+        return deletedAt != null;
+    }
+
+    public String getDisplayName() {
+        return isWithdrawn() ? "탈퇴한 사용자" : nickname;
     }
 }
