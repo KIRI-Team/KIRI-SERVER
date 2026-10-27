@@ -81,4 +81,12 @@ public class Member extends BaseEntity {
     public void updateNickname(String nickname) {
         this.nickname = nickname;
     }
+
+    public void updateFamilyRole(FamilyRole familyRole) {
+        this.familyRole = familyRole;
+    }
+
+    public void deleteRefreshToken() {
+        this.refreshTokenHash = null;
+    }
 }

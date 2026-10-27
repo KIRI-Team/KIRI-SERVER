@@ -57,7 +57,7 @@ public class MemberService {
     @Transactional
     public MemberResDTO.Nickname updateNickname(Long memberId, MemberReqDTO.Nickname dto) {
         Member member = memberRepository.findByIdForUpdate(memberId)
-                .orElseThrow(() -> new ProjectException(MemberErrorCode.NOT_FOUND));
+                .orElseThrow(() -> new MemberException(MemberErrorCode.NOT_FOUND));
 
         String nickname = dto.nickname();
 
@@ -92,5 +92,22 @@ public class MemberService {
         boolean termsAgreed = memberTermRepository.areAllRequiredTermsAgreed(member.getId());
 
         return MemberConverter.toTokenReissueResponse(newAccessToken, newRefreshToken, termsAgreed);
+    }
+
+    @Transactional
+    public MemberResDTO.SelectFamilyRole selectFamilyRole(Long memberId, MemberReqDTO.SelectFamilyRole dto) {
+        Member member = memberRepository.findByIdForUpdate(memberId)
+                .orElseThrow(() -> new MemberException(MemberErrorCode.NOT_FOUND));
+
+        member.updateFamilyRole(dto.familyRole());
+
+        return MemberConverter.toFamilyRoleResponse(dto.familyRole());
+    }
+
+    @Transactional
+    public void logout(Long memberId) {
+        Member member = memberRepository.findByIdForUpdate(memberId)
+                .orElseThrow(() -> new MemberException(MemberErrorCode.NOT_FOUND));
+        member.deleteRefreshToken();
     }
 }
