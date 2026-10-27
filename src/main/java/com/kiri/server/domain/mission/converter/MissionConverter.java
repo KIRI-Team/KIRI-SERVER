@@ -89,7 +89,8 @@ public class MissionConverter {
                 .build();
     }
 
-    public static MissionResDTO.Detail toDetail(Mission mission, List<MissionChecklistItem> items, String sourceUrl) {
+    public static MissionResDTO.Detail toDetail(Mission mission, List<MissionChecklistItem> items, String sourceUrl,
+                                                boolean bucketSaved) {
         Place place = mission.getPlace();
         boolean usePlaceHours = mission.getOpeningTime() == null && mission.getClosingTime() == null;
         LocalTime openingTime = usePlaceHours ? place.getOpeningTime() : mission.getOpeningTime();
@@ -118,7 +119,7 @@ public class MissionConverter {
                 .place(toPlaceInfo(place))
                 .prepareItems(toChecklist(items, ItemType.PREPARE))
                 .steps(toChecklist(items, ItemType.STEP))
-                .bucketSaved(false)
+                .bucketSaved(bucketSaved)
                 .averageRating(null)
                 .reviewCount(0)
                 .build();

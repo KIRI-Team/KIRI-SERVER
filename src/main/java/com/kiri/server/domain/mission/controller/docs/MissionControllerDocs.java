@@ -209,7 +209,8 @@ public interface MissionControllerDocs {
                     - imageUrl이 null이면 기본 이미지를 사용합니다. imageSource는 이미지가 있을 때만 내려갑니다.
                     - price는 0이면 무료, null이면 정보 없음입니다.
                     - openingTime·closingTime은 미션 값이 없으면 장소 운영시간을 사용하고, 둘 다 없으면 null입니다.
-                    - bucketSaved·averageRating·reviewCount는 버킷·리뷰 기능 연결 전까지 false·null·0입니다.
+                    - bucketSaved는 로그인한 회원 본인이 SAVED·SCHEDULED 상태로 저장했는지 여부입니다. 가족이 없는 회원은 항상 false입니다.
+                    - averageRating·reviewCount는 리뷰 기능 연결 전까지 null·0입니다.
                     """
     )
     @ApiResponses(value = {
@@ -338,6 +339,7 @@ public interface MissionControllerDocs {
             )
     })
     ApiResponse<MissionResDTO.Detail> getDetail(
+            @Parameter(hidden = true) Long memberId,
             @Parameter(description = "미션 ID", example = "130") Long missionId
     );
 }

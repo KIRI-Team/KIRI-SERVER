@@ -198,7 +198,7 @@ class MissionControllerTest {
                 .bucketSaved(false)
                 .reviewCount(0)
                 .build();
-        given(missionQueryService.getDetail(130L)).willReturn(detail);
+        given(missionQueryService.getDetail(MEMBER_ID, 130L)).willReturn(detail);
 
         mockMvc.perform(get("/api/v1/missions/130").header(HttpHeaders.AUTHORIZATION, bearerToken))
                 .andExpect(status().isOk())
@@ -213,7 +213,7 @@ class MissionControllerTest {
     @Test
     @DisplayName("노출할 수 없는 미션이면 MISSION404_1로 응답한다.")
     void getDetail_notFound() throws Exception {
-        given(missionQueryService.getDetail(99L)).willThrow(new MissionException(MissionErrorCode.NOT_FOUND));
+        given(missionQueryService.getDetail(MEMBER_ID, 99L)).willThrow(new MissionException(MissionErrorCode.NOT_FOUND));
 
         mockMvc.perform(get("/api/v1/missions/99").header(HttpHeaders.AUTHORIZATION, bearerToken))
                 .andExpect(status().isNotFound())
