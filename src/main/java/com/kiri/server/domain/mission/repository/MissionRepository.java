@@ -10,12 +10,19 @@ import org.springframework.stereotype.Repository;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface MissionRepository extends JpaRepository<Mission, Long> {
 
     @Query("SELECT m FROM Mission m JOIN FETCH m.place WHERE m.title = :title")
     List<Mission> findAllWithPlaceByTitle(@Param("title") String title);
+
+    @Query("SELECT m FROM Mission m JOIN FETCH m.place WHERE m.id = :id")
+    Optional<Mission> findWithPlaceById(@Param("id") Long id);
+
+    @Query("SELECT m FROM Mission m JOIN FETCH m.place WHERE m.id IN :ids")
+    List<Mission> findAllWithPlaceByIdIn(@Param("ids") List<Long> ids);
 
     @Modifying(flushAutomatically = true, clearAutomatically = true)
     @Query("""
