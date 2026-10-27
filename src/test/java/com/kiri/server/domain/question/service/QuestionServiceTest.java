@@ -1,6 +1,7 @@
 package com.kiri.server.domain.question.service;
 
 import com.kiri.server.domain.family.entity.Family;
+import com.kiri.server.domain.family.repository.FamilyRepository;
 import com.kiri.server.domain.member.entity.Member;
 import com.kiri.server.domain.member.enums.FamilyRole;
 import com.kiri.server.domain.member.exception.MemberException;
@@ -12,12 +13,15 @@ import com.kiri.server.domain.question.entity.FamilyQuestion;
 import com.kiri.server.domain.question.entity.MemberAnswer;
 import com.kiri.server.domain.question.entity.Poke;
 import com.kiri.server.domain.question.entity.Question;
+import com.kiri.server.domain.question.enums.TasteType;
 import com.kiri.server.domain.question.event.PokeEvent;
 import com.kiri.server.domain.question.exception.QuestionException;
 import com.kiri.server.domain.question.exception.code.QuestionErrorCode;
 import com.kiri.server.domain.question.repository.FamilyQuestionRepository;
+import com.kiri.server.domain.question.repository.FamilyQuestionRepository.TasteTypeCount;
 import com.kiri.server.domain.question.repository.MemberAnswerRepository;
 import com.kiri.server.domain.question.repository.PokeRepository;
+import com.kiri.server.domain.question.repository.QuestionRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -29,6 +33,7 @@ import org.postgresql.util.PSQLException;
 import org.postgresql.util.ServerErrorMessage;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -69,6 +74,12 @@ class QuestionServiceTest {
     @Mock
     private ApplicationEventPublisher eventPublisher;
 
+    @Mock
+    private FamilyRepository familyRepository;
+
+    @Mock
+    private QuestionRepository questionRepository;
+
     private QuestionService questionService;
 
     private final Clock clock = Clock.fixed(Instant.parse("2026-10-10T03:00:00Z"), ZoneId.of("Asia/Seoul"));
@@ -88,7 +99,8 @@ class QuestionServiceTest {
     @BeforeEach
     void setUp() {
         questionService = new QuestionService(
-                memberRepository, familyQuestionRepository, memberAnswerRepository, clock, pokeRepository, eventPublisher);
+                memberRepository, familyQuestionRepository, memberAnswerRepository, clock, pokeRepository, eventPublisher,
+                familyRepository, questionRepository);
     }
 
     @Test
@@ -574,5 +586,185 @@ class QuestionServiceTest {
 
         assertThatThrownBy(() -> questionService.poke(MEMBER_ID, RECEIVER_ID))
                 .isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    @Test
+    @DisplayName("배정 대상 가족이 없으면 질문을 배정하지 않는다.")
+    void assign_familyNotFound() {
+        given(familyRepository.findById(1L)).willReturn(Optional.empty());
+
+        questionService.assign(1L, today);
+
+        verify(familyQuestionRepository, never()).save(any(FamilyQuestion.class));
+    }
+
+    @Test
+    @DisplayName("이미 질문이 배정된 날짜면 다시 배정하지 않는다.")
+    void assign_alreadyAssigned() {
+        Family createdFamily = familyCreatedOn(today);
+        given(familyRepository.findById(1L)).willReturn(Optional.of(createdFamily));
+        given(familyQuestionRepository.existsByFamilyAndQuestionDate(createdFamily, today)).willReturn(true);
+
+        questionService.assign(1L, today);
+
+        verify(familyQuestionRepository, never()).save(any(FamilyQuestion.class));
+    }
+
+    @Test
+    @DisplayName("가족 생성일 이전 날짜면 배정하지 않는다.")
+    void assign_beforeCreated() {
+        Family createdFamily = familyCreatedOn(today);
+        given(familyRepository.findById(1L)).willReturn(Optional.of(createdFamily));
+
+        questionService.assign(1L, today.minusDays(1));
+
+        verify(familyQuestionRepository, never()).save(any(FamilyQuestion.class));
+    }
+
+    @Test
+    @DisplayName("가족 생성일(1일차)에는 1일차 고정 질문을 배정한다.")
+    void assign_day1Fixed() {
+        Family createdFamily = familyCreatedOn(today);
+        Question fixed = Question.builder().id(1L).fixedDay(1).build();
+        given(familyRepository.findById(1L)).willReturn(Optional.of(createdFamily));
+        given(questionRepository.findByFixedDayAndIsActiveTrue(1)).willReturn(Optional.of(fixed));
+
+        questionService.assign(1L, today);
+
+        FamilyQuestion saved = captureSavedFamilyQuestion();
+        assertThat(saved.getQuestion()).isEqualTo(fixed);
+        assertThat(saved.getFamily()).isEqualTo(createdFamily);
+        assertThat(saved.getQuestionDate()).isEqualTo(today);
+    }
+
+    @Test
+    @DisplayName("7일차에는 7일차 고정 질문을 배정한다.")
+    void assign_day7Fixed() {
+        Family createdFamily = familyCreatedOn(today.minusDays(6));
+        Question fixed = Question.builder().id(7L).fixedDay(7).build();
+        given(familyRepository.findById(1L)).willReturn(Optional.of(createdFamily));
+        given(questionRepository.findByFixedDayAndIsActiveTrue(7)).willReturn(Optional.of(fixed));
+
+        questionService.assign(1L, today);
+
+        assertThat(captureSavedFamilyQuestion().getQuestion()).isEqualTo(fixed);
+    }
+
+    @Test
+    @DisplayName("8일차에는 고정 질문을 조회하지 않고 질문 풀에서 배정한다.")
+    void assign_day8Pool() {
+        Family createdFamily = familyCreatedOn(today.minusDays(7));
+        Question pool = Question.builder().id(200L).build();
+        given(familyRepository.findById(1L)).willReturn(Optional.of(createdFamily));
+        given(questionRepository.findUnassignedPoolQuestions(createdFamily)).willReturn(List.of(pool));
+
+        questionService.assign(1L, today);
+
+        assertThat(captureSavedFamilyQuestion().getQuestion()).isEqualTo(pool);
+        verify(questionRepository, never()).findByFixedDayAndIsActiveTrue(any());
+    }
+
+    @Test
+    @DisplayName("고정 질문이 없거나 비활성화됐으면 질문 풀에서 대체 배정한다.")
+    void assign_fixedMissingFallbackToPool() {
+        Family createdFamily = familyCreatedOn(today.minusDays(2));
+        Question pool = Question.builder().id(200L).build();
+        given(familyRepository.findById(1L)).willReturn(Optional.of(createdFamily));
+        given(questionRepository.findByFixedDayAndIsActiveTrue(3)).willReturn(Optional.empty());
+        given(questionRepository.findUnassignedPoolQuestions(createdFamily)).willReturn(List.of(pool));
+
+        questionService.assign(1L, today);
+
+        assertThat(captureSavedFamilyQuestion().getQuestion()).isEqualTo(pool);
+    }
+
+    @Test
+    @DisplayName("미사용 질문 중 가족이 가장 적게 받은 취향 종류의 질문을 배정하며, 일반 질문도 하나의 종류로 집계한다.")
+    void assign_leastReceivedTasteType() {
+        Family createdFamily = familyCreatedOn(today.minusDays(10));
+        Question general = Question.builder().id(201L).build();
+        Question category = Question.builder().id(202L).tasteType(TasteType.CATEGORY).build();
+        Question price = Question.builder().id(203L).tasteType(TasteType.PRICE).build();
+        given(familyRepository.findById(1L)).willReturn(Optional.of(createdFamily));
+        given(questionRepository.findUnassignedPoolQuestions(createdFamily)).willReturn(List.of(general, category, price));
+        given(familyQuestionRepository.countAssignedByTasteType(createdFamily)).willReturn(List.of(
+                tasteTypeCount(null, 5L),
+                tasteTypeCount(TasteType.CATEGORY, 2L),
+                tasteTypeCount(TasteType.PRICE, 3L)));
+
+        questionService.assign(1L, today);
+
+        assertThat(captureSavedFamilyQuestion().getQuestion()).isEqualTo(category);
+    }
+
+    @Test
+    @DisplayName("한 번도 받지 않은 취향 종류는 0회로 보고 우선 배정한다.")
+    void assign_neverReceivedTasteType() {
+        Family createdFamily = familyCreatedOn(today.minusDays(10));
+        Question general = Question.builder().id(201L).build();
+        Question steps = Question.builder().id(204L).tasteType(TasteType.STEPS).build();
+        given(familyRepository.findById(1L)).willReturn(Optional.of(createdFamily));
+        given(questionRepository.findUnassignedPoolQuestions(createdFamily)).willReturn(List.of(general, steps));
+        given(familyQuestionRepository.countAssignedByTasteType(createdFamily)).willReturn(List.of(
+                tasteTypeCount(null, 1L)));
+
+        questionService.assign(1L, today);
+
+        assertThat(captureSavedFamilyQuestion().getQuestion()).isEqualTo(steps);
+    }
+
+    @Test
+    @DisplayName("질문 풀을 모두 받았으면 가장 오래전에 받은 질문을 다시 배정한다.")
+    void assign_poolExhaustedReassignOldest() {
+        Family createdFamily = familyCreatedOn(today.minusDays(30));
+        Question oldest = Question.builder().id(201L).build();
+        Question recent = Question.builder().id(202L).build();
+        given(familyRepository.findById(1L)).willReturn(Optional.of(createdFamily));
+        given(questionRepository.findUnassignedPoolQuestions(createdFamily)).willReturn(List.of());
+        given(questionRepository.findAssignedPoolQuestionsOrderByLastAssigned(createdFamily))
+                .willReturn(List.of(oldest, recent));
+
+        questionService.assign(1L, today);
+
+        assertThat(captureSavedFamilyQuestion().getQuestion()).isEqualTo(oldest);
+    }
+
+    @Test
+    @DisplayName("배정 가능한 질문이 하나도 없으면 배정하지 않는다.")
+    void assign_noQuestion() {
+        Family createdFamily = familyCreatedOn(today.minusDays(30));
+        given(familyRepository.findById(1L)).willReturn(Optional.of(createdFamily));
+        given(questionRepository.findUnassignedPoolQuestions(createdFamily)).willReturn(List.of());
+        given(questionRepository.findAssignedPoolQuestionsOrderByLastAssigned(createdFamily)).willReturn(List.of());
+
+        questionService.assign(1L, today);
+
+        verify(familyQuestionRepository, never()).save(any(FamilyQuestion.class));
+    }
+
+    private Family familyCreatedOn(LocalDate createdDate) {
+        Family createdFamily = Family.builder().id(1L).name("행복한 우리집").build();
+        ReflectionTestUtils.setField(createdFamily, "createdAt", createdDate.atTime(9, 0));
+        return createdFamily;
+    }
+
+    private FamilyQuestion captureSavedFamilyQuestion() {
+        ArgumentCaptor<FamilyQuestion> captor = ArgumentCaptor.forClass(FamilyQuestion.class);
+        verify(familyQuestionRepository).save(captor.capture());
+        return captor.getValue();
+    }
+
+    private TasteTypeCount tasteTypeCount(TasteType tasteType, Long assignedCount) {
+        return new TasteTypeCount() {
+            @Override
+            public TasteType getTasteType() {
+                return tasteType;
+            }
+
+            @Override
+            public Long getAssignedCount() {
+                return assignedCount;
+            }
+        };
     }
 }
