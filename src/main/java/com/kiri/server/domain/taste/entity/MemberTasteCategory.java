@@ -4,6 +4,8 @@ import com.kiri.server.domain.mission.enums.Category;
 import com.kiri.server.global.entity.BaseEntity;
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.OnDelete;
+import org.hibernate.annotations.OnDeleteAction;
 
 @Entity
 @Table(
@@ -25,6 +27,7 @@ public class MemberTasteCategory extends BaseEntity {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "member_taste_id", nullable = false)
+    @OnDelete(action = OnDeleteAction.CASCADE)
     private MemberTaste memberTaste;
 
     @Enumerated(EnumType.STRING)

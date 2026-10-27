@@ -134,6 +134,22 @@ class MemberTasteRepositoryTest {
         assertThat(countCategories(tasteId)).isZero();
     }
 
+    @Test
+    @DisplayName("회원 행이 삭제되면 취향과 선호 활동도 DB에서 함께 삭제된다.")
+    void deleteWithMember() {
+        tasteService.saveMyTaste(other.getId(), request(Category.EXHIBITION, Category.POPUP));
+        flushAndClear();
+        Long tasteId = memberTasteRepository.findWithCategoriesByMemberId(other.getId()).orElseThrow().getId();
+
+        entityManager.createNativeQuery("delete from member where member_id = :memberId")
+                .setParameter("memberId", other.getId())
+                .executeUpdate();
+        entityManager.clear();
+
+        assertThat(memberTasteRepository.findById(tasteId)).isEmpty();
+        assertThat(countCategories(tasteId)).isZero();
+    }
+
     private TasteReqDTO.Save request(Category... categories) {
         return new TasteReqDTO.Save(List.of(categories), IndoorOutdoor.INDOOR, ActivityLevel.LIGHT,
                 PriceLevel.FREE, DurationLevel.WITHIN_1H);

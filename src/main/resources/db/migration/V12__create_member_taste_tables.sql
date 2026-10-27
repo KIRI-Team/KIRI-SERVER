@@ -10,7 +10,7 @@ CREATE TABLE member_taste
     updated_at      TIMESTAMPTZ,
     CONSTRAINT uk_member_taste_member UNIQUE (member_id),
     CONSTRAINT ck_member_taste_indoor_outdoor CHECK (indoor_outdoor IN ('INDOOR', 'OUTDOOR')),
-    CONSTRAINT fk_member_taste_member FOREIGN KEY (member_id) REFERENCES member (member_id)
+    CONSTRAINT fk_member_taste_member FOREIGN KEY (member_id) REFERENCES member (member_id) ON DELETE CASCADE
 );
 
 CREATE TABLE member_taste_category
