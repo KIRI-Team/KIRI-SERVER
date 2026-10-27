@@ -49,4 +49,14 @@ public class FamilyController implements FamilyControllerDocs {
         BaseSuccessCode code = FamilySuccessCode.INVITE_DELETED;
         return ApiResponse.onSuccess(code);
     }
+
+    @Override
+    @GetMapping("/{familyId}/invite")
+    public ApiResponse<FamilyResDTO.Invite> getInvite(
+            @AuthenticationPrincipal Long memberId,
+            @PathVariable Long familyId
+    ) {
+        BaseSuccessCode code = FamilySuccessCode.INVITE_FOUND;
+        return ApiResponse.onSuccess(code, familyService.getInvite(memberId, familyId));
+    }
 }

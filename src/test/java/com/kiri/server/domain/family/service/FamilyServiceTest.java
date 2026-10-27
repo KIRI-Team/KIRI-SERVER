@@ -363,4 +363,88 @@ class FamilyServiceTest {
                 .isEqualTo(FamilyErrorCode.FORBIDDEN);
         verify(family, never()).clearInviteInfo();
     }
+
+    @Test
+    @DisplayName("가족 구성원이 초대 정보를 조회할 수 있다.")
+    void getInviteSuccess() {
+        Long memberId = 1L;
+        Long familyId = 10L;
+
+        when(memberRepository.findById(memberId)).thenReturn(Optional.of(member));
+
+        when(familyRepository.findById(familyId)).thenReturn(Optional.of(family));
+
+        when(member.getFamily()).thenReturn(family);
+
+        when(family.getId()).thenReturn(familyId);
+
+        when(family.getInviteCode()).thenReturn("ABC123");
+
+        when(family.getInviteToken()).thenReturn("test-token");
+
+        LocalDateTime expiresAt = LocalDateTime.now().plusDays(7);
+
+        when(family.getInviteExpiresAt()).thenReturn(expiresAt);
+
+        FamilyResDTO.Invite result = familyService.getInvite(memberId, familyId);
+
+        assertThat(result).isNotNull();
+        assertThat(result.inviteCode())
+                .isEqualTo("ABC123");
+        assertThat(result.inviteUrl())
+                .isEqualTo("https://kiri.app/invite/test-token");
+        assertThat(result.inviteExpiresAt())
+                .isEqualTo(expiresAt);
+    }
+
+    @Test
+    @DisplayName("가족 구성원이 아니면 초대 정보를 조회할 수 없다.")
+    void getInviteForbidden() {
+        Long memberId = 1L;
+        Long familyId = 10L;
+
+        when(memberRepository.findById(memberId)).thenReturn(Optional.of(member));
+
+        when(familyRepository.findById(familyId)).thenReturn(Optional.of(family));
+
+        when(member.getFamily()).thenReturn(null);
+
+        assertThatThrownBy(() -> familyService.getInvite(memberId, familyId))
+                .isInstanceOf(ProjectException.class);
+    }
+
+    @Test
+    @DisplayName("존재하지 않는 가족이면 초대 정보를 조회할 수 없다.")
+    void getInviteFamilyNotFound() {
+        Long memberId = 1L;
+        Long familyId = 10L;
+
+        when(memberRepository.findById(memberId)).thenReturn(Optional.of(member));
+
+        when(familyRepository.findById(familyId)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> familyService.getInvite(memberId, familyId))
+                .isInstanceOf(FamilyException.class);
+    }
+
+    @Test
+    @DisplayName("초대 정보가 없으면 null을 반환한다.")
+    void getInviteNoInviteInfo() {
+        Long memberId = 1L;
+        Long familyId = 10L;
+
+        when(memberRepository.findById(memberId)).thenReturn(Optional.of(member));
+
+        when(familyRepository.findById(familyId)).thenReturn(Optional.of(family));
+
+        when(member.getFamily()).thenReturn(family);
+
+        when(family.getId()).thenReturn(familyId);
+
+        when(family.getInviteCode()).thenReturn(null);
+
+        FamilyResDTO.Invite result = familyService.getInvite(memberId, familyId);
+
+        assertThat(result).isNull();
+    }
 }

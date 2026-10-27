@@ -97,6 +97,27 @@ public class FamilyService {
         family.clearInviteInfo();
     }
 
+    @Transactional(readOnly = true)
+    public FamilyResDTO.Invite getInvite(Long memberId, Long familyId) {
+        Member member = memberRepository.findById(memberId)
+                .orElseThrow(() -> new MemberException(MemberErrorCode.NOT_FOUND));
+
+        Family family = familyRepository.findById(familyId)
+                .orElseThrow(() -> new FamilyException(FamilyErrorCode.NOT_FOUND));
+
+        if (member.getFamily() == null || !family.getId().equals(member.getFamily().getId())) {
+            throw new ProjectException(FamilyErrorCode.FORBIDDEN);
+        }
+
+        if (family.getInviteCode() == null || family.getInviteToken() == null || family.getInviteExpiresAt() == null) {
+            return null;
+        }
+
+        String inviteUrl = generateInviteUrl(family.getInviteToken());
+
+        return FamilyConverter.toInviteResponse(family, inviteUrl);
+    }
+
     private String generateInviteCode() {
 
         String characters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
