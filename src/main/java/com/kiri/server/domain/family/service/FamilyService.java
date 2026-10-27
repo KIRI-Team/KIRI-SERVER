@@ -5,9 +5,11 @@ import com.kiri.server.domain.family.dto.FamilyReqDTO;
 import com.kiri.server.domain.family.dto.FamilyResDTO;
 import com.kiri.server.domain.family.entity.Family;
 import com.kiri.server.domain.family.event.FamilyCreatedEvent;
+import com.kiri.server.domain.family.exception.FamilyException;
 import com.kiri.server.domain.family.exception.code.FamilyErrorCode;
 import com.kiri.server.domain.family.repository.FamilyRepository;
 import com.kiri.server.domain.member.entity.Member;
+import com.kiri.server.domain.member.exception.MemberException;
 import com.kiri.server.domain.member.exception.code.MemberErrorCode;
 import com.kiri.server.domain.member.repository.MemberRepository;
 import com.kiri.server.global.apiPayload.exception.ProjectException;
@@ -53,6 +55,46 @@ public class FamilyService {
         String inviteUrl = generateInviteUrl(inviteToken);
 
         return FamilyConverter.toCreateResponse(family, inviteUrl);
+    }
+
+    @Transactional
+    public FamilyResDTO.Invite regenerateInvite(Long memberId, Long familyId) {
+
+        Member member = memberRepository.findById(memberId)
+                .orElseThrow(() -> new MemberException(MemberErrorCode.NOT_FOUND));
+
+        Family family = familyRepository.findById(familyId)
+                .orElseThrow(() -> new FamilyException(FamilyErrorCode.NOT_FOUND));
+
+        if (member.getFamily() == null || !family.getId().equals(member.getFamily().getId())) {
+            throw new ProjectException(FamilyErrorCode.FORBIDDEN);
+        }
+
+        String inviteCode = generateInviteCode();
+        String inviteToken = generateInviteToken();
+        LocalDateTime inviteExpiresAt = LocalDateTime.now().plusDays(7);
+
+        family.renewInvite(inviteCode, inviteToken, inviteExpiresAt);
+
+        String inviteUrl = generateInviteUrl(inviteToken);
+
+        return FamilyConverter.toInviteResponse(family, inviteUrl);
+    }
+
+    @Transactional
+    public void deleteInvite(Long memberId, Long familyId) {
+
+        Member member = memberRepository.findById(memberId)
+                .orElseThrow(() -> new MemberException(MemberErrorCode.NOT_FOUND));
+
+        Family family = familyRepository.findById(familyId)
+                .orElseThrow(() -> new FamilyException(FamilyErrorCode.NOT_FOUND));
+
+        if (member.getFamily() == null || !family.getId().equals(member.getFamily().getId())) {
+            throw new ProjectException(FamilyErrorCode.FORBIDDEN);
+        }
+
+        family.clearInviteInfo();
     }
 
     private String generateInviteCode() {

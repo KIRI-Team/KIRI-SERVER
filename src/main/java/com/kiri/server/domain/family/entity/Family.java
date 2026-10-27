@@ -75,4 +75,10 @@ public class Family extends BaseEntity {
         this.inviteToken = inviteToken;
         this.inviteExpiresAt = inviteExpiresAt;
     }
+
+    public void clearInviteInfo() {
+        this.inviteCode = null;
+        this.inviteToken = null;
+        this.inviteExpiresAt = null;
+    }
 }

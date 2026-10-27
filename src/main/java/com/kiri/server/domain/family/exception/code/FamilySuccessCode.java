@@ -9,6 +9,8 @@ import org.springframework.http.HttpStatus;
 @RequiredArgsConstructor
 public enum FamilySuccessCode implements BaseSuccessCode {
 
+    INVITE_REGENERATED(HttpStatus.OK, "FAMILY200_1", "가족 초대 정보가 생성되었습니다."),
+    INVITE_DELETED(HttpStatus.OK, "FAMILY200_2", "가족 초대 정보가 삭제되었습니다."),
     FAMILY_CREATED(HttpStatus.CREATED, "FAMILY201_1", "가족 공간이 생성되었습니다.");
 
     private final HttpStatus httpStatus;

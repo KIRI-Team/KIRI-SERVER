@@ -27,4 +27,12 @@ public class FamilyConverter {
                 .inviteExpiresAt(family.getInviteExpiresAt())
                 .build();
     }
+
+    public static FamilyResDTO.Invite toInviteResponse(Family family, String inviteUrl) {
+        return FamilyResDTO.Invite.builder()
+                .inviteCode(family.getInviteCode())
+                .inviteUrl(inviteUrl)
+                .inviteExpiresAt(family.getInviteExpiresAt())
+                .build();
+    }
 }

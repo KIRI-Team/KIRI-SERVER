@@ -10,10 +10,7 @@ import com.kiri.server.global.apiPayload.code.BaseSuccessCode;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequiredArgsConstructor
@@ -22,6 +19,7 @@ public class FamilyController implements FamilyControllerDocs {
 
     private final FamilyService familyService;
 
+    @Override
     @PostMapping
     public ApiResponse<FamilyResDTO.Create> createFamily(
             @AuthenticationPrincipal Long memberId,
@@ -29,5 +27,26 @@ public class FamilyController implements FamilyControllerDocs {
     ) {
         BaseSuccessCode code = FamilySuccessCode.FAMILY_CREATED;
         return ApiResponse.onSuccess(code, familyService.createFamily(memberId, dto));
+    }
+
+    @Override
+    @PatchMapping("/{familyId}/invite")
+    public ApiResponse<FamilyResDTO.Invite> regenerateInvite(
+            @AuthenticationPrincipal Long memberId,
+            @PathVariable Long familyId
+    ) {
+        BaseSuccessCode code = FamilySuccessCode.INVITE_REGENERATED;
+        return ApiResponse.onSuccess(code, familyService.regenerateInvite(memberId, familyId));
+    }
+
+    @Override
+    @DeleteMapping("/{familyId}/invite")
+    public ApiResponse<Void> deleteInvite(
+            @AuthenticationPrincipal Long memberId,
+            @PathVariable Long familyId
+    ) {
+        familyService.deleteInvite(memberId, familyId);
+        BaseSuccessCode code = FamilySuccessCode.INVITE_DELETED;
+        return ApiResponse.onSuccess(code);
     }
 }

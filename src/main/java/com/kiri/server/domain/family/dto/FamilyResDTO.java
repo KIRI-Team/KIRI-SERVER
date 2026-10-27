@@ -14,4 +14,11 @@ public class FamilyResDTO {
             String inviteUrl,
             LocalDateTime inviteExpiresAt
     ) {}
+
+    @Builder
+    public record Invite(
+            String inviteCode,
+            String inviteUrl,
+            LocalDateTime inviteExpiresAt
+    ) {}
 }
