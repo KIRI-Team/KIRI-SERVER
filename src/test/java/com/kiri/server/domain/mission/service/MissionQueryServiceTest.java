@@ -1,5 +1,6 @@
 package com.kiri.server.domain.mission.service;
 
+import com.kiri.server.domain.bucket.enums.BucketSaveState;
 import com.kiri.server.domain.bucket.enums.BucketStatus;
 import com.kiri.server.domain.bucket.repository.BucketItemRepository;
 import com.kiri.server.domain.external.entity.ExternalRecord;
@@ -252,8 +253,9 @@ class MissionQueryServiceTest {
         assertThat(detail.sourceUrl()).isEqualTo("https://korean.visitkorea.or.kr/detail");
         assertThat(detail.place().latitude()).isEqualTo(37.5444);
         assertThat(detail)
-                .extracting(MissionResDTO.Detail::bucketSaved, MissionResDTO.Detail::averageRating, MissionResDTO.Detail::reviewCount)
-                .containsExactly(false, null, 0);
+                .extracting(MissionResDTO.Detail::bucketSaved, MissionResDTO.Detail::bucketState,
+                        MissionResDTO.Detail::averageRating, MissionResDTO.Detail::reviewCount)
+                .containsExactly(false, BucketSaveState.NONE, null, 0);
     }
 
     @Test
@@ -314,7 +316,28 @@ class MissionQueryServiceTest {
         given(bucketItemRepository.existsByMemberIdAndMissionIdAndStatusIn(MEMBER_ID, 10L, BucketStatus.ACTIVE_STATUSES))
                 .willReturn(true);
 
-        assertThat(missionQueryService.getDetail(MEMBER_ID, 10L).bucketSaved()).isTrue();
+        MissionResDTO.Detail detail = missionQueryService.getDetail(MEMBER_ID, 10L);
+
+        assertThat(detail.bucketSaved()).isTrue();
+        assertThat(detail.bucketState()).isEqualTo(BucketSaveState.SAVED);
+    }
+
+    @Test
+    @DisplayName("완료된 버킷만 있으면 bucketState는 COMPLETED_ONLY이고 bucketSaved는 false다.")
+    void getDetail_bucketCompletedOnly() {
+        Mission mission = mission(10L, MissionStatus.ACTIVE);
+        given(missionRepository.findWithPlaceById(10L)).willReturn(Optional.of(mission));
+        given(missionChecklistItemRepository.findAllByMissionOrderByItemTypeAscDisplayOrderAsc(mission)).willReturn(List.of());
+        given(externalRecordRepository.findFirstByMissionAndSourceUrlIsNotNullOrderByIdAsc(mission)).willReturn(Optional.empty());
+        given(bucketItemRepository.existsByMemberIdAndMissionIdAndStatusIn(MEMBER_ID, 10L, BucketStatus.ACTIVE_STATUSES))
+                .willReturn(false);
+        given(bucketItemRepository.existsByMemberIdAndMissionIdAndStatusIn(MEMBER_ID, 10L, List.of(BucketStatus.COMPLETED)))
+                .willReturn(true);
+
+        MissionResDTO.Detail detail = missionQueryService.getDetail(MEMBER_ID, 10L);
+
+        assertThat(detail.bucketSaved()).isFalse();
+        assertThat(detail.bucketState()).isEqualTo(BucketSaveState.COMPLETED_ONLY);
     }
 
     @Test

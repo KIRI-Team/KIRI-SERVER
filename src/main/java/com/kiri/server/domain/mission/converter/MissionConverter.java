@@ -1,5 +1,6 @@
 package com.kiri.server.domain.mission.converter;
 
+import com.kiri.server.domain.bucket.enums.BucketSaveState;
 import com.kiri.server.domain.mission.dto.MissionResDTO;
 import com.kiri.server.domain.mission.entity.Mission;
 import com.kiri.server.domain.mission.entity.MissionChecklistItem;
@@ -90,7 +91,7 @@ public class MissionConverter {
     }
 
     public static MissionResDTO.Detail toDetail(Mission mission, List<MissionChecklistItem> items, String sourceUrl,
-                                                boolean bucketSaved) {
+                                                BucketSaveState bucketState) {
         Place place = mission.getPlace();
         boolean usePlaceHours = mission.getOpeningTime() == null && mission.getClosingTime() == null;
         LocalTime openingTime = usePlaceHours ? place.getOpeningTime() : mission.getOpeningTime();
@@ -119,7 +120,8 @@ public class MissionConverter {
                 .place(toPlaceInfo(place))
                 .prepareItems(toChecklist(items, ItemType.PREPARE))
                 .steps(toChecklist(items, ItemType.STEP))
-                .bucketSaved(bucketSaved)
+                .bucketSaved(bucketState == BucketSaveState.SAVED)
+                .bucketState(bucketState)
                 .averageRating(null)
                 .reviewCount(0)
                 .build();

@@ -1,5 +1,6 @@
 package com.kiri.server.domain.mission.controller;
 
+import com.kiri.server.domain.bucket.enums.BucketSaveState;
 import com.kiri.server.domain.mission.dto.MissionReqDTO;
 import com.kiri.server.domain.mission.dto.MissionResDTO;
 import com.kiri.server.domain.mission.enums.Category;
@@ -196,6 +197,7 @@ class MissionControllerTest {
                 .prepareItems(List.of())
                 .steps(List.of(MissionResDTO.ChecklistItem.builder().title("상설 전시 관람하기").build()))
                 .bucketSaved(false)
+                .bucketState(BucketSaveState.NONE)
                 .reviewCount(0)
                 .build();
         given(missionQueryService.getDetail(MEMBER_ID, 130L)).willReturn(detail);
@@ -207,7 +209,8 @@ class MissionControllerTest {
                 .andExpect(jsonPath("$.result.closingTime").value("18:00"))
                 .andExpect(jsonPath("$.result.place.name").value("국립현대미술관 서울"))
                 .andExpect(jsonPath("$.result.steps[0].title").value("상설 전시 관람하기"))
-                .andExpect(jsonPath("$.result.bucketSaved").value(false));
+                .andExpect(jsonPath("$.result.bucketSaved").value(false))
+                .andExpect(jsonPath("$.result.bucketState").value("NONE"));
     }
 
     @Test

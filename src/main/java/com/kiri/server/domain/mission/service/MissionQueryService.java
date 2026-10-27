@@ -1,5 +1,6 @@
 package com.kiri.server.domain.mission.service;
 
+import com.kiri.server.domain.bucket.enums.BucketSaveState;
 import com.kiri.server.domain.bucket.enums.BucketStatus;
 import com.kiri.server.domain.bucket.repository.BucketItemRepository;
 import com.kiri.server.domain.external.entity.ExternalRecord;
@@ -85,12 +86,23 @@ public class MissionQueryService {
                 .map(ExternalRecord::getSourceUrl)
                 .orElse(null);
 
-        boolean bucketSaved = bucketItemRepository.existsByMemberIdAndMissionIdAndStatusIn(
-                memberId, missionId, BucketStatus.ACTIVE_STATUSES);
+        BucketSaveState bucketState = resolveBucketState(memberId, missionId);
 
         return MissionConverter.toDetail(mission,
                 missionChecklistItemRepository.findAllByMissionOrderByItemTypeAscDisplayOrderAsc(mission),
-                sourceUrl, bucketSaved);
+                sourceUrl, bucketState);
+    }
+
+    private BucketSaveState resolveBucketState(Long memberId, Long missionId) {
+        if (bucketItemRepository.existsByMemberIdAndMissionIdAndStatusIn(
+                memberId, missionId, BucketStatus.ACTIVE_STATUSES)) {
+            return BucketSaveState.SAVED;
+        }
+        if (bucketItemRepository.existsByMemberIdAndMissionIdAndStatusIn(
+                memberId, missionId, List.of(BucketStatus.COMPLETED))) {
+            return BucketSaveState.COMPLETED_ONLY;
+        }
+        return BucketSaveState.NONE;
     }
 
     private void validate(MissionReqDTO.FeedCondition condition) {
