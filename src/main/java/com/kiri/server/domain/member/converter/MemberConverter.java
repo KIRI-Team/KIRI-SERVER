@@ -2,6 +2,7 @@ package com.kiri.server.domain.member.converter;
 
 import com.kiri.server.domain.member.dto.MemberResDTO;
 import com.kiri.server.domain.member.entity.Member;
+import com.kiri.server.domain.member.enums.FamilyRole;
 import com.kiri.server.domain.member.enums.SocialProvider;
 import com.kiri.server.domain.member.oauth.OidcUserInfo;
 
@@ -26,6 +27,32 @@ public class MemberConverter {
                 .refreshToken(refreshToken)
                 .isNewUser(isNewUser)
                 .termsAgreed(termsAgreed)
+                .build();
+    }
+
+    public static MemberResDTO.Nickname toNicknameResponse(
+            String nickname
+    ) {
+        return MemberResDTO.Nickname.builder()
+                .nickname(nickname)
+                .build();
+    }
+
+    public static MemberResDTO.TokenReissue toTokenReissueResponse(
+            String accessToken,
+            String refreshToken,
+            Boolean termsAgreed
+    ) {
+        return MemberResDTO.TokenReissue.builder()
+                .accessToken(accessToken)
+                .refreshToken(refreshToken)
+                .termsAgreed(termsAgreed)
+                .build();
+    }
+
+    public static MemberResDTO.SelectFamilyRole toFamilyRoleResponse(FamilyRole familyRole) {
+        return MemberResDTO.SelectFamilyRole.builder()
+                .familyRole(familyRole)
                 .build();
     }
 }
