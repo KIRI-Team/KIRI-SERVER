@@ -81,4 +81,8 @@ public class Family extends BaseEntity {
         this.inviteToken = null;
         this.inviteExpiresAt = null;
     }
+
+    public void updateName(String name) {
+        this.name = name;
+    }
 }
