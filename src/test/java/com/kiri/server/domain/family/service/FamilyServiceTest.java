@@ -447,4 +447,133 @@ class FamilyServiceTest {
 
         assertThat(result).isNull();
     }
+
+    @Test
+    @DisplayName("가족명을 정상적으로 변경한다.")
+    void updateFamilyNameSuccess() {
+        Long memberId = 1L;
+        Long familyId = 1L;
+
+        Member member = mock(Member.class);
+        Family family = mock(Family.class);
+
+        FamilyReqDTO.UpdateName request = new FamilyReqDTO.UpdateName("새로운 가족");
+
+        when(memberRepository.findById(memberId)).thenReturn(Optional.of(member));
+        when(familyRepository.findById(familyId)).thenReturn(Optional.of(family));
+
+        when(member.getId()).thenReturn(memberId);
+        when(family.getOwner()).thenReturn(member);
+        when(family.getName()).thenReturn("기존 가족");
+        when(family.getId()).thenReturn(familyId);
+
+        when(familyRepository.existsByName("새로운 가족")).thenReturn(false);
+
+        FamilyResDTO.UpdateName result = familyService.updateFamilyName(memberId, familyId, request);
+
+        verify(family).updateName("새로운 가족");
+
+        assertThat(result).isNotNull();
+        assertThat(result.familyId()).isEqualTo(familyId);
+    }
+
+    @Test
+    @DisplayName("owner가 아닌 사용자는 가족명을 변경할 수 없다.")
+    void updateFamilyNameForbidden() {
+        Long memberId = 1L;
+        Long ownerId = 2L;
+        Long familyId = 1L;
+
+        Member member = mock(Member.class);
+        Member owner = mock(Member.class);
+        Family family = mock(Family.class);
+
+        FamilyReqDTO.UpdateName request = new FamilyReqDTO.UpdateName("새로운 가족");
+
+        when(memberRepository.findById(memberId)).thenReturn(Optional.of(member));
+        when(familyRepository.findById(familyId)).thenReturn(Optional.of(family));
+
+        when(member.getId()).thenReturn(memberId);
+        when(owner.getId()).thenReturn(ownerId);
+        when(family.getOwner()).thenReturn(owner);
+
+        assertThatThrownBy(() -> familyService.updateFamilyName(memberId, familyId, request))
+                .isInstanceOf(ProjectException.class)
+                .hasMessage(FamilyErrorCode.FORBIDDEN.getMessage());
+
+        verify(family, never()).updateName(anyString());
+        verify(familyRepository, never()).existsByName(anyString());
+    }
+
+    @Test
+    @DisplayName("존재하지 않는 가족의 이름은 변경할 수 없다.")
+    void updateFamilyNameFamilyNotFound() {
+        Long memberId = 1L;
+        Long familyId = 999L;
+
+        Member member = mock(Member.class);
+
+        FamilyReqDTO.UpdateName request = new FamilyReqDTO.UpdateName("새로운 가족");
+
+        when(memberRepository.findById(memberId)).thenReturn(Optional.of(member));
+        when(familyRepository.findById(familyId)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> familyService.updateFamilyName(memberId, familyId, request))
+                .isInstanceOf(FamilyException.class)
+                .hasMessage(FamilyErrorCode.NOT_FOUND.getMessage());
+
+        verify(familyRepository, never()).existsByName(anyString());
+    }
+
+    @Test
+    @DisplayName("이미 사용 중인 가족명으로 변경할 수 없다.")
+    void updateFamilyNameDuplicate() {
+        Long memberId = 1L;
+        Long familyId = 1L;
+
+        Member member = mock(Member.class);
+        Family family = mock(Family.class);
+
+        FamilyReqDTO.UpdateName request = new FamilyReqDTO.UpdateName("이미 존재하는 가족");
+
+        when(memberRepository.findById(memberId)).thenReturn(Optional.of(member));
+        when(familyRepository.findById(familyId)).thenReturn(Optional.of(family));
+
+        when(member.getId()).thenReturn(memberId);
+        when(family.getOwner()).thenReturn(member);
+        when(family.getName()).thenReturn("기존 가족");
+
+        when(familyRepository.existsByName("이미 존재하는 가족")).thenReturn(true);
+
+        assertThatThrownBy(() -> familyService.updateFamilyName(memberId, familyId, request))
+                .isInstanceOf(FamilyException.class)
+                .hasMessage(FamilyErrorCode.DUPLICATE_NAME.getMessage());
+
+        verify(family, never()).updateName(anyString());
+    }
+
+    @Test
+    @DisplayName("가족명의 앞뒤 공백과 연속된 공백을 정규화한다.")
+    void updateFamilyNameNormalize() {
+        Long memberId = 1L;
+        Long familyId = 1L;
+
+        Member member = mock(Member.class);
+        Family family = mock(Family.class);
+
+        FamilyReqDTO.UpdateName request = new FamilyReqDTO.UpdateName("  우리    가족  ");
+
+        when(memberRepository.findById(memberId)).thenReturn(Optional.of(member));
+        when(familyRepository.findById(familyId)).thenReturn(Optional.of(family));
+
+        when(member.getId()).thenReturn(memberId);
+        when(family.getOwner()).thenReturn(member);
+        when(family.getName()).thenReturn("기존 가족");
+
+        when(familyRepository.existsByName("우리 가족")).thenReturn(false);
+
+        FamilyResDTO.UpdateName result = familyService.updateFamilyName(memberId, familyId, request);
+
+        verify(family).updateName("우리 가족");
+    }
 }
