@@ -4,12 +4,14 @@ import com.kiri.server.domain.family.dto.FamilyReqDTO;
 import com.kiri.server.domain.family.dto.FamilyResDTO;
 import com.kiri.server.domain.family.entity.Family;
 import com.kiri.server.domain.family.event.FamilyCreatedEvent;
+import com.kiri.server.domain.family.exception.FamilyException;
 import com.kiri.server.domain.family.exception.code.FamilyErrorCode;
 import com.kiri.server.domain.family.repository.FamilyRepository;
 import com.kiri.server.domain.member.entity.Member;
 import com.kiri.server.domain.member.exception.code.MemberErrorCode;
 import com.kiri.server.domain.member.repository.MemberRepository;
 import com.kiri.server.global.apiPayload.exception.ProjectException;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -41,6 +43,15 @@ class FamilyServiceTest {
 
     @InjectMocks
     private FamilyService familyService;
+
+    private Member member;
+    private Family family;
+
+    @BeforeEach
+    void setUp() {
+        member = mock(Member.class);
+        family = mock(Family.class);
+    }
 
     @Test
     @DisplayName("가족 공간 생성 완료")
@@ -184,5 +195,172 @@ class FamilyServiceTest {
                 .isEqualTo("https://kiri.app/invite/" + family.getInviteToken());
 
         verify(eventPublisher).publishEvent(new FamilyCreatedEvent(1L));
+    }
+
+
+    @Test
+    @DisplayName("가족 구성원이 초대 정보를 생성할 수 있다.")
+    void regenerateInviteSuccess() {
+        Long memberId = 1L;
+        Long familyId = 10L;
+
+        when(memberRepository.findById(memberId)).thenReturn(Optional.of(member));
+
+        when(familyRepository.findById(familyId)).thenReturn(Optional.of(family));
+
+        when(member.getFamily()).thenReturn(family);
+
+        when(family.getId()).thenReturn(familyId);
+
+        when(family.getInviteCode()).thenReturn("ABC123");
+
+        when(family.getInviteExpiresAt()).thenReturn(LocalDateTime.now().plusDays(7));
+
+        FamilyResDTO.Invite result = familyService.regenerateInvite(memberId, familyId);
+
+        assertThat(result).isNotNull();
+        assertThat(result.inviteCode())
+                .hasSize(6)
+                .matches("[A-Z0-9]+");
+        assertThat(result.inviteUrl()).startsWith("https://kiri.app/invite/");
+        assertThat(result.inviteExpiresAt()).isNotNull();
+
+        verify(family).renewInvite(anyString(), anyString(), any(LocalDateTime.class));
+    }
+
+    @Test
+    @DisplayName("기존 초대 정보가 있어도 새로운 초대 정보로 재생성한다.")
+    void regenerateInviteReplacesExistingInvite() {
+        Long memberId = 1L;
+        Long familyId = 10L;
+
+        when(memberRepository.findById(memberId)).thenReturn(Optional.of(member));
+
+        when(familyRepository.findById(familyId)).thenReturn(Optional.of(family));
+
+        when(member.getFamily()).thenReturn(family);
+
+        when(family.getId()).thenReturn(familyId);
+
+        LocalDateTime expiresAt = LocalDateTime.now().plusDays(7);
+
+        familyService.regenerateInvite(memberId, familyId);
+
+        ArgumentCaptor<String> codeCaptor = ArgumentCaptor.forClass(String.class);
+
+        ArgumentCaptor<String> tokenCaptor = ArgumentCaptor.forClass(String.class);
+
+        ArgumentCaptor<LocalDateTime> expiresCaptor = ArgumentCaptor.forClass(LocalDateTime.class);
+
+        verify(family).renewInvite(codeCaptor.capture(), tokenCaptor.capture(), expiresCaptor.capture());
+
+        assertThat(codeCaptor.getValue()).hasSize(6);
+
+        assertThat(tokenCaptor.getValue()).hasSize(32);
+
+        assertThat(expiresCaptor.getValue()).isAfter(LocalDateTime.now().plusDays(6));
+    }
+
+    @Test
+    @DisplayName("존재하지 않는 가족이면 예외가 발생한다.")
+    void regenerateInviteFamilyNotFound() {
+        Long memberId = 1L;
+        Long familyId = 10L;
+
+        when(memberRepository.findById(memberId)).thenReturn(Optional.of(member));
+
+        when(familyRepository.findById(familyId)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> familyService.regenerateInvite(memberId, familyId))
+                .isInstanceOf(ProjectException.class)
+                .extracting("errorCode")
+                .isEqualTo(FamilyErrorCode.NOT_FOUND);
+    }
+
+    @Test
+    @DisplayName("가족 구성원이 아니면 예외가 발생한다.")
+    void regenerateInviteForbidden() {
+        Long memberId = 1L;
+        Long familyId = 10L;
+
+        Member anotherMember = mock(Member.class);
+        Family anotherFamily = mock(Family.class);
+
+        when(memberRepository.findById(memberId)).thenReturn(Optional.of(member));
+
+        when(familyRepository.findById(familyId)).thenReturn(Optional.of(family));
+
+        when(member.getFamily()).thenReturn(anotherFamily);
+
+        when(family.getId()).thenReturn(familyId);
+
+        when(anotherFamily.getId()).thenReturn(20L);
+
+        assertThatThrownBy(() -> familyService.regenerateInvite(memberId, familyId))
+                .isInstanceOf(ProjectException.class)
+                .extracting("errorCode")
+                .isEqualTo(FamilyErrorCode.FORBIDDEN);
+    }
+
+    @Test
+    @DisplayName("가족 구성원이 초대 정보를 삭제할 수 있다.")
+    void deleteInviteSuccess() {
+        Long memberId = 1L;
+        Long familyId = 10L;
+
+        when(memberRepository.findById(memberId)).thenReturn(Optional.of(member));
+
+        when(familyRepository.findById(familyId)).thenReturn(Optional.of(family));
+
+        when(member.getFamily()).thenReturn(family);
+
+        when(family.getId()).thenReturn(familyId);
+
+        familyService.deleteInvite(memberId, familyId);
+
+        verify(family).clearInviteInfo();
+    }
+
+    @Test
+    @DisplayName("존재하지 않는 가족이면 초대 정보를 삭제할 수 없다.")
+    void deleteInviteFamilyNotFound() {
+        Long memberId = 1L;
+        Long familyId = 10L;
+
+        when(memberRepository.findById(memberId)).thenReturn(Optional.of(member));
+
+        when(familyRepository.findById(familyId)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> familyService.deleteInvite(memberId, familyId))
+                .isInstanceOf(FamilyException.class)
+                .extracting("errorCode")
+                .isEqualTo(FamilyErrorCode.NOT_FOUND);
+
+        verify(family, never()).clearInviteInfo();
+    }
+
+    @Test
+    @DisplayName("가족 구성원이 아니면 초대 정보를 삭제할 수 없다.")
+    void deleteInviteForbidden() {
+        Long memberId = 1L;
+        Long familyId = 10L;
+
+        Family anotherFamily = mock(Family.class);
+
+        when(memberRepository.findById(memberId)).thenReturn(Optional.of(member));
+
+        when(familyRepository.findById(familyId)).thenReturn(Optional.of(family));
+
+        when(member.getFamily()).thenReturn(anotherFamily);
+
+        when(family.getId()).thenReturn(familyId);
+
+        when(anotherFamily.getId()).thenReturn(20L);
+
+        assertThatThrownBy(() -> familyService.deleteInvite(memberId, familyId))
+                .isInstanceOf(ProjectException.class)
+                .extracting("errorCode")
+                .isEqualTo(FamilyErrorCode.FORBIDDEN);
+        verify(family, never()).clearInviteInfo();
     }
 }
