@@ -97,3 +97,9 @@ tour-api:
   read-timeout: 10s
   max-calls-per-run: 240
   sync-cron: "0 0 */6 * * *"
+
+aws:
+  s3:
+    region: ap-northeast-2
+    bucket: ${S3_BUCKET}
+    presigned-url-expiration: 5m
