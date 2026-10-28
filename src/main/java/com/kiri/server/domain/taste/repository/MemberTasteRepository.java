@@ -36,4 +36,6 @@ public interface MemberTasteRepository extends JpaRepository<MemberTaste, Long> 
         order by m.id
     """)
     List<Long> findMemberIdsByFamilyId(@Param("familyId") Long familyId);
+
+    void deleteAllByMemberId(Long memberId);
 }
