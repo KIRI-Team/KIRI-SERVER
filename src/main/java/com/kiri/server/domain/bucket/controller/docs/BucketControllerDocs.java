@@ -217,8 +217,8 @@ public interface BucketControllerDocs {
                     - memberId를 넣으면 그 구성원이 저장한 항목만 반환하고, 생략하면 전체를 반환합니다.
                     - savers는 필터 칩에 쓰는 현재 가족 구성원 목록이며, 구성원별 저장 개수(bucketCount)를 담습니다.
                       저장 개수는 memberId 필터나 페이지와 상관없이 가족 전체 기준입니다.
-                    - 저장한 회원이 탈퇴한 항목은 saver.withdrawn이 true이고 memberId·nickname·familyRole은 null입니다.
-                      이런 항목은 전체 조회에만 나오고 savers에는 포함되지 않습니다.
+                    - 저장한 회원이 탈퇴한 항목은 saver.withdrawn이 true이고 nickname은 '탈퇴한 사용자', familyRole은 null입니다.
+                      탈퇴한 회원은 savers에 포함되지 않으며, 그 회원이 저장한 항목은 전체 조회에서 확인합니다.
                     - schedulable은 SAVED이면서 미션이 공개 중(ACTIVE)이고 기간이 끝나지 않았을 때만 true입니다.
                     - 미션이 종료·취소·비공개로 바뀌어도 항목은 그대로 반환하며, mission.status로 구분합니다.
                     - scheduleId·scheduledDate는 일정 기능이 연결되기 전까지 null입니다.
@@ -295,8 +295,8 @@ public interface BucketControllerDocs {
                                               "status": "ENDED"
                                             },
                                             "saver": {
-                                              "memberId": null,
-                                              "nickname": null,
+                                              "memberId": 4,
+                                              "nickname": "탈퇴한 사용자",
                                               "familyRole": null,
                                               "withdrawn": true
                                             },

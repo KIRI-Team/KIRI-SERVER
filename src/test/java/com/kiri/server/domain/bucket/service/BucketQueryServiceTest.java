@@ -113,10 +113,10 @@ class BucketQueryServiceTest {
     }
 
     @Test
-    @DisplayName("필터 칩용 저장자는 현재 가족 구성원을 ID 순으로 담고, 저장하지 않은 구성원은 0개로 담는다.")
+    @DisplayName("필터 칩용 저장자는 탈퇴하지 않은 가족 구성원을 ID 순으로 담고, 저장하지 않은 구성원은 0개로 담는다.")
     void getFamilyBuckets_savers() {
         Member daughter = member(3L, "끼리딸", FamilyRole.DAUGHTER);
-        givenFamily(List.of(dad, daughter, mom), List.of(count(2L, 2L), count(MEMBER_ID, 1L)));
+        givenFamily(List.of(dad, daughter, mom), List.of(count(2L, 2L), count(MEMBER_ID, 1L), count(4L, 3L)));
         given(bucketItemRepository.findByFamilyIdAndIdLessThanOrderByIdDesc(FAMILY_ID, Long.MAX_VALUE, PageRequest.of(0, 21)))
                 .willReturn(List.of());
 
@@ -173,8 +173,28 @@ class BucketQueryServiceTest {
     }
 
     @Test
-    @DisplayName("저장한 회원이 탈퇴해 저장자가 비어 있으면 탈퇴 표시만 하고 저장자 정보는 null로 내려준다.")
+    @DisplayName("저장한 회원이 탈퇴했으면 탈퇴로 표시하고 닉네임은 '탈퇴한 사용자', 역할은 null로 내려준다.")
     void getFamilyBuckets_withdrawnSaver() {
+        Member withdrawn = Member.builder()
+                .id(4L)
+                .family(family)
+                .deletedAt(SAVED_AT)
+                .build();
+        givenFamily(List.of(mom, dad), List.of());
+        given(bucketItemRepository.findByFamilyIdAndIdLessThanOrderByIdDesc(FAMILY_ID, Long.MAX_VALUE, PageRequest.of(0, 21)))
+                .willReturn(List.of(item(31L, withdrawn, BucketStatus.COMPLETED, mission(MissionStatus.ACTIVE, null))));
+
+        BucketResDTO.FamilyBuckets result = bucketQueryService.getFamilyBuckets(MEMBER_ID, condition(null, null, null));
+
+        assertThat(result.bucketItems().getFirst().saver())
+                .extracting(BucketResDTO.Saver::memberId, BucketResDTO.Saver::nickname,
+                        BucketResDTO.Saver::familyRole, BucketResDTO.Saver::withdrawn)
+                .containsExactly(4L, "탈퇴한 사용자", null, true);
+    }
+
+    @Test
+    @DisplayName("저장자 회원이 삭제돼 비어 있으면 탈퇴로 표시하고 저장자 정보는 null로 내려준다.")
+    void getFamilyBuckets_deletedSaver() {
         givenFamily(List.of(mom, dad), List.of());
         given(bucketItemRepository.findByFamilyIdAndIdLessThanOrderByIdDesc(FAMILY_ID, Long.MAX_VALUE, PageRequest.of(0, 21)))
                 .willReturn(List.of(item(31L, null, BucketStatus.SAVED, mission(MissionStatus.ACTIVE, null))));
@@ -229,7 +249,7 @@ class BucketQueryServiceTest {
 
     private void givenFamily(List<Member> members, List<SaverBucketCount> counts) {
         given(memberRepository.findById(MEMBER_ID)).willReturn(Optional.of(mom));
-        given(memberRepository.findAllByFamily(family)).willReturn(members);
+        given(memberRepository.findAllByFamilyAndDeletedAtIsNull(family)).willReturn(members);
         given(bucketItemRepository.findSaverCounts(FAMILY_ID)).willReturn(counts);
     }
 
