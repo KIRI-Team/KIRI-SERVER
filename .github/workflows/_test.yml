@@ -45,14 +45,3 @@ jobs:
           GOOGLE_CLIENT_ID: test-google
           APPLE_CLIENT_ID: test-apple
           TOUR_API_KEY: tour-api-key
-
-      - name: Print test report
-        if: always()
-        run: |
-          echo "===== TEST REPORT ====="
-          find build/test-results/test -type f -name "*.xml" -print
-
-          for file in build/test-results/test/*.xml; do
-            echo "===== $file ====="
-            cat "$file"
-          done
