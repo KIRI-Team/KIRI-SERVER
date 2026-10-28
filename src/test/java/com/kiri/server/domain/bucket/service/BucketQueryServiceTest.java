@@ -227,6 +227,24 @@ class BucketQueryServiceTest {
                 .extracting("errorCode").isEqualTo(MemberErrorCode.NOT_FOUND);
     }
 
+    @Test
+    @DisplayName("로그인한 회원이 저장한 SAVED 항목만 삭제할 수 있고, 미션이 종료돼도 삭제할 수 있다.")
+    void getFamilyBuckets_deletable() {
+        givenFamily(List.of(mom, dad), List.of());
+        given(bucketItemRepository.findByFamilyIdAndIdLessThanOrderByIdDesc(FAMILY_ID, Long.MAX_VALUE, PageRequest.of(0, 21)))
+                .willReturn(List.of(
+                        item(50L, mom, BucketStatus.SAVED, mission(MissionStatus.ENDED, TODAY.minusDays(1))),
+                        item(40L, mom, BucketStatus.SCHEDULED, mission(MissionStatus.ACTIVE, null)),
+                        item(30L, mom, BucketStatus.COMPLETED, mission(MissionStatus.ACTIVE, null)),
+                        item(20L, dad, BucketStatus.SAVED, mission(MissionStatus.ACTIVE, null)),
+                        item(10L, null, BucketStatus.SAVED, mission(MissionStatus.ACTIVE, null))));
+
+        BucketResDTO.FamilyBuckets result = bucketQueryService.getFamilyBuckets(MEMBER_ID, condition(null, null, null));
+
+        assertThat(result.bucketItems()).extracting(BucketResDTO.FamilyBucketItem::deletable)
+                .containsExactly(true, false, false, false, false);
+    }
+
     private void givenFamily(List<Member> members, List<SaverBucketCount> counts) {
         given(memberRepository.findById(MEMBER_ID)).willReturn(Optional.of(mom));
         given(memberRepository.findAllByFamily(family)).willReturn(members);
