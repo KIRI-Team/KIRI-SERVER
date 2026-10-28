@@ -1,5 +1,6 @@
 package com.kiri.server.domain.bucket.controller.docs;
 
+import com.kiri.server.domain.bucket.dto.BucketReqDTO;
 import com.kiri.server.domain.bucket.dto.BucketResDTO;
 import com.kiri.server.global.apiPayload.ApiResponse;
 import io.swagger.v3.oas.annotations.Operation;
@@ -8,6 +9,8 @@ import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.ExampleObject;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
+import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.PathVariable;
 
@@ -195,5 +198,212 @@ public interface BucketControllerDocs {
     ApiResponse<BucketResDTO.Saved> saveBucket(
             @Parameter(hidden = true) @AuthenticationPrincipal Long memberId,
             @PathVariable Long missionId
+    );
+
+    @Operation(
+            summary = "가족 버킷리스트 조회 API",
+            description = """
+                    # 가족 버킷리스트 조회
+
+                    ## 요청 형식
+                    - 헤더: Authorization: Bearer {JWT 토큰}
+                    - Query: memberId, cursor, size (모두 선택)
+
+                    로그인한 회원의 현재 가족공간 구성원들이 저장한 버킷 항목을 모아서 조회합니다.
+                    SAVED·SCHEDULED·COMPLETED 항목을 모두 최신 저장순으로 반환합니다.
+
+                    ## 조회 규칙
+                    - 가족공간에 소속된 회원만 조회할 수 있습니다. 둘러보기 회원은 BUCKET403_1입니다.
+                    - memberId를 넣으면 그 구성원이 저장한 항목만 반환하고, 생략하면 전체를 반환합니다.
+                    - savers는 필터 칩에 쓰는 현재 가족 구성원 목록이며, 구성원별 저장 개수(bucketCount)를 담습니다.
+                      저장 개수는 memberId 필터나 페이지와 상관없이 가족 전체 기준입니다.
+                    - 저장한 회원이 탈퇴한 항목은 saver.withdrawn이 true이고 memberId·nickname·familyRole은 null입니다.
+                      이런 항목은 전체 조회에만 나오고 savers에는 포함되지 않습니다.
+                    - schedulable은 SAVED이면서 미션이 공개 중(ACTIVE)이고 기간이 끝나지 않았을 때만 true입니다.
+                    - 미션이 종료·취소·비공개로 바뀌어도 항목은 그대로 반환하며, mission.status로 구분합니다.
+                    - scheduleId·scheduledDate는 일정 기능이 연결되기 전까지 null입니다.
+
+                    ## 페이지
+                    첫 조회는 cursor 없이 요청하고, 다음 조회부터 응답의 nextCursor를 넣습니다. hasNext가 false면 마지막입니다.
+                    """
+    )
+    @ApiResponses(value = {
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200",
+                    description = "조회 성공",
+                    content = @Content(
+                            mediaType = "application/json",
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "isSuccess": true,
+                                      "code": "BUCKET200_1",
+                                      "message": "가족 버킷리스트를 조회했습니다.",
+                                      "result": {
+                                        "savers": [
+                                          {
+                                            "memberId": 1,
+                                            "nickname": "끼리엄마",
+                                            "familyRole": "MOTHER",
+                                            "bucketCount": 1
+                                          },
+                                          {
+                                            "memberId": 2,
+                                            "nickname": "끼리아빠",
+                                            "familyRole": "FATHER",
+                                            "bucketCount": 2
+                                          },
+                                          {
+                                            "memberId": 3,
+                                            "nickname": "끼리딸",
+                                            "familyRole": "DAUGHTER",
+                                            "bucketCount": 1
+                                          }
+                                        ],
+                                        "bucketItems": [
+                                          {
+                                            "bucketItemId": 42,
+                                            "status": "SAVED",
+                                            "savedAt": "2026-10-27T19:40:12.345",
+                                            "completedAt": null,
+                                            "mission": {
+                                              "missionId": 130,
+                                              "title": "광장시장에서 시장음식 먹어보기",
+                                              "imageUrl": "https://tong.visitkorea.or.kr/cms/resource/00/0000000_image2_1.jpg",
+                                              "imageSource": "한국관광공사 (공공누리 제1유형)",
+                                              "status": "ACTIVE"
+                                            },
+                                            "saver": {
+                                              "memberId": 2,
+                                              "nickname": "끼리아빠",
+                                              "familyRole": "FATHER",
+                                              "withdrawn": false
+                                            },
+                                            "schedulable": true,
+                                            "scheduleId": null,
+                                            "scheduledDate": null
+                                          },
+                                          {
+                                            "bucketItemId": 31,
+                                            "status": "SAVED",
+                                            "savedAt": "2026-10-20T10:05:00",
+                                            "completedAt": null,
+                                            "mission": {
+                                              "missionId": 98,
+                                              "title": "한강 뚜벅뚜벅 축제 방문하기",
+                                              "imageUrl": null,
+                                              "imageSource": null,
+                                              "status": "ENDED"
+                                            },
+                                            "saver": {
+                                              "memberId": null,
+                                              "nickname": null,
+                                              "familyRole": null,
+                                              "withdrawn": true
+                                            },
+                                            "schedulable": false,
+                                            "scheduleId": null,
+                                            "scheduledDate": null
+                                          }
+                                        ],
+                                        "nextCursor": 31,
+                                        "hasNext": true
+                                      }
+                                    }
+                                    """)
+                    )
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "400",
+                    description = "파라미터 형식 오류 - size 범위 밖, memberId·cursor가 숫자가 아님(COMMON400_1)",
+                    content = @Content(
+                            mediaType = "application/json",
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "isSuccess": false,
+                                      "code": "COMMON400_1",
+                                      "message": "잘못된 요청입니다.",
+                                      "result": {
+                                        "size": "size는 1 이상 50 이하여야 합니다."
+                                      }
+                                    }
+                                    """)
+                    )
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "401",
+                    description = "인증 실패 - 토큰 미삽입(COMMON401_1) / 유효하지 않은 토큰(AUTH401_1) / 토큰 만료(AUTH401_2)",
+                    content = @Content(
+                            mediaType = "application/json",
+                            examples = {
+                                    @ExampleObject(
+                                            name = "토큰 미삽입",
+                                            value = """
+                                                    {
+                                                      "isSuccess": false,
+                                                      "code": "COMMON401_1",
+                                                      "message": "인증이 필요합니다.",
+                                                      "result": null
+                                                    }
+                                                    """
+                                    ),
+                                    @ExampleObject(
+                                            name = "유효하지 않은 토큰",
+                                            value = """
+                                                    {
+                                                      "isSuccess": false,
+                                                      "code": "AUTH401_1",
+                                                      "message": "유효하지 않은 토큰입니다.",
+                                                      "result": null
+                                                    }
+                                                    """
+                                    ),
+                                    @ExampleObject(
+                                            name = "토큰 만료",
+                                            value = """
+                                                    {
+                                                      "isSuccess": false,
+                                                      "code": "AUTH401_2",
+                                                      "message": "토큰이 만료되었습니다",
+                                                      "result": null
+                                                    }
+                                                    """
+                                    )
+                            }
+                    )
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "403",
+                    description = "가족공간에 소속되지 않은 회원(BUCKET403_1)",
+                    content = @Content(
+                            mediaType = "application/json",
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "isSuccess": false,
+                                      "code": "BUCKET403_1",
+                                      "message": "가족공간에 소속된 회원만 이용할 수 있습니다.",
+                                      "result": null
+                                    }
+                                    """)
+                    )
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "404",
+                    description = "토큰의 회원이 없음(MEMBER404_1)",
+                    content = @Content(
+                            mediaType = "application/json",
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "isSuccess": false,
+                                      "code": "MEMBER404_1",
+                                      "message": "존재하지 않는 회원입니다.",
+                                      "result": null
+                                    }
+                                    """)
+                    )
+            )
+    })
+    ApiResponse<BucketResDTO.FamilyBuckets> getFamilyBuckets(
+            @Parameter(hidden = true) @AuthenticationPrincipal Long memberId,
+            @Valid @ParameterObject BucketReqDTO.FamilyBucketCondition condition
     );
 }

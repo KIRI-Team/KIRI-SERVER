@@ -4,6 +4,7 @@ import com.kiri.server.domain.bucket.dto.BucketResDTO;
 import com.kiri.server.domain.bucket.enums.BucketStatus;
 import com.kiri.server.domain.bucket.exception.BucketException;
 import com.kiri.server.domain.bucket.exception.code.BucketErrorCode;
+import com.kiri.server.domain.bucket.service.BucketQueryService;
 import com.kiri.server.domain.bucket.service.BucketService;
 import com.kiri.server.domain.mission.exception.MissionException;
 import com.kiri.server.domain.mission.exception.code.MissionErrorCode;
@@ -46,6 +47,9 @@ class BucketControllerTest {
 
     @MockitoBean
     private BucketService bucketService;
+
+    @MockitoBean
+    private BucketQueryService bucketQueryService;
 
     private String bearerToken;
 
