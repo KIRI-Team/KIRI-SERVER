@@ -47,6 +47,7 @@ public class FamilyService {
         familyRepository.save(family);
 
         member.assignFamily(family);
+        member.joinFamily(family);
 
         eventPublisher.publishEvent(new FamilyCreatedEvent(family.getId()));
 

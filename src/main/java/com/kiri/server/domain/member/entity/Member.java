@@ -104,6 +104,7 @@ public class Member extends BaseEntity {
         this.socialProvider = null;
         this.socialProviderUid = null;
         this.refreshTokenHash = null;
+        this.familyRole = null;
     }
 
     public boolean isWithdrawn() {
