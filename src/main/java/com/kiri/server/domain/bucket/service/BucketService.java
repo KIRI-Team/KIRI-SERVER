@@ -63,8 +63,33 @@ public class BucketService {
         return BucketConverter.toSaved(item);
     }
 
+    @Transactional
+    public void deleteBucket(Long memberId, Long bucketItemId) {
+        Member member = memberRepository.findById(memberId)
+                .orElseThrow(() -> new MemberException(MemberErrorCode.NOT_FOUND));
+        BucketItem item = bucketItemRepository.findByIdForUpdate(bucketItemId)
+                .filter(found -> isSameFamily(found, member.getFamily()))
+                .orElseThrow(() -> new BucketException(BucketErrorCode.NOT_FOUND));
+
+        if (item.getMember() == null || !item.getMember().getId().equals(memberId)) {
+            throw new BucketException(BucketErrorCode.NOT_OWNER);
+        }
+        if (item.getStatus() == BucketStatus.SCHEDULED) {
+            throw new BucketException(BucketErrorCode.SCHEDULED_NOT_DELETABLE);
+        }
+        if (item.getStatus() == BucketStatus.COMPLETED) {
+            throw new BucketException(BucketErrorCode.COMPLETED_NOT_DELETABLE);
+        }
+
+        bucketItemRepository.delete(item);
+    }
+
     private boolean isSavable(Mission mission) {
         return mission.getStatus() == MissionStatus.ACTIVE
                 && (mission.getEndDate() == null || !mission.getEndDate().isBefore(LocalDate.now(clock)));
+    }
+
+    private boolean isSameFamily(BucketItem item, Family family) {
+        return family != null && item.getFamily().getId().equals(family.getId());
     }
 }

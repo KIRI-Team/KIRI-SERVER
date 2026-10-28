@@ -406,4 +406,180 @@ public interface BucketControllerDocs {
             @Parameter(hidden = true) @AuthenticationPrincipal Long memberId,
             @Valid @ParameterObject BucketReqDTO.FamilyBucketCondition condition
     );
+
+    @Operation(
+            summary = "버킷리스트 항목 삭제 API",
+            description = """
+                    # 버킷리스트 항목 삭제
+
+                    ## 요청 형식
+                    - 헤더: Authorization: Bearer {JWT 토큰}
+                    - Path: bucketItemId
+                    - Body: 없음
+
+                    로그인한 회원이 저장한 버킷 항목을 삭제합니다. 삭제한 뒤에는 같은 미션을 다시 저장할 수 있습니다.
+
+                    ## 삭제 규칙
+                    - 없는 항목이거나 다른 가족의 항목이면 BUCKET404_1입니다.
+                    - 같은 가족의 항목이라도 본인이 저장한 항목이 아니면 BUCKET403_2입니다. 저장한 회원이 탈퇴한 항목도 같습니다.
+                    - 일정이 잡힌 항목(SCHEDULED)은 BUCKET409_3입니다. 일정을 취소하면 SAVED로 돌아와 삭제할 수 있습니다.
+                    - 완료된 항목(COMPLETED)은 완료 기록으로 남기므로 BUCKET409_4입니다.
+                    - 가족 버킷리스트 조회 응답에서 deletable이 true인 항목만 삭제할 수 있습니다.
+                    """
+    )
+    @ApiResponses(value = {
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200",
+                    description = "삭제 성공",
+                    content = @Content(
+                            mediaType = "application/json",
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "isSuccess": true,
+                                      "code": "BUCKET200_2",
+                                      "message": "버킷리스트에서 삭제했습니다.",
+                                      "result": null
+                                    }
+                                    """)
+                    )
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "400",
+                    description = "bucketItemId 형식 오류(COMMON400_1)",
+                    content = @Content(
+                            mediaType = "application/json",
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "isSuccess": false,
+                                      "code": "COMMON400_1",
+                                      "message": "잘못된 요청입니다.",
+                                      "result": null
+                                    }
+                                    """)
+                    )
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "401",
+                    description = "인증 실패 - 토큰 미삽입(COMMON401_1) / 유효하지 않은 토큰(AUTH401_1) / 토큰 만료(AUTH401_2)",
+                    content = @Content(
+                            mediaType = "application/json",
+                            examples = {
+                                    @ExampleObject(
+                                            name = "토큰 미삽입",
+                                            value = """
+                                                    {
+                                                      "isSuccess": false,
+                                                      "code": "COMMON401_1",
+                                                      "message": "인증이 필요합니다.",
+                                                      "result": null
+                                                    }
+                                                    """
+                                    ),
+                                    @ExampleObject(
+                                            name = "유효하지 않은 토큰",
+                                            value = """
+                                                    {
+                                                      "isSuccess": false,
+                                                      "code": "AUTH401_1",
+                                                      "message": "유효하지 않은 토큰입니다.",
+                                                      "result": null
+                                                    }
+                                                    """
+                                    ),
+                                    @ExampleObject(
+                                            name = "토큰 만료",
+                                            value = """
+                                                    {
+                                                      "isSuccess": false,
+                                                      "code": "AUTH401_2",
+                                                      "message": "토큰이 만료되었습니다",
+                                                      "result": null
+                                                    }
+                                                    """
+                                    )
+                            }
+                    )
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "403",
+                    description = "본인이 저장한 항목이 아님(BUCKET403_2)",
+                    content = @Content(
+                            mediaType = "application/json",
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "isSuccess": false,
+                                      "code": "BUCKET403_2",
+                                      "message": "본인이 저장한 버킷 항목만 삭제할 수 있습니다.",
+                                      "result": null
+                                    }
+                                    """)
+                    )
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "404",
+                    description = "토큰의 회원이 없음(MEMBER404_1) / 없거나 다른 가족의 버킷 항목(BUCKET404_1)",
+                    content = @Content(
+                            mediaType = "application/json",
+                            examples = {
+                                    @ExampleObject(
+                                            name = "회원 없음",
+                                            value = """
+                                                    {
+                                                      "isSuccess": false,
+                                                      "code": "MEMBER404_1",
+                                                      "message": "존재하지 않는 회원입니다.",
+                                                      "result": null
+                                                    }
+                                                    """
+                                    ),
+                                    @ExampleObject(
+                                            name = "버킷 항목 없음",
+                                            value = """
+                                                    {
+                                                      "isSuccess": false,
+                                                      "code": "BUCKET404_1",
+                                                      "message": "존재하지 않는 버킷 항목입니다.",
+                                                      "result": null
+                                                    }
+                                                    """
+                                    )
+                            }
+                    )
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "409",
+                    description = "일정이 잡힌 항목(BUCKET409_3) / 완료된 항목(BUCKET409_4)",
+                    content = @Content(
+                            mediaType = "application/json",
+                            examples = {
+                                    @ExampleObject(
+                                            name = "일정이 잡힌 항목",
+                                            value = """
+                                                    {
+                                                      "isSuccess": false,
+                                                      "code": "BUCKET409_3",
+                                                      "message": "일정이 잡힌 버킷 항목은 일정을 취소한 뒤 삭제할 수 있습니다.",
+                                                      "result": null
+                                                    }
+                                                    """
+                                    ),
+                                    @ExampleObject(
+                                            name = "완료된 항목",
+                                            value = """
+                                                    {
+                                                      "isSuccess": false,
+                                                      "code": "BUCKET409_4",
+                                                      "message": "완료된 버킷 항목은 삭제할 수 없습니다.",
+                                                      "result": null
+                                                    }
+                                                    """
+                                    )
+                            }
+                    )
+            )
+    })
+    ApiResponse<Void> deleteBucket(
+            @Parameter(hidden = true) @AuthenticationPrincipal Long memberId,
+            @PathVariable Long bucketItemId
+    );
 }
