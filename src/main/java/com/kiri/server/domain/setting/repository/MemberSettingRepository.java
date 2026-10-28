@@ -6,4 +6,5 @@ import org.springframework.stereotype.Repository;
 
 @Repository
 public interface MemberSettingRepository extends JpaRepository<MemberSetting, Long> {
+    void deleteAllByMemberId(Long memberId);
 }
