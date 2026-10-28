@@ -123,7 +123,7 @@ public interface BucketControllerDocs {
                                     {
                                       "isSuccess": false,
                                       "code": "BUCKET403_1",
-                                      "message": "가족공간에 소속된 회원만 저장할 수 있습니다.",
+                                      "message": "가족공간에 소속된 회원만 이용할 수 있습니다.",
                                       "result": null
                                     }
                                     """)
