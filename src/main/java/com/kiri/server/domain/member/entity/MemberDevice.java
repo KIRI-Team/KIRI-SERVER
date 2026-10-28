@@ -1,11 +1,15 @@
 package com.kiri.server.domain.member.entity;
 
+import com.kiri.server.domain.member.enums.DeviceType;
 import com.kiri.server.global.entity.BaseEntity;
 import jakarta.persistence.*;
 import lombok.*;
 
 @Entity
-@Table(name = "member_device")
+@Table(name = "member_device",
+        uniqueConstraints = {
+                @UniqueConstraint(name = "uk_member_device", columnNames = {"member_id", "device_identifier"})
+        })
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @Builder
@@ -20,4 +24,19 @@ public class MemberDevice extends BaseEntity {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "member_id", nullable = false)
     private Member member;
+
+    @Column(name = "fcm_token", nullable = false, length = 255)
+    private String fcmToken;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "device_type", nullable = false)
+    private DeviceType deviceType;
+
+    @Column(name = "device_identifier", nullable = false, length = 255)
+    private String deviceIdentifier;
+
+    public void update(String fcmToken, DeviceType deviceType) {
+        this.fcmToken = fcmToken;
+        this.deviceType = deviceType;
+    }
 }
