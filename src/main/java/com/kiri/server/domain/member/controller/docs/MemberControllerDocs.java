@@ -615,8 +615,6 @@ public interface MemberControllerDocs {
                     - **Header**
                         - Authorization: Bearer {Access_Token}
                         - Content-Type: application/json
-                    - **Body**
-                        - nickname: 설정할 닉네임
                     
                     ## 동작 방식
                     1. Access Token으로 현재 회원을 인증합니다.
@@ -719,4 +717,121 @@ public interface MemberControllerDocs {
             ),
     })
     ApiResponse<Void> logout(@Parameter(hidden = true) @AuthenticationPrincipal Long memberId);
+
+    // 회원 탈퇴
+    @Operation(
+            summary = "회원 탈퇴 API",
+            description = """
+                    # 회원 탈퇴
+                    로그인 회원의 계정/관련 데이터를 삭제합니다.
+                    
+                    ## 요청 형식
+                    - **Header**
+                        - Authorization: Bearer {Access_Token}
+                        - Content-Type: application/json
+                    
+                    ## 동작 방식
+                    1. 로그인한 회원의 탈퇴 요청을 처리합니다.
+                    2. 회원 정보는 물리적으로 삭제하지 않고 탈퇴 처리(`deletedAt`)합니다.
+                    3. 탈퇴한 회원의 개인정보 및 회원 종속 데이터는 삭제합니다.
+                    4. 질문 답변, 리뷰, 일정 참여 기록, 버킷리스트 등 기존 서비스 이용 이력은 보존합니다.
+                    5. 기존 이용 이력에서 탈퇴한 회원은 **"탈퇴한 사용자"**로 표시됩니다.
+                    6. 탈퇴한 회원이 가족의 방장인 경우, 가족에 남아 있는 활성 회원 중 가장 먼저 가입한 회원에게 방장 권한을 승계합니다.
+                    """
+    )
+    @ApiResponses(value = {
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200",
+                    description = "성공 예시",
+                    content = @Content(
+                            mediaType = "application/json",
+                            examples = @ExampleObject(
+                                    value = """
+                                    {
+                                        "isSuccess": true,
+                                        "code": "MEMBER200_2",
+                                        "message": "회원 탈퇴가 완료되었습니다.",
+                                        "result": null
+                                    }
+                                    """
+                            )
+                    )
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "401",
+                    description = "인증 실패 (Authorization 헤더 누락, 유효하지 않은 토큰, 만료된 토큰)",
+                    content = @Content(
+                            mediaType = "application/json",
+                            examples = {
+                                    @ExampleObject(
+                                            name = "Authorization 헤더 없음",
+                                            value = """
+                                            {
+                                                "isSuccess": false,
+                                                "code": "COMMON401_1",
+                                                "message": "인증이 필요합니다.",
+                                                "result": null
+                                            }
+                                            """
+                                    ),
+                                    @ExampleObject(
+                                            name = "위조·형식 오류·refresh 토큰 사용",
+                                            value = """
+                                            {
+                                                "isSuccess": false,
+                                                "code": "AUTH401_1",
+                                                "message": "유효하지 않은 토큰입니다.",
+                                                "result": null
+                                            }
+                                            """
+                                    ),
+                                    @ExampleObject(
+                                            name = "accessToken 만료",
+                                            value = """
+                                            {
+                                                "isSuccess": false,
+                                                "code": "AUTH401_2",
+                                                "message": "토큰이 만료되었습니다",
+                                                "result": null
+                                            }
+                                            """
+                                    )
+                            }
+                    )
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "404",
+                    description = "memberId에 해당하는 회원 없음",
+                    content = @Content(
+                            mediaType = "application/json",
+                            examples = @ExampleObject(
+                                    value = """
+                                    {
+                                        "isSuccess": false,
+                                        "code": "MEMBER404_1",
+                                        "message": "존재하지 않는 회원입니다.",
+                                        "result": null
+                                    }
+                                    """
+                            )
+                    )
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "500",
+                    description = "서버 오류",
+                    content = @Content(
+                            mediaType = "application/json",
+                            examples = @ExampleObject(value = """
+                                    {
+                                        "isSuccess": false,
+                                        "code": "COMMON500_1",
+                                        "message": "서버 내부 오류가 발생했습니다.",
+                                        "result": null
+                                    }
+                                    """
+                            )
+                    )
+            ),
+    })
+    ApiResponse<Void> withdraw(@Parameter(hidden = true) @AuthenticationPrincipal Long memberId);
 }

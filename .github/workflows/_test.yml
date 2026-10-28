@@ -44,3 +44,4 @@ jobs:
           KAKAO_NATIVE_APP_KEY: test-kakao-key
           GOOGLE_CLIENT_ID: test-google
           APPLE_CLIENT_ID: test-apple
+          TOUR_API_KEY: tour-api-key

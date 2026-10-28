@@ -531,7 +531,11 @@ public interface FamilyControllerDocs {
                                         "isSuccess": true,
                                         "code": "FAMILY200_2",
                                         "message": "가족 초대 정보가 삭제되었습니다.",
-                                        "result": null
+                                        "result": {
+                                            "inviteCode": "NWTKYJ"
+                                        	"inviteUrl": "https://kiri.app/invite/...",
+                                        	"inviteExpiresAt": "2026-10-14T11:51:36"
+                                        }
                                     }
                                     """
                             )
@@ -581,7 +585,7 @@ public interface FamilyControllerDocs {
             ),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
                     responseCode = "403",
-                    description = "요청한 가족의 구성원이 아닌 사용자가 초대 정보를 재생성하려는 경우",
+                    description = "요청한 가족의 구성원이 아닌 사용자가 초대 정보를 조회하려는 경우",
                     content = @Content(
                             mediaType = "application/json",
                             examples = @ExampleObject(value = """
