@@ -1,6 +1,7 @@
 package com.kiri.server.domain.question.service;
 
 import com.kiri.server.domain.family.entity.Family;
+import com.kiri.server.domain.family.repository.FamilyRepository;
 import com.kiri.server.domain.member.entity.Member;
 import com.kiri.server.domain.member.exception.MemberException;
 import com.kiri.server.domain.member.exception.code.MemberErrorCode;
@@ -10,32 +11,44 @@ import com.kiri.server.domain.question.dto.QuestionReqDTO;
 import com.kiri.server.domain.question.dto.QuestionResDTO;
 import com.kiri.server.domain.question.entity.FamilyQuestion;
 import com.kiri.server.domain.question.entity.MemberAnswer;
+import com.kiri.server.domain.question.entity.Question;
+import com.kiri.server.domain.question.enums.TasteType;
 import com.kiri.server.domain.question.event.PokeEvent;
 import com.kiri.server.domain.question.exception.QuestionException;
 import com.kiri.server.domain.question.exception.code.QuestionErrorCode;
 import com.kiri.server.domain.question.repository.FamilyQuestionRepository;
 import com.kiri.server.domain.question.repository.MemberAnswerRepository;
 import com.kiri.server.domain.question.repository.PokeRepository;
+import com.kiri.server.domain.question.repository.QuestionRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.postgresql.util.PSQLException;
 import org.postgresql.util.ServerErrorMessage;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
 import java.time.LocalDate;
+import java.time.temporal.ChronoUnit;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class QuestionService {
+
+    // 가족 생성일을 1일차로 보고 7일차까지 고정 질문 배정
+    private static final int LAST_FIXED_DAY = 7;
 
     private final MemberRepository memberRepository;
     private final FamilyQuestionRepository familyQuestionRepository;
@@ -43,6 +56,8 @@ public class QuestionService {
     private final Clock clock;
     private final PokeRepository pokeRepository;
     private final ApplicationEventPublisher eventPublisher;
+    private final FamilyRepository familyRepository;
+    private final QuestionRepository questionRepository;
 
     @Transactional(readOnly = true)
     public QuestionResDTO.TodayQuestion getTodayQuestion(Long memberId) {
@@ -198,5 +213,72 @@ public class QuestionService {
         }
         ServerErrorMessage serverError = psqlException.getServerErrorMessage();
         return serverError != null && "uk_poke_sender_receiver_date".equals(serverError.getConstraint());
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void assign(Long familyId, LocalDate date) {
+
+        Optional<Family> foundFamily = familyRepository.findById(familyId);
+        if (foundFamily.isEmpty()) {
+            log.warn("질문 배정 대상 가족 없음 familyId={}", familyId);
+            return;
+        }
+        Family family = foundFamily.get();
+
+        // 이미 배정된 날짜면 건너뜀
+        if (familyQuestionRepository.existsByFamilyAndQuestionDate(family, date)) {
+            return;
+        }
+
+        // 가족 생성일이 1일차
+        int day = (int) ChronoUnit.DAYS.between(family.getCreatedAt().toLocalDate(), date) + 1;
+        if (day < 1) {
+            return;
+        }
+
+        Optional<Question> question = pickFixed(day).or(() -> pickFromPool(family));
+        if (question.isEmpty()) {
+            log.warn("배정 가능한 질문 없음 familyId={}, date={}", familyId, date);
+            return;
+        }
+
+        familyQuestionRepository.save(QuestionConverter.toFamilyQuestion(family, question.get(), date));
+    }
+
+    // 1~7일차 고정 질문
+    private Optional<Question> pickFixed(int day) {
+        if (day > LAST_FIXED_DAY) {
+            return Optional.empty();
+        }
+        return questionRepository.findByFixedDayAndIsActiveTrue(day);
+    }
+
+    // 미사용 질문 중 가족이 적게 받은 취향 종류에서 무작위로, 다 썼으면 가장 오래전 받은 질문 재배정
+    private Optional<Question> pickFromPool(Family family) {
+
+        List<Question> unused = questionRepository.findUnassignedPoolQuestions(family);
+        if (unused.isEmpty()) {
+            return questionRepository.findAssignedPoolQuestionsOrderByLastAssigned(family).stream().findFirst();
+        }
+
+        Map<TasteType, Long> assignedCount = countAssignedByTasteType(family);
+        long min = unused.stream()
+                .mapToLong(q -> assignedCount.getOrDefault(q.getTasteType(), 0L))
+                .min()
+                .orElseThrow();
+
+        List<Question> candidates = unused.stream()
+                .filter(q -> assignedCount.getOrDefault(q.getTasteType(), 0L) == min)
+                .toList();
+
+        return Optional.of(candidates.get(ThreadLocalRandom.current().nextInt(candidates.size())));
+    }
+
+    // 일반 질문은 null 키로 집계
+    private Map<TasteType, Long> countAssignedByTasteType(Family family) {
+        Map<TasteType, Long> counts = new HashMap<>();
+        familyQuestionRepository.countAssignedByTasteType(family)
+                .forEach(c -> counts.put(c.getTasteType(), c.getAssignedCount()));
+        return counts;
     }
 }

@@ -1,10 +1,12 @@
 package com.kiri.server.domain.question.converter;
 
+import com.kiri.server.domain.family.entity.Family;
 import com.kiri.server.domain.member.entity.Member;
 import com.kiri.server.domain.question.dto.QuestionResDTO;
 import com.kiri.server.domain.question.entity.FamilyQuestion;
 import com.kiri.server.domain.question.entity.MemberAnswer;
 import com.kiri.server.domain.question.entity.Poke;
+import com.kiri.server.domain.question.entity.Question;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -70,6 +72,14 @@ public class QuestionConverter {
                 .sender(sender)
                 .receiver(receiver)
                 .pokeDate(pokeDate)
+                .build();
+    }
+
+    public static FamilyQuestion toFamilyQuestion(Family family, Question question, LocalDate questionDate) {
+        return FamilyQuestion.builder()
+                .family(family)
+                .question(question)
+                .questionDate(questionDate)
                 .build();
     }
 }
