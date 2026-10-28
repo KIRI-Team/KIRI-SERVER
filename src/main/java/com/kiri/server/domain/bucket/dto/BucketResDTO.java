@@ -47,6 +47,7 @@ public class BucketResDTO {
             MissionSummary mission,
             Saver saver,
             Boolean schedulable,
+            Boolean deletable,
             Long scheduleId,
             LocalDate scheduledDate
     ) {
