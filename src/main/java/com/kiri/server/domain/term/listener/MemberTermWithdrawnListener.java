@@ -13,7 +13,6 @@ public class MemberTermWithdrawnListener {
 
     private final MemberTermRepository memberTermRepository;
 
-    @Order(4)
     @EventListener
     public void handle(MemberWithdrawnEvent event) {
         Long memberId = event.memberId();

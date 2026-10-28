@@ -139,7 +139,7 @@ public class MemberService {
             }
         }
 
-        applicationEventPublisher.publishEvent(new MemberWithdrawnEvent(memberId));
         member.withdraw();
+        applicationEventPublisher.publishEvent(new MemberWithdrawnEvent(memberId));
     }
 }
