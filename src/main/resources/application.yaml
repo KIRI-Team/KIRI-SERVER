@@ -101,5 +101,6 @@ tour-api:
 aws:
   s3:
     region: ap-northeast-2
-    bucket: ${S3_BUCKET}
+    bucket: ${S3_IMAGE_BUCKET}
     presigned-url-expiration: 5m
+    max-upload-size: 10MB

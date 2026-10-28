@@ -1,6 +1,7 @@
 package com.kiri.server.global.s3;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.util.unit.DataSize;
 
 import java.time.Duration;
 
@@ -8,6 +9,7 @@ import java.time.Duration;
 public record S3Properties(
         String region,
         String bucket,
-        Duration presignedUrlExpiration
+        Duration presignedUrlExpiration,
+        DataSize maxUploadSize
 ) {
 }
