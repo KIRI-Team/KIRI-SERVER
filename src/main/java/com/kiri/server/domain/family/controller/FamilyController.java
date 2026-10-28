@@ -59,4 +59,15 @@ public class FamilyController implements FamilyControllerDocs {
         BaseSuccessCode code = FamilySuccessCode.INVITE_FOUND;
         return ApiResponse.onSuccess(code, familyService.getInvite(memberId, familyId));
     }
+
+    @Override
+    @PatchMapping("/{familyId}")
+    public ApiResponse<FamilyResDTO.UpdateName> updateFamilyName(
+            @AuthenticationPrincipal Long memberId,
+            @PathVariable Long familyId,
+            @Valid @RequestBody FamilyReqDTO.UpdateName dto
+    ) {
+        BaseSuccessCode code = FamilySuccessCode.NAME_UPDATED;
+        return ApiResponse.onSuccess(code, familyService.updateFamilyName(memberId, familyId, dto));
+    }
 }

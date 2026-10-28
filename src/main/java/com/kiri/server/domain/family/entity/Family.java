@@ -82,6 +82,10 @@ public class Family extends BaseEntity {
         this.inviteExpiresAt = null;
     }
 
+    public void updateName(String name) {
+        this.name = name;
+    }
+
     public boolean isOwner(Member member) {
         return this.owner.equals(member);
     }

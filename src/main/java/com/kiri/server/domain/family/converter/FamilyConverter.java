@@ -35,4 +35,11 @@ public class FamilyConverter {
                 .inviteExpiresAt(family.getInviteExpiresAt())
                 .build();
     }
+
+    public static FamilyResDTO.UpdateName toUpdateNameResponse(Family family) {
+        return FamilyResDTO.UpdateName.builder()
+                .familyId(family.getId())
+                .name(family.getName())
+                .build();
+    }
 }

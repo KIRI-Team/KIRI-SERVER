@@ -92,7 +92,7 @@ public interface FamilyControllerDocs {
                                                         "code": "COMMON400_1",
                                                         "message": "잘못된 요청입니다.",
                                                         "result": {
-                                                            "name": "가족 이름은 2자 이상 20자 이하이며 특수문자를 사용할 수 없습니다."
+                                                            "name": "가족 이름은 2자 이상 15자 이하이며 특수문자를 사용할 수 없습니다."
                                                         }
                                                     }
                                                     """
@@ -648,4 +648,213 @@ public interface FamilyControllerDocs {
             ),
     })
     ApiResponse<FamilyResDTO.Invite> getInvite(@Parameter(hidden = true) @AuthenticationPrincipal Long memberId, @PathVariable Long familyId);
+
+    // 가족명 변경
+    @Operation(
+            summary = "가족명 변경 API",
+            description = """
+                    # 가족명 변경
+                    가족 공간의 이름을 변경합니다.
+                    
+                    ## 요청 형식
+                    - **Header**
+                        - Authorization: Bearer {Access_Token}
+                        - Content-Type: application/json
+                    - **Body**
+                        - name: 가족명
+                    - **Path Variable**
+                        - familyId: 가족 ID
+                    
+                    ## 동작 방식
+                    1. Access Token을 통해 인증된 사용자를 확인합니다.
+                    2. 요청한 familyId에 해당하는 가족 공간이 존재하는지 확인합니다.
+                    3. 인증된 사용자가 해당 가족 공간의 현재 owner인지 확인합니다.
+                    4. 요청받은 가족명의 앞뒤 공백을 제거합니다.
+                    5. 가족명 내부의 연속된 공백을 하나의 공백으로 정규화합니다.
+                    6. 정규화된 가족명이 2~15자인지 확인합니다.
+                    7. 정규화된 가족명이 한글, 영문, 숫자 및 띄어쓰기만 포함하는지 확인합니다.
+                    8. 금칙어 및 운영자 사칭 표현이 포함되어 있는지 확인합니다.
+                    9. 정규화된 가족명이 서비스 전체에서 이미 사용 중인지 확인합니다.
+                    10. 모든 검증 조건을 충족한 경우 가족명을 변경합니다.
+                    11. 변경된 가족명은 해당 가족 공간의 모든 구성원에게 동일하게 반영됩니다.
+                    """
+    )
+    @ApiResponses(value = {
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200",
+                    description = "성공 예시",
+                    content = @Content(
+                            mediaType = "application/json",
+                            examples = @ExampleObject(value = """
+                                    {
+                                        "isSuccess": true,
+                                        "code": "FAMILY200_4",
+                                        "message": "가족명이 변경되었습니다.",
+                                        "result": {
+                                            "familyId": 1,
+                                            "name": "끼리네 가족2"
+                                        }
+                                    }
+                                    """
+                            )
+                    )
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "400",
+                    description = "가족 이름이 누락되었거나 이름 규칙에 맞지 않는 경우",
+                    content = @Content(
+                            mediaType = "application/json",
+                            examples = {
+                                    @ExampleObject(
+                                            name = "가족 이름 누락",
+                                            value = """
+                                                    {
+                                                        "isSuccess": false,
+                                                        "code": "COMMON400_1",
+                                                        "message": "잘못된 요청입니다.",
+                                                        "result": {
+                                                            "name": "가족 이름은 필수입니다."
+                                                        }
+                                                    }
+                                                    """
+                                    ),
+                                    @ExampleObject(
+                                            name = "가족 이름 규칙에 맞지 않는 경우",
+                                            value = """
+                                                    {
+                                                        "isSuccess": false,
+                                                        "code": "COMMON400_1",
+                                                        "message": "잘못된 요청입니다.",
+                                                        "result": {
+                                                            "name": "가족 이름은 2자 이상 15자 이하이며 특수문자를 사용할 수 없습니다."
+                                                        }
+                                                    }
+                                                    """
+                                    )
+                            }
+                    )
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "401",
+                    description = "인증 실패 (Authorization 헤더 누락, 유효하지 않은 토큰, 만료된 토큰)",
+                    content = @Content(
+                            mediaType = "application/json",
+                            examples = {
+                                    @ExampleObject(
+                                            name = "Authorization 헤더 없음",
+                                            value = """
+                                                {
+                                                    "isSuccess": false,
+                                                    "code": "COMMON401_1",
+                                                    "message": "인증이 필요합니다.",
+                                                    "result": null
+                                                }
+                                            """
+                                    ),
+                                    @ExampleObject(
+                                            name = "위조·형식 오류·refresh 토큰 사용",
+                                            value = """
+                                                {
+                                                    "isSuccess": false,
+                                                    "code": "AUTH401_1",
+                                                    "message": "유효하지 않은 토큰입니다.",
+                                                    "result": null
+                                                }
+                                            """
+                                    ),
+                                    @ExampleObject(
+                                            name = "accessToken 만료",
+                                            value = """
+                                                {
+                                                    "isSuccess": false,
+                                                    "code": "AUTH401_2",
+                                                    "message": "토큰이 만료되었습니다",
+                                                    "result": null
+                                                }
+                                            """
+                                    )
+                            }
+                    )
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "403",
+                    description = "요청한 가족의 구성원이 아닌 사용자가 가족명을 변경하려는 경우",
+                    content = @Content(
+                            mediaType = "application/json",
+                            examples = @ExampleObject(value = """
+                                    {
+                                        "isSuccess": true,
+                                        "code": "FAMILY403_1",
+                                        "message": "해당 가족에 대한 권한이 없습니다.",
+                                        "result": null
+                                    }
+                                    """
+                            )
+                    )
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "404",
+                    description = "사용자나 가족이 존재하지 않는 경우",
+                    content = @Content(
+                            mediaType = "application/json",
+                            examples = {
+                                    @ExampleObject(
+                                            name = "memberId에 해당하는 회원 없음",
+                                            value = """
+                                                    {
+                                                        "isSuccess": false,
+                                                        "code": "MEMBER404_1",
+                                                        "message": "존재하지 않는 회원입니다.",
+                                                        "result": null
+                                                    }
+                                            """
+                                    ),
+                                    @ExampleObject(
+                                            name = "요청한 familyId에 해당하는 가족이 존재하지 않는 경우",
+                                            value = """
+                                                    {
+                                                        "isSuccess": false,
+                                                        "code": "FAMILY404_1",
+                                                        "message": "존재하지 않는 가족입니다.",
+                                                        "result": null
+                                                    }
+                                            """
+                                    )
+                            }
+                    )
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "409",
+                    description = "동일한 가족 이름이 이미 존재하는 경우",
+                    content = @Content(
+                            mediaType = "application/json",
+                            examples = @ExampleObject(value = """
+                                    {
+                                        "isSuccess": false,
+                                        "code": "FAMILY409_1",
+                                        "message": "이미 존재하는 가족 이름입니다.",
+                                        "result": null
+                                    }
+                                    """
+                            )
+                    )
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "500",
+                    description = "서버 오류",
+                    content = @Content(
+                            mediaType = "application/json",
+                            examples = @ExampleObject(value = """
+                                    {
+                                        "isSuccess": false,
+                                        "code": "COMMON500_1",
+                                        "message": "서버 내부 오류가 발생했습니다.",
+                                        "result": null
+                                    }
+                                    """
+                            )
+                    )
+            ),
+    })
+    ApiResponse<FamilyResDTO.UpdateName> updateFamilyName(@Parameter(hidden = true) @AuthenticationPrincipal Long memberId, @PathVariable Long familyId, @Valid @RequestBody FamilyReqDTO.UpdateName dto);
 }
