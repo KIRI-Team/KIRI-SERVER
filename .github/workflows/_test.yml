@@ -45,3 +45,8 @@ jobs:
           GOOGLE_CLIENT_ID: test-google
           APPLE_CLIENT_ID: test-apple
           TOUR_API_KEY: tour-api-key
+
+      - name: Print test report
+        if: failure()
+        run: |
+          cat build/test-results/test/TEST-com.kiri.server.KiriServerApplicationTests.xml
