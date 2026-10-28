@@ -82,9 +82,9 @@ public class BucketConverter {
         }
         return BucketResDTO.Saver.builder()
                 .memberId(member.getId())
-                .nickname(member.getNickname())
+                .nickname(member.getDisplayName())
                 .familyRole(member.getFamilyRole())
-                .withdrawn(false)
+                .withdrawn(member.isWithdrawn())
                 .build();
     }
 }

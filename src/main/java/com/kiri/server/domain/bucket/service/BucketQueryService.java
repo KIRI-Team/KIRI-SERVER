@@ -75,7 +75,7 @@ public class BucketQueryService {
     private List<BucketResDTO.SaverCount> saverCounts(Family family) {
         Map<Long, Long> counts = bucketItemRepository.findSaverCounts(family.getId()).stream()
                 .collect(Collectors.toMap(SaverBucketCount::getMemberId, SaverBucketCount::getBucketCount));
-        return memberRepository.findAllByFamily(family).stream()
+        return memberRepository.findAllByFamilyAndDeletedAtIsNull(family).stream()
                 .sorted(Comparator.comparing(Member::getId))
                 .map(member -> BucketConverter.toSaverCount(member, counts.getOrDefault(member.getId(), 0L)))
                 .toList();
