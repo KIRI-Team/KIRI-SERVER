@@ -85,4 +85,12 @@ public class Family extends BaseEntity {
     public void updateName(String name) {
         this.name = name;
     }
+
+    public boolean isOwner(Member member) {
+        return this.owner.equals(member);
+    }
+
+    public void changeOwner(Member newOwner) {
+        this.owner = newOwner;
+    }
 }

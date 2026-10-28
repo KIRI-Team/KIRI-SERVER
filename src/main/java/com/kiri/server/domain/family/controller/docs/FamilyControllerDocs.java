@@ -774,7 +774,7 @@ public interface FamilyControllerDocs {
             ),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
                     responseCode = "403",
-                    description = "요청한 가족의 구성원이 아닌 사용자가 초대 정보를 재생성하려는 경우",
+                    description = "요청한 가족의 구성원이 아닌 사용자가 가족명을 변경하려는 경우",
                     content = @Content(
                             mediaType = "application/json",
                             examples = @ExampleObject(value = """
