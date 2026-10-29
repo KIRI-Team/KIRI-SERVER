@@ -117,7 +117,7 @@ class ScheduleCommandControllerTest {
                         .header(HttpHeaders.AUTHORIZATION, bearerToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body(validRequest())))
-                .andExpect(status().isCreated())
+                .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value("SCHEDULE201_1"))
                 .andExpect(jsonPath("$.result.scheduleId").value(100))
                 .andExpect(jsonPath("$.result.status").value("PENDING_RESPONSE"))

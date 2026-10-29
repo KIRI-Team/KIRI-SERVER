@@ -36,8 +36,8 @@ public interface ScheduleCommandControllerDocs {
     )
     @ApiResponses(value = {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
-                    responseCode = "201",
-                    description = "생성 성공",
+                    responseCode = "200",
+                    description = "생성 성공 (응답 본문의 code는 SCHEDULE201_1)",
                     content = @Content(
                             mediaType = "application/json",
                             examples = @ExampleObject(value = """
