@@ -615,8 +615,6 @@ public interface MemberControllerDocs {
                     - **Header**
                         - Authorization: Bearer {Access_Token}
                         - Content-Type: application/json
-                    - **Body**
-                        - nickname: 설정할 닉네임
                     
                     ## 동작 방식
                     1. Access Token으로 현재 회원을 인증합니다.

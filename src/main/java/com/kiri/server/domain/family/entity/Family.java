@@ -76,6 +76,16 @@ public class Family extends BaseEntity {
         this.inviteExpiresAt = inviteExpiresAt;
     }
 
+    public void clearInviteInfo() {
+        this.inviteCode = null;
+        this.inviteToken = null;
+        this.inviteExpiresAt = null;
+    }
+
+    public void updateName(String name) {
+        this.name = name;
+    }
+
     public boolean isOwner(Member member) {
         return this.owner.equals(member);
     }
