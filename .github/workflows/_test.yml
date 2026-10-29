@@ -34,6 +34,12 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v6
 
+      - name: CloudFront 테스트 키 생성
+        run: |
+          KEY=$(openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 | openssl pkcs8 -topk8 -nocrypt -outform DER | base64 -w0)
+          echo "::add-mask::$KEY"
+          echo "CLOUDFRONT_PRIVATE_KEY=$KEY" >> "$GITHUB_ENV"
+
       - name: Test
         run: ./gradlew test
         env:
@@ -44,3 +50,6 @@ jobs:
           KAKAO_NATIVE_APP_KEY: test-kakao-key
           GOOGLE_CLIENT_ID: test-google
           APPLE_CLIENT_ID: test-apple
+          S3_IMAGE_BUCKET: test-bucket
+          CDN_BASE_URL: https://test.cloudfront.net
+          CLOUDFRONT_KEY_PAIR_ID: KTESTKEYPAIRID
