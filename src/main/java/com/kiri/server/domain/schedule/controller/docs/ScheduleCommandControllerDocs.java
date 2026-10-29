@@ -161,4 +161,110 @@ public interface ScheduleCommandControllerDocs {
             @Parameter(description = "버킷 항목 ID", example = "42") Long bucketItemId,
             @Valid ScheduleReqDTO.Create request
     );
+
+    @Operation(
+            summary = "일정 초대 수락/거절 API",
+            description = """
+                    # 일정 초대 수락/거절
+
+                    ## 요청 형식
+                    - 헤더: Authorization: Bearer {JWT 토큰}
+                    - Path: scheduleId
+                    - Body: action (ACCEPT / DECLINE)
+
+                    초대받은 가족 구성원이 일정 초대에 수락 또는 거절로 응답합니다.
+
+                    ## 규칙
+                    - 초대받은(참여 레코드가 있는) 구성원만 응답할 수 있습니다. 제안자와 초대받지 않은 구성원은 응답할 수 없습니다.
+                    - 응답 마감 전에는 수락과 거절 사이에서 응답을 바꿀 수 있고, 마감 이후·취소·완료된 일정에는 응답할 수 없습니다.
+                    - 재확인 필요 상태였던 응답은 이 응답으로 해제됩니다.
+                    - 응답 후 일정 전체 상태를 다시 계산합니다. 제안자 외 수락자가 1명 이상이면 CONFIRMED, 마감 전 0명이면 PENDING_RESPONSE입니다.
+                    """
+    )
+    @ApiResponses(value = {
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200",
+                    description = "응답 처리 성공",
+                    content = @Content(
+                            mediaType = "application/json",
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "isSuccess": true,
+                                      "code": "SCHEDULE200_2",
+                                      "message": "일정 응답 처리 성공",
+                                      "result": {
+                                        "scheduleId": 100,
+                                        "myStatus": "ACCEPTED",
+                                        "status": "CONFIRMED"
+                                      }
+                                    }
+                                    """)
+                    )
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "400",
+                    description = "action 누락 또는 잘못된 값",
+                    content = @Content(
+                            mediaType = "application/json",
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "isSuccess": false,
+                                      "code": "COMMON400_1",
+                                      "message": "잘못된 요청입니다.",
+                                      "result": { "action": "action은 필수입니다." }
+                                    }
+                                    """)
+                    )
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "403",
+                    description = "초대받지 않은 일정(제안자·비초대자 포함)",
+                    content = @Content(
+                            mediaType = "application/json",
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "isSuccess": false,
+                                      "code": "SCHEDULE403_3",
+                                      "message": "초대받은 일정에만 응답할 수 있습니다.",
+                                      "result": null
+                                    }
+                                    """)
+                    )
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "404",
+                    description = "존재하지 않는 일정",
+                    content = @Content(
+                            mediaType = "application/json",
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "isSuccess": false,
+                                      "code": "SCHEDULE404_2",
+                                      "message": "존재하지 않는 일정입니다.",
+                                      "result": null
+                                    }
+                                    """)
+                    )
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "409",
+                    description = "응답 마감 이후 또는 취소·완료된 일정",
+                    content = @Content(
+                            mediaType = "application/json",
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "isSuccess": false,
+                                      "code": "SCHEDULE409_2",
+                                      "message": "응답할 수 없는 일정입니다.",
+                                      "result": null
+                                    }
+                                    """)
+                    )
+            )
+    })
+    ApiResponse<ScheduleResDTO.Responded> respondSchedule(
+            @Parameter(hidden = true) Long memberId,
+            @Parameter(description = "일정 ID", example = "100") Long scheduleId,
+            @Valid ScheduleReqDTO.Response request
+    );
 }
