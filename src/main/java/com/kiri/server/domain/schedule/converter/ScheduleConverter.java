@@ -9,6 +9,19 @@ import java.util.List;
 
 public class ScheduleConverter {
 
+    public static ScheduleResDTO.Created toCreated(Schedule schedule, List<Long> participantMemberIds) {
+        return ScheduleResDTO.Created.builder()
+                .scheduleId(schedule.getId())
+                .bucketItemId(schedule.getBucketItem() == null ? null : schedule.getBucketItem().getId())
+                .scheduleDate(schedule.getScheduleDate())
+                .scheduleTime(schedule.getScheduleTime())
+                .status(schedule.getStatus())
+                .responseDeadline(schedule.getResponseDeadline())
+                .proposerId(schedule.getProposer() == null ? null : schedule.getProposer().getId())
+                .participantMemberIds(participantMemberIds)
+                .build();
+    }
+
     public static ScheduleResDTO.Calendar toCalendar(int year, int month, List<ScheduleResDTO.CalendarItem> schedules) {
         return ScheduleResDTO.Calendar.builder()
                 .year(year)
