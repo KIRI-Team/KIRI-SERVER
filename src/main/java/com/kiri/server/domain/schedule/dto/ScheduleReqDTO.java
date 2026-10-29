@@ -1,5 +1,6 @@
 package com.kiri.server.domain.schedule.dto;
 
+import com.kiri.server.domain.schedule.enums.ResponseAction;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.Max;
@@ -51,6 +52,14 @@ public class ScheduleReqDTO {
             @Schema(description = "가족에게 한 줄 메시지", example = "이번 주말에 같이 가요!")
             @Size(max = 100, message = "메시지는 100자 이하로 입력해 주세요.")
             String requestMessage
+    ) {
+    }
+
+    @Builder
+    public record Response(
+            @Schema(description = "응답 종류", example = "ACCEPT")
+            @NotNull(message = "action은 필수입니다.")
+            ResponseAction action
     ) {
     }
 }
