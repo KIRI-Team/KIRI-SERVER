@@ -1,5 +1,6 @@
 package com.kiri.server.domain.schedule.entity;
 
+import com.kiri.server.domain.bucket.entity.BucketItem;
 import com.kiri.server.domain.family.entity.Family;
 import com.kiri.server.domain.member.entity.Member;
 import com.kiri.server.domain.schedule.enums.ScheduleStatus;
@@ -42,8 +43,9 @@ public class Schedule extends BaseEntity {
     @JoinColumn(name = "family_id", nullable = false)
     private Family family;
 
-    @Column(name = "bucket_item_id")
-    private Long bucketItemId;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "bucket_item_id")
+    private BucketItem bucketItem;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "proposer_id")
@@ -63,9 +65,27 @@ public class Schedule extends BaseEntity {
     @Builder.Default
     private ScheduleStatus status = ScheduleStatus.PENDING_RESPONSE;
 
+    @Column(name = "response_deadline")
+    private LocalDateTime responseDeadline;
+
     @Column(name = "started_at")
     private LocalDateTime startedAt;
 
     @Column(name = "completed_at")
     private LocalDateTime completedAt;
+
+    public static Schedule create(Family family, BucketItem bucketItem, Member proposer,
+                                  LocalDate scheduleDate, LocalTime scheduleTime,
+                                  String requestMessage, LocalDateTime responseDeadline) {
+        return Schedule.builder()
+                .family(family)
+                .bucketItem(bucketItem)
+                .proposer(proposer)
+                .scheduleDate(scheduleDate)
+                .scheduleTime(scheduleTime)
+                .requestMessage(requestMessage)
+                .responseDeadline(responseDeadline)
+                .status(ScheduleStatus.PENDING_RESPONSE)
+                .build();
+    }
 }

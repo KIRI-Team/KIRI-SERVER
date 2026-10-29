@@ -60,4 +60,15 @@ public class ScheduleParticipant extends BaseEntity {
 
     @Column(name = "responded_at")
     private LocalDateTime respondedAt;
+
+    public static ScheduleParticipant of(Schedule schedule, Member member, ParticipantStatus status,
+                                         LocalDateTime respondedAt) {
+        return ScheduleParticipant.builder()
+                .schedule(schedule)
+                .member(member)
+                .status(status)
+                .reconfirmRequired(false)
+                .respondedAt(respondedAt)
+                .build();
+    }
 }
