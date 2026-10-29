@@ -59,4 +59,8 @@ public class BucketItem extends BaseEntity {
 
     @Column(name = "completed_at")
     private LocalDateTime completedAt;
+
+    public void markScheduled() {
+        this.status = BucketStatus.SCHEDULED;
+    }
 }
