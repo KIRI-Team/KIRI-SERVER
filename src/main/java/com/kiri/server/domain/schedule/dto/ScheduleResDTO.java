@@ -6,6 +6,7 @@ import com.kiri.server.domain.schedule.enums.ScheduleStatus;
 import lombok.Builder;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.List;
 
@@ -28,6 +29,22 @@ public class ScheduleResDTO {
             LocalTime time,
             ScheduleStatus status,
             CalendarMyStatus myStatus
+    ) {
+    }
+
+    @Builder
+    public record Created(
+            Long scheduleId,
+            Long bucketItemId,
+            @JsonFormat(pattern = "yyyy-MM-dd")
+            LocalDate scheduleDate,
+            @JsonFormat(pattern = "HH:mm")
+            LocalTime scheduleTime,
+            ScheduleStatus status,
+            @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
+            LocalDateTime responseDeadline,
+            Long proposerId,
+            List<Long> participantMemberIds
     ) {
     }
 }

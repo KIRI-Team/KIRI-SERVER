@@ -9,7 +9,8 @@ import org.springframework.http.HttpStatus;
 @RequiredArgsConstructor
 public enum ScheduleSuccessCode implements BaseSuccessCode {
 
-    CALENDAR_SUCCESS(HttpStatus.OK, "SCHEDULE200_1", "캘린더 월간 일정 조회 성공");
+    CALENDAR_SUCCESS(HttpStatus.OK, "SCHEDULE200_1", "캘린더 월간 일정 조회 성공"),
+    CREATE_SUCCESS(HttpStatus.CREATED, "SCHEDULE201_1", "일정 생성 성공");
 
     private final HttpStatus httpStatus;
     private final String code;
