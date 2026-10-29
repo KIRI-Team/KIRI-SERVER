@@ -1,5 +1,8 @@
 package com.kiri.server.domain.mission.service;
 
+import com.kiri.server.domain.bucket.enums.BucketSaveState;
+import com.kiri.server.domain.bucket.enums.BucketStatus;
+import com.kiri.server.domain.bucket.repository.BucketItemRepository;
 import com.kiri.server.domain.external.entity.ExternalRecord;
 import com.kiri.server.domain.external.repository.ExternalRecordRepository;
 import com.kiri.server.domain.family.entity.Family;
@@ -71,12 +74,15 @@ class MissionQueryServiceTest {
     @Mock
     private MemberRepository memberRepository;
 
+    @Mock
+    private BucketItemRepository bucketItemRepository;
+
     private MissionQueryService missionQueryService;
 
     @BeforeEach
     void setUp() {
         missionQueryService = new MissionQueryService(missionRepository, missionFeedRepository,
-                missionChecklistItemRepository, externalRecordRepository, memberRepository, CLOCK);
+                missionChecklistItemRepository, externalRecordRepository, memberRepository, bucketItemRepository, CLOCK);
     }
 
     @Test
@@ -237,7 +243,7 @@ class MissionQueryServiceTest {
         given(externalRecordRepository.findFirstByMissionAndSourceUrlIsNotNullOrderByIdAsc(mission))
                 .willReturn(Optional.of(record));
 
-        MissionResDTO.Detail detail = missionQueryService.getDetail(10L);
+        MissionResDTO.Detail detail = missionQueryService.getDetail(MEMBER_ID, 10L);
 
         assertThat(detail.openingTime()).isEqualTo(LocalTime.of(10, 0));
         assertThat(detail.closingTime()).isEqualTo(LocalTime.of(18, 0));
@@ -247,8 +253,9 @@ class MissionQueryServiceTest {
         assertThat(detail.sourceUrl()).isEqualTo("https://korean.visitkorea.or.kr/detail");
         assertThat(detail.place().latitude()).isEqualTo(37.5444);
         assertThat(detail)
-                .extracting(MissionResDTO.Detail::bucketSaved, MissionResDTO.Detail::averageRating, MissionResDTO.Detail::reviewCount)
-                .containsExactly(false, null, 0);
+                .extracting(MissionResDTO.Detail::bucketSaved, MissionResDTO.Detail::bucketState,
+                        MissionResDTO.Detail::averageRating, MissionResDTO.Detail::reviewCount)
+                .containsExactly(false, BucketSaveState.NONE, null, 0);
     }
 
     @Test
@@ -263,7 +270,7 @@ class MissionQueryServiceTest {
         given(missionChecklistItemRepository.findAllByMissionOrderByItemTypeAscDisplayOrderAsc(mission)).willReturn(List.of());
         given(externalRecordRepository.findFirstByMissionAndSourceUrlIsNotNullOrderByIdAsc(mission)).willReturn(Optional.empty());
 
-        MissionResDTO.Detail detail = missionQueryService.getDetail(10L);
+        MissionResDTO.Detail detail = missionQueryService.getDetail(MEMBER_ID, 10L);
 
         assertThat(detail).extracting(MissionResDTO.Detail::openingTime, MissionResDTO.Detail::closingTime)
                 .containsExactly(LocalTime.of(19, 0), LocalTime.of(22, 0));
@@ -282,7 +289,7 @@ class MissionQueryServiceTest {
         given(missionChecklistItemRepository.findAllByMissionOrderByItemTypeAscDisplayOrderAsc(mission)).willReturn(List.of());
         given(externalRecordRepository.findFirstByMissionAndSourceUrlIsNotNullOrderByIdAsc(mission)).willReturn(Optional.empty());
 
-        MissionResDTO.Detail detail = missionQueryService.getDetail(10L);
+        MissionResDTO.Detail detail = missionQueryService.getDetail(MEMBER_ID, 10L);
 
         assertThat(detail).extracting(MissionResDTO.Detail::imageUrl, MissionResDTO.Detail::imageSource)
                 .containsExactly(null, null);
@@ -296,7 +303,41 @@ class MissionQueryServiceTest {
         given(missionChecklistItemRepository.findAllByMissionOrderByItemTypeAscDisplayOrderAsc(mission)).willReturn(List.of());
         given(externalRecordRepository.findFirstByMissionAndSourceUrlIsNotNullOrderByIdAsc(mission)).willReturn(Optional.empty());
 
-        assertThat(missionQueryService.getDetail(10L).status()).isEqualTo(MissionStatus.ENDED);
+        assertThat(missionQueryService.getDetail(MEMBER_ID, 10L).status()).isEqualTo(MissionStatus.ENDED);
+    }
+
+    @Test
+    @DisplayName("로그인한 회원이 SAVED·SCHEDULED 상태로 저장한 미션이면 bucketSaved가 true다.")
+    void getDetail_bucketSaved() {
+        Mission mission = mission(10L, MissionStatus.ACTIVE);
+        given(missionRepository.findWithPlaceById(10L)).willReturn(Optional.of(mission));
+        given(missionChecklistItemRepository.findAllByMissionOrderByItemTypeAscDisplayOrderAsc(mission)).willReturn(List.of());
+        given(externalRecordRepository.findFirstByMissionAndSourceUrlIsNotNullOrderByIdAsc(mission)).willReturn(Optional.empty());
+        given(bucketItemRepository.existsByMemberIdAndMissionIdAndStatusIn(MEMBER_ID, 10L, BucketStatus.ACTIVE_STATUSES))
+                .willReturn(true);
+
+        MissionResDTO.Detail detail = missionQueryService.getDetail(MEMBER_ID, 10L);
+
+        assertThat(detail.bucketSaved()).isTrue();
+        assertThat(detail.bucketState()).isEqualTo(BucketSaveState.SAVED);
+    }
+
+    @Test
+    @DisplayName("완료된 버킷만 있으면 bucketState는 COMPLETED_ONLY이고 bucketSaved는 false다.")
+    void getDetail_bucketCompletedOnly() {
+        Mission mission = mission(10L, MissionStatus.ACTIVE);
+        given(missionRepository.findWithPlaceById(10L)).willReturn(Optional.of(mission));
+        given(missionChecklistItemRepository.findAllByMissionOrderByItemTypeAscDisplayOrderAsc(mission)).willReturn(List.of());
+        given(externalRecordRepository.findFirstByMissionAndSourceUrlIsNotNullOrderByIdAsc(mission)).willReturn(Optional.empty());
+        given(bucketItemRepository.existsByMemberIdAndMissionIdAndStatusIn(MEMBER_ID, 10L, BucketStatus.ACTIVE_STATUSES))
+                .willReturn(false);
+        given(bucketItemRepository.existsByMemberIdAndMissionIdAndStatusIn(MEMBER_ID, 10L, List.of(BucketStatus.COMPLETED)))
+                .willReturn(true);
+
+        MissionResDTO.Detail detail = missionQueryService.getDetail(MEMBER_ID, 10L);
+
+        assertThat(detail.bucketSaved()).isFalse();
+        assertThat(detail.bucketState()).isEqualTo(BucketSaveState.COMPLETED_ONLY);
     }
 
     @Test
@@ -308,11 +349,11 @@ class MissionQueryServiceTest {
 
         for (long id = 1; id <= 3; id++) {
             long missionId = id;
-            assertThatThrownBy(() -> missionQueryService.getDetail(missionId))
+            assertThatThrownBy(() -> missionQueryService.getDetail(MEMBER_ID, missionId))
                     .isInstanceOf(MissionException.class)
                     .extracting("errorCode").isEqualTo(MissionErrorCode.NOT_FOUND);
         }
-        verifyNoInteractions(missionChecklistItemRepository);
+        verifyNoInteractions(missionChecklistItemRepository, bucketItemRepository);
     }
 
     @Test
@@ -320,7 +361,7 @@ class MissionQueryServiceTest {
     void getDetail_notFound() {
         given(missionRepository.findWithPlaceById(99L)).willReturn(Optional.empty());
 
-        assertThatThrownBy(() -> missionQueryService.getDetail(99L))
+        assertThatThrownBy(() -> missionQueryService.getDetail(MEMBER_ID, 99L))
                 .isInstanceOf(MissionException.class)
                 .extracting("errorCode").isEqualTo(MissionErrorCode.NOT_FOUND);
     }
