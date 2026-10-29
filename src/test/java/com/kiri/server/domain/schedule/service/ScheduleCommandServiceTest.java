@@ -39,9 +39,9 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
@@ -68,7 +68,7 @@ class ScheduleCommandServiceTest {
     void setUp() {
         service = new ScheduleCommandService(memberRepository, bucketItemRepository,
                 scheduleRepository, scheduleParticipantRepository, CLOCK);
-        family = Family.builder().name("가족").build();
+        family = Family.builder().id(10L).name("가족").build();
         proposer = Member.builder().id(PROPOSER_ID).family(family).nickname("제안자").build();
         m2 = Member.builder().id(2L).family(family).nickname("엄마").build();
         m3 = Member.builder().id(3L).family(family).nickname("딸").build();
@@ -84,12 +84,12 @@ class ScheduleCommandServiceTest {
     }
 
     private void stubCommon(BucketItem bucket) {
-        given(memberRepository.findById(PROPOSER_ID)).willReturn(Optional.of(proposer));
-        given(bucketItemRepository.findByIdForUpdate(BUCKET_ID)).willReturn(Optional.of(bucket));
-        given(memberRepository.findAllByFamilyAndDeletedAtIsNull(family)).willReturn(List.of(proposer, m2, m3));
-        given(scheduleRepository.save(any(Schedule.class))).willAnswer(inv -> inv.getArgument(0));
-        given(memberRepository.getReferenceById(2L)).willReturn(m2);
-        given(memberRepository.getReferenceById(3L)).willReturn(m3);
+        lenient().when(memberRepository.findById(PROPOSER_ID)).thenReturn(Optional.of(proposer));
+        lenient().when(bucketItemRepository.findByIdForUpdate(BUCKET_ID)).thenReturn(Optional.of(bucket));
+        lenient().when(memberRepository.findAllByFamilyAndDeletedAtIsNull(family)).thenReturn(List.of(proposer, m2, m3));
+        lenient().when(scheduleRepository.save(any(Schedule.class))).thenAnswer(inv -> inv.getArgument(0));
+        lenient().when(memberRepository.getReferenceById(2L)).thenReturn(m2);
+        lenient().when(memberRepository.getReferenceById(3L)).thenReturn(m3);
     }
 
     @Test
@@ -156,7 +156,7 @@ class ScheduleCommandServiceTest {
     @Test
     @DisplayName("다른 가족의 버킷이면 SCHEDULE403_2로 예외를 던진다.")
     void create_bucketForbidden() {
-        Family other = Family.builder().name("다른가족").build();
+        Family other = Family.builder().id(20L).name("다른가족").build();
         BucketItem bucket = BucketItem.builder().id(BUCKET_ID).family(other).status(BucketStatus.SAVED).build();
         given(memberRepository.findById(PROPOSER_ID)).willReturn(Optional.of(proposer));
         given(bucketItemRepository.findByIdForUpdate(BUCKET_ID)).willReturn(Optional.of(bucket));
