@@ -243,4 +243,73 @@ class ScheduleCommandServiceTest {
                 .extracting(e -> ((ScheduleException) e).getErrorCode())
                 .isEqualTo(ScheduleErrorCode.INVALID_PARTICIPANT);
     }
+
+    private static final Long SCHEDULE_ID = 100L;
+
+    private Schedule schedule(ScheduleStatus status, BucketItem bucket) {
+        return Schedule.builder().id(SCHEDULE_ID).proposer(proposer).status(status).bucketItem(bucket).build();
+    }
+
+    @Test
+    @DisplayName("제안자가 확정 일정을 취소하면 CANCELLED가 되고 연결 버킷이 SAVED로 돌아간다.")
+    void cancel_success() {
+        BucketItem bucket = bucket(BucketStatus.SCHEDULED, null);
+        Schedule schedule = schedule(ScheduleStatus.CONFIRMED, bucket);
+        given(memberRepository.existsById(PROPOSER_ID)).willReturn(true);
+        given(scheduleRepository.findByIdForUpdate(SCHEDULE_ID)).willReturn(Optional.of(schedule));
+
+        ScheduleResDTO.Cancelled result = service.cancel(PROPOSER_ID, SCHEDULE_ID);
+
+        assertThat(result.status()).isEqualTo(ScheduleStatus.CANCELLED);
+        assertThat(result.bucketItemId()).isEqualTo(BUCKET_ID);
+        assertThat(schedule.getStatus()).isEqualTo(ScheduleStatus.CANCELLED);
+        assertThat(bucket.getStatus()).isEqualTo(BucketStatus.SAVED);
+    }
+
+    @Test
+    @DisplayName("회원이 없으면 MEMBER404_1로 예외를 던진다.")
+    void cancel_memberNotFound() {
+        given(memberRepository.existsById(PROPOSER_ID)).willReturn(false);
+
+        assertThatThrownBy(() -> service.cancel(PROPOSER_ID, SCHEDULE_ID))
+                .isInstanceOf(MemberException.class);
+    }
+
+    @Test
+    @DisplayName("존재하지 않는 일정이면 SCHEDULE404_2로 예외를 던진다.")
+    void cancel_scheduleNotFound() {
+        given(memberRepository.existsById(PROPOSER_ID)).willReturn(true);
+        given(scheduleRepository.findByIdForUpdate(SCHEDULE_ID)).willReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.cancel(PROPOSER_ID, SCHEDULE_ID))
+                .isInstanceOf(ScheduleException.class)
+                .extracting(e -> ((ScheduleException) e).getErrorCode())
+                .isEqualTo(ScheduleErrorCode.SCHEDULE_NOT_FOUND);
+    }
+
+    @Test
+    @DisplayName("제안자가 아니면 SCHEDULE403_4로 예외를 던진다.")
+    void cancel_notProposer() {
+        Schedule schedule = schedule(ScheduleStatus.CONFIRMED, bucket(BucketStatus.SCHEDULED, null));
+        given(memberRepository.existsById(2L)).willReturn(true);
+        given(scheduleRepository.findByIdForUpdate(SCHEDULE_ID)).willReturn(Optional.of(schedule));
+
+        assertThatThrownBy(() -> service.cancel(2L, SCHEDULE_ID))
+                .isInstanceOf(ScheduleException.class)
+                .extracting(e -> ((ScheduleException) e).getErrorCode())
+                .isEqualTo(ScheduleErrorCode.NOT_PROPOSER);
+    }
+
+    @Test
+    @DisplayName("이미 완료된 일정이면 SCHEDULE409_3으로 예외를 던진다.")
+    void cancel_notCancelable() {
+        Schedule schedule = schedule(ScheduleStatus.COMPLETED, bucket(BucketStatus.COMPLETED, null));
+        given(memberRepository.existsById(PROPOSER_ID)).willReturn(true);
+        given(scheduleRepository.findByIdForUpdate(SCHEDULE_ID)).willReturn(Optional.of(schedule));
+
+        assertThatThrownBy(() -> service.cancel(PROPOSER_ID, SCHEDULE_ID))
+                .isInstanceOf(ScheduleException.class)
+                .extracting(e -> ((ScheduleException) e).getErrorCode())
+                .isEqualTo(ScheduleErrorCode.NOT_CANCELABLE);
+    }
 }

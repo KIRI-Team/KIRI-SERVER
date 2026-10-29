@@ -37,6 +37,7 @@ import java.util.Map;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -186,5 +187,53 @@ class ScheduleCommandControllerTest {
                         .content(body(validRequest())))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("SCHEDULE403_2"));
+    }
+
+    @Test
+    @DisplayName("토큰 없이 취소하면 COMMON401_1로 응답한다.")
+    void cancel_noToken() throws Exception {
+        mockMvc.perform(patch("/api/v1/schedules/{scheduleId}/cancel", 100L))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("COMMON401_1"));
+    }
+
+    @Test
+    @DisplayName("취소에 성공하면 SCHEDULE200_3과 취소 결과를 반환한다.")
+    void cancel_success() throws Exception {
+        given(scheduleCommandService.cancel(eq(MEMBER_ID), eq(100L)))
+                .willReturn(ScheduleResDTO.Cancelled.builder()
+                        .scheduleId(100L).status(ScheduleStatus.CANCELLED).bucketItemId(BUCKET_ID).build());
+
+        mockMvc.perform(patch("/api/v1/schedules/{scheduleId}/cancel", 100L)
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value("SCHEDULE200_3"))
+                .andExpect(jsonPath("$.result.scheduleId").value(100))
+                .andExpect(jsonPath("$.result.status").value("CANCELLED"))
+                .andExpect(jsonPath("$.result.bucketItemId").value(42));
+    }
+
+    @Test
+    @DisplayName("제안자가 아니면 SCHEDULE403_4로 응답한다.")
+    void cancel_notProposer() throws Exception {
+        given(scheduleCommandService.cancel(eq(MEMBER_ID), eq(100L)))
+                .willThrow(new ScheduleException(ScheduleErrorCode.NOT_PROPOSER));
+
+        mockMvc.perform(patch("/api/v1/schedules/{scheduleId}/cancel", 100L)
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("SCHEDULE403_4"));
+    }
+
+    @Test
+    @DisplayName("취소할 수 없는 상태면 SCHEDULE409_3으로 응답한다.")
+    void cancel_notCancelable() throws Exception {
+        given(scheduleCommandService.cancel(eq(MEMBER_ID), eq(100L)))
+                .willThrow(new ScheduleException(ScheduleErrorCode.NOT_CANCELABLE));
+
+        mockMvc.perform(patch("/api/v1/schedules/{scheduleId}/cancel", 100L)
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("SCHEDULE409_3"));
     }
 }
