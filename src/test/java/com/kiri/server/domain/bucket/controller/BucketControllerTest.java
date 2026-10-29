@@ -34,8 +34,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -169,8 +171,10 @@ class BucketControllerTest {
                 .andExpect(jsonPath("$.result.bucketItems[0].saver.nickname").value("끼리아빠"))
                 .andExpect(jsonPath("$.result.bucketItems[0].saver.withdrawn").value(false))
                 .andExpect(jsonPath("$.result.bucketItems[0].schedulable").value(true))
+                .andExpect(jsonPath("$.result.bucketItems[0].deletable").value(true))
                 .andExpect(jsonPath("$.result.bucketItems[1].saver.withdrawn").value(true))
                 .andExpect(jsonPath("$.result.bucketItems[1].schedulable").value(false))
+                .andExpect(jsonPath("$.result.bucketItems[1].deletable").value(false))
                 .andExpect(jsonPath("$.result.nextCursor").value(31))
                 .andExpect(jsonPath("$.result.hasNext").value(true));
     }
@@ -231,6 +235,76 @@ class BucketControllerTest {
                 .andExpect(jsonPath("$.code").value("BUCKET403_1"));
     }
 
+    @Test
+    @DisplayName("토큰 없이 삭제하면 COMMON401_1로 응답한다.")
+    void deleteBucket_noToken() throws Exception {
+        mockMvc.perform(delete("/api/v1/bucket-items/15"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("COMMON401_1"));
+    }
+
+    @Test
+    @DisplayName("삭제에 성공하면 BUCKET200_2로 응답하고 토큰의 회원 ID와 path의 항목 ID로 처리한다.")
+    void deleteBucket_success() throws Exception {
+        mockMvc.perform(delete("/api/v1/bucket-items/15").header(HttpHeaders.AUTHORIZATION, bearerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value("BUCKET200_2"))
+                .andExpect(jsonPath("$.result").doesNotExist());
+
+        verify(bucketService).deleteBucket(MEMBER_ID, 15L);
+    }
+
+    @Test
+    @DisplayName("본인이 저장한 항목이 아니면 BUCKET403_2로 응답한다.")
+    void deleteBucket_notOwner() throws Exception {
+        willThrow(new BucketException(BucketErrorCode.NOT_OWNER)).given(bucketService).deleteBucket(MEMBER_ID, 15L);
+
+        mockMvc.perform(delete("/api/v1/bucket-items/15").header(HttpHeaders.AUTHORIZATION, bearerToken))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("BUCKET403_2"));
+    }
+
+    @Test
+    @DisplayName("없거나 다른 가족의 항목이면 BUCKET404_1로 응답한다.")
+    void deleteBucket_notFound() throws Exception {
+        willThrow(new BucketException(BucketErrorCode.NOT_FOUND)).given(bucketService).deleteBucket(MEMBER_ID, 15L);
+
+        mockMvc.perform(delete("/api/v1/bucket-items/15").header(HttpHeaders.AUTHORIZATION, bearerToken))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("BUCKET404_1"));
+    }
+
+    @Test
+    @DisplayName("일정이 잡힌 항목이면 BUCKET409_3으로 응답한다.")
+    void deleteBucket_scheduled() throws Exception {
+        willThrow(new BucketException(BucketErrorCode.SCHEDULED_NOT_DELETABLE))
+                .given(bucketService).deleteBucket(MEMBER_ID, 15L);
+
+        mockMvc.perform(delete("/api/v1/bucket-items/15").header(HttpHeaders.AUTHORIZATION, bearerToken))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("BUCKET409_3"));
+    }
+
+    @Test
+    @DisplayName("완료된 항목이면 BUCKET409_4로 응답한다.")
+    void deleteBucket_completed() throws Exception {
+        willThrow(new BucketException(BucketErrorCode.COMPLETED_NOT_DELETABLE))
+                .given(bucketService).deleteBucket(MEMBER_ID, 15L);
+
+        mockMvc.perform(delete("/api/v1/bucket-items/15").header(HttpHeaders.AUTHORIZATION, bearerToken))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("BUCKET409_4"));
+    }
+
+    @Test
+    @DisplayName("bucketItemId가 숫자가 아니면 COMMON400_1로 응답한다.")
+    void deleteBucket_invalidId() throws Exception {
+        mockMvc.perform(delete("/api/v1/bucket-items/abc").header(HttpHeaders.AUTHORIZATION, bearerToken))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("COMMON400_1"));
+        verifyNoInteractions(bucketService);
+    }
+
     private BucketResDTO.FamilyBuckets familyBuckets() {
         BucketResDTO.FamilyBucketItem saved = BucketResDTO.FamilyBucketItem.builder()
                 .bucketItemId(42L)
@@ -248,6 +322,7 @@ class BucketControllerTest {
                         .withdrawn(false)
                         .build())
                 .schedulable(true)
+                .deletable(true)
                 .build();
         BucketResDTO.FamilyBucketItem withdrawn = BucketResDTO.FamilyBucketItem.builder()
                 .bucketItemId(31L)
@@ -260,6 +335,7 @@ class BucketControllerTest {
                         .build())
                 .saver(BucketResDTO.Saver.builder().withdrawn(true).build())
                 .schedulable(false)
+                .deletable(false)
                 .build();
 
         return BucketResDTO.FamilyBuckets.builder()

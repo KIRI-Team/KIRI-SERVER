@@ -46,6 +46,7 @@ class BucketServiceTest {
 
     private static final Long MEMBER_ID = 1L;
     private static final Long MISSION_ID = 10L;
+    private static final Long BUCKET_ITEM_ID = 15L;
     private static final LocalDate TODAY = LocalDate.of(2026, 10, 27);
     private static final Clock CLOCK = Clock.fixed(Instant.parse("2026-10-27T10:00:00Z"), ZoneId.of("Asia/Seoul"));
 
@@ -174,6 +175,92 @@ class BucketServiceTest {
         verifyNoInteractions(bucketItemRepository);
     }
 
+    @Test
+    @DisplayName("본인이 저장한 SAVED 항목은 잠금 조회한 뒤 삭제한다.")
+    void deleteBucket_success() {
+        Family family = family();
+        Member member = member(family);
+        BucketItem item = bucketItem(family, member, BucketStatus.SAVED);
+        given(memberRepository.findById(MEMBER_ID)).willReturn(Optional.of(member));
+        given(bucketItemRepository.findByIdForUpdate(BUCKET_ITEM_ID)).willReturn(Optional.of(item));
+
+        bucketService.deleteBucket(MEMBER_ID, BUCKET_ITEM_ID);
+
+        verify(bucketItemRepository).delete(item);
+    }
+
+    @Test
+    @DisplayName("없는 항목이거나 다른 가족의 항목이면 BUCKET404_1을 던지고 삭제하지 않는다.")
+    void deleteBucket_notFound() {
+        given(memberRepository.findById(MEMBER_ID)).willReturn(Optional.of(member(family())));
+
+        given(bucketItemRepository.findByIdForUpdate(BUCKET_ITEM_ID)).willReturn(Optional.empty());
+        assertDeleteFails(BucketErrorCode.NOT_FOUND);
+
+        Family otherFamily = Family.builder().id(2L).name("옆집").build();
+        Member neighbor = Member.builder().id(3L).family(otherFamily).build();
+        given(bucketItemRepository.findByIdForUpdate(BUCKET_ITEM_ID))
+                .willReturn(Optional.of(bucketItem(otherFamily, neighbor, BucketStatus.SAVED)));
+        assertDeleteFails(BucketErrorCode.NOT_FOUND);
+        verify(bucketItemRepository, never()).delete(any());
+    }
+
+    @Test
+    @DisplayName("가족이 없는 회원이 삭제하면 BUCKET404_1을 던진다.")
+    void deleteBucket_noFamily() {
+        given(memberRepository.findById(MEMBER_ID)).willReturn(Optional.of(member(null)));
+        given(bucketItemRepository.findByIdForUpdate(BUCKET_ITEM_ID))
+                .willReturn(Optional.of(bucketItem(family(), member(family()), BucketStatus.SAVED)));
+
+        assertDeleteFails(BucketErrorCode.NOT_FOUND);
+        verify(bucketItemRepository, never()).delete(any());
+    }
+
+    @Test
+    @DisplayName("같은 가족이라도 다른 구성원이 저장했거나 저장자가 탈퇴한 항목이면 BUCKET403_2를 던진다.")
+    void deleteBucket_notOwner() {
+        Family family = family();
+        given(memberRepository.findById(MEMBER_ID)).willReturn(Optional.of(member(family)));
+
+        Member daughter = Member.builder().id(2L).family(family).build();
+        given(bucketItemRepository.findByIdForUpdate(BUCKET_ITEM_ID))
+                .willReturn(Optional.of(bucketItem(family, daughter, BucketStatus.SAVED)));
+        assertDeleteFails(BucketErrorCode.NOT_OWNER);
+
+        given(bucketItemRepository.findByIdForUpdate(BUCKET_ITEM_ID))
+                .willReturn(Optional.of(bucketItem(family, null, BucketStatus.SAVED)));
+        assertDeleteFails(BucketErrorCode.NOT_OWNER);
+        verify(bucketItemRepository, never()).delete(any());
+    }
+
+    @Test
+    @DisplayName("일정이 잡힌 항목은 BUCKET409_3, 완료된 항목은 BUCKET409_4를 던지고 삭제하지 않는다.")
+    void deleteBucket_notDeletableStatus() {
+        Family family = family();
+        Member member = member(family);
+        given(memberRepository.findById(MEMBER_ID)).willReturn(Optional.of(member));
+
+        given(bucketItemRepository.findByIdForUpdate(BUCKET_ITEM_ID))
+                .willReturn(Optional.of(bucketItem(family, member, BucketStatus.SCHEDULED)));
+        assertDeleteFails(BucketErrorCode.SCHEDULED_NOT_DELETABLE);
+
+        given(bucketItemRepository.findByIdForUpdate(BUCKET_ITEM_ID))
+                .willReturn(Optional.of(bucketItem(family, member, BucketStatus.COMPLETED)));
+        assertDeleteFails(BucketErrorCode.COMPLETED_NOT_DELETABLE);
+        verify(bucketItemRepository, never()).delete(any());
+    }
+
+    @Test
+    @DisplayName("삭제할 때 토큰의 회원이 없으면 MEMBER404_1을 던지고 항목을 조회하지 않는다.")
+    void deleteBucket_memberNotFound() {
+        given(memberRepository.findById(MEMBER_ID)).willReturn(Optional.empty());
+
+        assertThatThrownBy(() -> bucketService.deleteBucket(MEMBER_ID, BUCKET_ITEM_ID))
+                .isInstanceOf(MemberException.class)
+                .extracting("errorCode").isEqualTo(MemberErrorCode.NOT_FOUND);
+        verifyNoInteractions(bucketItemRepository);
+    }
+
     private void assertNotFound() {
         assertThatThrownBy(() -> bucketService.saveBucket(MEMBER_ID, MISSION_ID))
                 .isInstanceOf(MissionException.class)
@@ -219,6 +306,23 @@ class BucketServiceTest {
                 .missionType(endDate == null ? MissionType.PERMANENT : MissionType.PERIOD)
                 .status(status)
                 .endDate(endDate)
+                .build();
+    }
+
+    private void assertDeleteFails(BucketErrorCode errorCode) {
+        assertThatThrownBy(() -> bucketService.deleteBucket(MEMBER_ID, BUCKET_ITEM_ID))
+                .isInstanceOf(BucketException.class)
+                .extracting("errorCode").isEqualTo(errorCode);
+    }
+
+    private BucketItem bucketItem(Family family, Member member, BucketStatus status) {
+        return BucketItem.builder()
+                .id(BUCKET_ITEM_ID)
+                .family(family)
+                .member(member)
+                .mission(mission(MissionStatus.ACTIVE, null))
+                .status(status)
+                .savedAt(LocalDateTime.of(2026, 10, 27, 19, 0))
                 .build();
     }
 }

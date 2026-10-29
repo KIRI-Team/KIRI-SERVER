@@ -224,6 +224,33 @@ class BucketItemRepositoryTest {
                 .containsExactly(tuple(dad.getId(), 2L));
     }
 
+    @Test
+    @DisplayName("삭제할 항목을 행 잠금과 함께 조회하고, 없는 ID면 빈 값을 반환한다.")
+    void findByIdForUpdate() {
+        Long itemId = save(dad, festival, BucketStatus.SAVED).getId();
+        flushAndClear();
+
+        BucketItem locked = bucketItemRepository.findByIdForUpdate(itemId).orElseThrow();
+
+        assertThat(locked.getId()).isEqualTo(itemId);
+        assertThat(bucketItemRepository.findByIdForUpdate(-1L)).isEmpty();
+    }
+
+    @Test
+    @DisplayName("SAVED 항목을 삭제하면 같은 회원이 같은 미션을 다시 저장할 수 있다.")
+    void resaveAfterDelete() {
+        Long itemId = save(dad, festival, BucketStatus.SAVED).getId();
+        flushAndClear();
+
+        bucketItemRepository.delete(bucketItemRepository.findByIdForUpdate(itemId).orElseThrow());
+        flushAndClear();
+
+        assertThat(bucketItemRepository.findById(itemId)).isEmpty();
+        assertThat(exists(dad, festival)).isFalse();
+        assertThatCode(() -> save(dad, festival, BucketStatus.SAVED)).doesNotThrowAnyException();
+        assertThat(exists(dad, festival)).isTrue();
+    }
+
     private BucketItem save(Member member, Mission mission, BucketStatus status) {
         return bucketItemRepository.saveAndFlush(BucketItem.builder()
                 .family(family)

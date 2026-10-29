@@ -49,7 +49,7 @@ public class BucketConverter {
                 .build();
     }
 
-    public static BucketResDTO.FamilyBucketItem toFamilyBucketItem(BucketItem item, boolean schedulable) {
+    public static BucketResDTO.FamilyBucketItem toFamilyBucketItem(BucketItem item, boolean schedulable, boolean deletable) {
         return BucketResDTO.FamilyBucketItem.builder()
                 .bucketItemId(item.getId())
                 .status(item.getStatus())
@@ -58,6 +58,7 @@ public class BucketConverter {
                 .mission(toMissionSummary(item.getMission()))
                 .saver(toSaver(item.getMember()))
                 .schedulable(schedulable)
+                .deletable(deletable)
                 .scheduleId(null)
                 .scheduledDate(null)
                 .build();

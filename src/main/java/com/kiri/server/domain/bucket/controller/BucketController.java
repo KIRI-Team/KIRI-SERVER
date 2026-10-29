@@ -11,6 +11,7 @@ import com.kiri.server.global.apiPayload.code.BaseSuccessCode;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -42,5 +43,15 @@ public class BucketController implements BucketControllerDocs {
     ) {
         BaseSuccessCode code = BucketSuccessCode.LIST_SUCCESS;
         return ApiResponse.onSuccess(code, bucketQueryService.getFamilyBuckets(memberId, condition));
+    }
+
+    @DeleteMapping("/bucket-items/{bucketItemId}")
+    public ApiResponse<Void> deleteBucket(
+            @AuthenticationPrincipal Long memberId,
+            @PathVariable Long bucketItemId
+    ) {
+        bucketService.deleteBucket(memberId, bucketItemId);
+        BaseSuccessCode code = BucketSuccessCode.DELETE_SUCCESS;
+        return ApiResponse.onSuccess(code);
     }
 }

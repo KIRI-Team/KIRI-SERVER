@@ -54,7 +54,8 @@ public class BucketQueryService {
 
         LocalDate today = LocalDate.now(clock);
         List<BucketResDTO.FamilyBucketItem> items = page.stream()
-                .map(item -> BucketConverter.toFamilyBucketItem(item, isSchedulable(item, today)))
+                .map(item -> BucketConverter.toFamilyBucketItem(item,
+                        isSchedulable(item, today), isDeletable(item, memberId)))
                 .toList();
 
         return BucketConverter.toFamilyBuckets(saverCounts(family), items,
@@ -85,5 +86,11 @@ public class BucketQueryService {
         return item.getStatus() == BucketStatus.SAVED
                 && mission.getStatus() == MissionStatus.ACTIVE
                 && (mission.getEndDate() == null || !mission.getEndDate().isBefore(today));
+    }
+
+    private boolean isDeletable(BucketItem item, Long memberId) {
+        return item.getStatus() == BucketStatus.SAVED
+                && item.getMember() != null
+                && item.getMember().getId().equals(memberId);
     }
 }
