@@ -1,5 +1,8 @@
 package com.kiri.server.domain.mission.service;
 
+import com.kiri.server.domain.bucket.enums.BucketSaveState;
+import com.kiri.server.domain.bucket.enums.BucketStatus;
+import com.kiri.server.domain.bucket.repository.BucketItemRepository;
 import com.kiri.server.domain.external.entity.ExternalRecord;
 import com.kiri.server.domain.external.repository.ExternalRecordRepository;
 import com.kiri.server.domain.family.entity.Family;
@@ -47,6 +50,7 @@ public class MissionQueryService {
     private final MissionChecklistItemRepository missionChecklistItemRepository;
     private final ExternalRecordRepository externalRecordRepository;
     private final MemberRepository memberRepository;
+    private final BucketItemRepository bucketItemRepository;
     private final Clock clock;
 
     @Transactional(readOnly = true)
@@ -74,7 +78,7 @@ public class MissionQueryService {
     }
 
     @Transactional(readOnly = true)
-    public MissionResDTO.Detail getDetail(Long missionId) {
+    public MissionResDTO.Detail getDetail(Long memberId, Long missionId) {
         Mission mission = missionRepository.findWithPlaceById(missionId)
                 .filter(found -> DETAIL_STATUSES.contains(found.getStatus()))
                 .orElseThrow(() -> new MissionException(MissionErrorCode.NOT_FOUND));
@@ -82,9 +86,23 @@ public class MissionQueryService {
                 .map(ExternalRecord::getSourceUrl)
                 .orElse(null);
 
+        BucketSaveState bucketState = resolveBucketState(memberId, missionId);
+
         return MissionConverter.toDetail(mission,
                 missionChecklistItemRepository.findAllByMissionOrderByItemTypeAscDisplayOrderAsc(mission),
-                sourceUrl);
+                sourceUrl, bucketState);
+    }
+
+    private BucketSaveState resolveBucketState(Long memberId, Long missionId) {
+        if (bucketItemRepository.existsByMemberIdAndMissionIdAndStatusIn(
+                memberId, missionId, BucketStatus.ACTIVE_STATUSES)) {
+            return BucketSaveState.SAVED;
+        }
+        if (bucketItemRepository.existsByMemberIdAndMissionIdAndStatusIn(
+                memberId, missionId, List.of(BucketStatus.COMPLETED))) {
+            return BucketSaveState.COMPLETED_ONLY;
+        }
+        return BucketSaveState.NONE;
     }
 
     private void validate(MissionReqDTO.FeedCondition condition) {

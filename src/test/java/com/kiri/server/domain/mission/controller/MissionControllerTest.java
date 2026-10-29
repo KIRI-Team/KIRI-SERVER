@@ -1,5 +1,6 @@
 package com.kiri.server.domain.mission.controller;
 
+import com.kiri.server.domain.bucket.enums.BucketSaveState;
 import com.kiri.server.domain.mission.dto.MissionReqDTO;
 import com.kiri.server.domain.mission.dto.MissionResDTO;
 import com.kiri.server.domain.mission.enums.Category;
@@ -196,9 +197,10 @@ class MissionControllerTest {
                 .prepareItems(List.of())
                 .steps(List.of(MissionResDTO.ChecklistItem.builder().title("상설 전시 관람하기").build()))
                 .bucketSaved(false)
+                .bucketState(BucketSaveState.NONE)
                 .reviewCount(0)
                 .build();
-        given(missionQueryService.getDetail(130L)).willReturn(detail);
+        given(missionQueryService.getDetail(MEMBER_ID, 130L)).willReturn(detail);
 
         mockMvc.perform(get("/api/v1/missions/130").header(HttpHeaders.AUTHORIZATION, bearerToken))
                 .andExpect(status().isOk())
@@ -207,13 +209,14 @@ class MissionControllerTest {
                 .andExpect(jsonPath("$.result.closingTime").value("18:00"))
                 .andExpect(jsonPath("$.result.place.name").value("국립현대미술관 서울"))
                 .andExpect(jsonPath("$.result.steps[0].title").value("상설 전시 관람하기"))
-                .andExpect(jsonPath("$.result.bucketSaved").value(false));
+                .andExpect(jsonPath("$.result.bucketSaved").value(false))
+                .andExpect(jsonPath("$.result.bucketState").value("NONE"));
     }
 
     @Test
     @DisplayName("노출할 수 없는 미션이면 MISSION404_1로 응답한다.")
     void getDetail_notFound() throws Exception {
-        given(missionQueryService.getDetail(99L)).willThrow(new MissionException(MissionErrorCode.NOT_FOUND));
+        given(missionQueryService.getDetail(MEMBER_ID, 99L)).willThrow(new MissionException(MissionErrorCode.NOT_FOUND));
 
         mockMvc.perform(get("/api/v1/missions/99").header(HttpHeaders.AUTHORIZATION, bearerToken))
                 .andExpect(status().isNotFound())

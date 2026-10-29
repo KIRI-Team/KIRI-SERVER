@@ -50,6 +50,7 @@ jobs:
           KAKAO_NATIVE_APP_KEY: test-kakao-key
           GOOGLE_CLIENT_ID: test-google
           APPLE_CLIENT_ID: test-apple
+          TOUR_API_KEY: tour-api-key
           S3_IMAGE_BUCKET: test-bucket
           CDN_BASE_URL: https://test.cloudfront.net
           CLOUDFRONT_KEY_PAIR_ID: KTESTKEYPAIRID
