@@ -11,6 +11,7 @@ public enum ScheduleSuccessCode implements BaseSuccessCode {
 
     CALENDAR_SUCCESS(HttpStatus.OK, "SCHEDULE200_1", "캘린더 월간 일정 조회 성공"),
     RESPONSE_SUCCESS(HttpStatus.OK, "SCHEDULE200_2", "일정 응답 처리 성공"),
+    CANCEL_SUCCESS(HttpStatus.OK, "SCHEDULE200_3", "일정 취소 성공"),
     CREATE_SUCCESS(HttpStatus.CREATED, "SCHEDULE201_1", "일정 생성 성공");
 
     private final HttpStatus httpStatus;
