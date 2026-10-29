@@ -9,6 +9,7 @@ import com.kiri.server.domain.schedule.enums.ScheduleStatus;
 import com.kiri.server.domain.schedule.exception.ScheduleException;
 import com.kiri.server.domain.schedule.exception.code.ScheduleErrorCode;
 import com.kiri.server.domain.schedule.service.ScheduleCommandService;
+import com.kiri.server.domain.schedule.service.ScheduleResponseService;
 import com.kiri.server.global.config.SecurityConfig;
 import com.kiri.server.global.security.handler.CustomAccessDeniedHandler;
 import com.kiri.server.global.security.handler.CustomAuthenticationEntryPoint;
@@ -60,6 +61,9 @@ class ScheduleCommandControllerTest {
 
     @MockitoBean
     private ScheduleCommandService scheduleCommandService;
+
+    @MockitoBean
+    private ScheduleResponseService scheduleResponseService;
 
     @TestConfiguration
     static class TestConfig {
