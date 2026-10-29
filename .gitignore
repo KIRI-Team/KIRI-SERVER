@@ -57,3 +57,6 @@ override.tf
 *.b64
 **/keys/*
 !*-public.pem
+
+### macOS ###
+.DS_Store

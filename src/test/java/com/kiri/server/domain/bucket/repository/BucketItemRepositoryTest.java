@@ -2,6 +2,7 @@ package com.kiri.server.domain.bucket.repository;
 
 import com.kiri.server.domain.bucket.entity.BucketItem;
 import com.kiri.server.domain.bucket.enums.BucketStatus;
+import com.kiri.server.domain.bucket.repository.BucketItemRepository.SaverBucketCount;
 import com.kiri.server.domain.family.entity.Family;
 import com.kiri.server.domain.family.repository.FamilyRepository;
 import com.kiri.server.domain.member.entity.Member;
@@ -14,20 +15,24 @@ import com.kiri.server.domain.place.entity.Place;
 import com.kiri.server.domain.place.enums.PlaceType;
 import com.kiri.server.domain.place.repository.PlaceRepository;
 import jakarta.persistence.EntityManager;
+import org.hibernate.Hibernate;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.tuple;
 
 @SpringBootTest
 @Transactional
@@ -150,6 +155,75 @@ class BucketItemRepositoryTest {
         assertThat(item.getFamily().getId()).isEqualTo(family.getId());
     }
 
+    @Test
+    @DisplayName("가족 항목을 상태와 상관없이 최신 저장순으로 조회하고, 미션과 저장자를 함께 가져온다. 다른 가족 항목은 제외한다.")
+    void findFamilyPage() {
+        BucketItem completed = save(dad, festival, BucketStatus.COMPLETED);
+        BucketItem scheduled = save(daughter, festival, BucketStatus.SCHEDULED);
+        BucketItem saved = save(dad, museum, BucketStatus.SAVED);
+        saveOtherFamilyItem();
+        flushAndClear();
+
+        List<BucketItem> items = bucketItemRepository.findByFamilyIdAndIdLessThanOrderByIdDesc(
+                family.getId(), Long.MAX_VALUE, PageRequest.of(0, 10));
+
+        assertThat(items).extracting(BucketItem::getId)
+                .containsExactly(saved.getId(), scheduled.getId(), completed.getId());
+        assertThat(Hibernate.isInitialized(items.getFirst().getMission())).isTrue();
+        assertThat(Hibernate.isInitialized(items.getFirst().getMember())).isTrue();
+    }
+
+    @Test
+    @DisplayName("커서보다 작은 ID의 항목만 개수 제한만큼 조회한다.")
+    void findFamilyPage_cursor() {
+        BucketItem first = save(dad, festival, BucketStatus.SAVED);
+        BucketItem second = save(dad, museum, BucketStatus.SAVED);
+        BucketItem third = save(daughter, festival, BucketStatus.SAVED);
+        flushAndClear();
+
+        List<BucketItem> firstPage = bucketItemRepository.findByFamilyIdAndIdLessThanOrderByIdDesc(
+                family.getId(), Long.MAX_VALUE, PageRequest.of(0, 2));
+        List<BucketItem> nextPage = bucketItemRepository.findByFamilyIdAndIdLessThanOrderByIdDesc(
+                family.getId(), firstPage.getLast().getId(), PageRequest.of(0, 2));
+
+        assertThat(firstPage).extracting(BucketItem::getId).containsExactly(third.getId(), second.getId());
+        assertThat(nextPage).extracting(BucketItem::getId).containsExactly(first.getId());
+    }
+
+    @Test
+    @DisplayName("저장자를 지정하면 그 회원이 저장한 가족 항목만 조회한다.")
+    void findFamilyMemberPage() {
+        save(dad, festival, BucketStatus.SAVED);
+        BucketItem daughterItem = save(daughter, museum, BucketStatus.SAVED);
+        flushAndClear();
+
+        List<BucketItem> items = bucketItemRepository.findByFamilyIdAndMemberIdAndIdLessThanOrderByIdDesc(
+                family.getId(), daughter.getId(), Long.MAX_VALUE, PageRequest.of(0, 10));
+
+        assertThat(items).extracting(BucketItem::getId).containsExactly(daughterItem.getId());
+    }
+
+    @Test
+    @DisplayName("저장자가 탈퇴해 비어 있는 항목도 가족 목록에는 포함하지만 저장자별 개수에서는 뺀다.")
+    void withdrawnSaver() {
+        save(dad, festival, BucketStatus.SAVED);
+        save(dad, museum, BucketStatus.COMPLETED);
+        BucketItem daughterItem = save(daughter, festival, BucketStatus.SAVED);
+        saveOtherFamilyItem();
+        flushAndClear();
+        deleteMember(daughter);
+
+        List<BucketItem> items = bucketItemRepository.findByFamilyIdAndIdLessThanOrderByIdDesc(
+                family.getId(), Long.MAX_VALUE, PageRequest.of(0, 10));
+        List<SaverBucketCount> counts = bucketItemRepository.findSaverCounts(family.getId());
+
+        assertThat(items).hasSize(3);
+        assertThat(items.getFirst().getId()).isEqualTo(daughterItem.getId());
+        assertThat(items.getFirst().getMember()).isNull();
+        assertThat(counts).extracting(SaverBucketCount::getMemberId, SaverBucketCount::getBucketCount)
+                .containsExactly(tuple(dad.getId(), 2L));
+    }
+
     private BucketItem save(Member member, Mission mission, BucketStatus status) {
         return bucketItemRepository.saveAndFlush(BucketItem.builder()
                 .family(family)
@@ -158,6 +232,25 @@ class BucketItemRepositoryTest {
                 .status(status)
                 .savedAt(SAVED_AT)
                 .build());
+    }
+
+    private void saveOtherFamilyItem() {
+        Member neighbor = memberRepository.save(Member.builder().nickname("버킷옆집아빠").build());
+        Family otherFamily = familyRepository.save(Family.builder().owner(neighbor).name("버킷옆집가족").build());
+        neighbor.assignFamily(otherFamily);
+        bucketItemRepository.saveAndFlush(BucketItem.builder()
+                .family(otherFamily)
+                .member(neighbor)
+                .mission(festival)
+                .savedAt(SAVED_AT)
+                .build());
+    }
+
+    private void deleteMember(Member member) {
+        entityManager.createNativeQuery("DELETE FROM member WHERE member_id = :id")
+                .setParameter("id", member.getId())
+                .executeUpdate();
+        entityManager.clear();
     }
 
     private boolean exists(Member member, Mission mission) {
