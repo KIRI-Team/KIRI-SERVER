@@ -88,4 +88,22 @@ public class Schedule extends BaseEntity {
                 .status(ScheduleStatus.PENDING_RESPONSE)
                 .build();
     }
+
+    public boolean isResponseOpen(LocalDateTime now) {
+        return (status == ScheduleStatus.PENDING_RESPONSE || status == ScheduleStatus.CONFIRMED)
+                && responseDeadline != null && !now.isAfter(responseDeadline);
+    }
+
+    public void recalculateStatus(long acceptedCountExcludingProposer, LocalDateTime now) {
+        if (status == ScheduleStatus.CANCELLED || status == ScheduleStatus.COMPLETED) {
+            return;
+        }
+        if (acceptedCountExcludingProposer >= 1) {
+            this.status = ScheduleStatus.CONFIRMED;
+        } else if (responseDeadline != null && now.isAfter(responseDeadline)) {
+            this.status = ScheduleStatus.NOT_CONFIRMED;
+        } else {
+            this.status = ScheduleStatus.PENDING_RESPONSE;
+        }
+    }
 }

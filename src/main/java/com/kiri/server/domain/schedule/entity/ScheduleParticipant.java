@@ -71,4 +71,10 @@ public class ScheduleParticipant extends BaseEntity {
                 .respondedAt(respondedAt)
                 .build();
     }
+
+    public void respond(ParticipantStatus status, LocalDateTime respondedAt) {
+        this.status = status;
+        this.reconfirmRequired = false;
+        this.respondedAt = respondedAt;
+    }
 }

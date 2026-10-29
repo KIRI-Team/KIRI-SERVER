@@ -16,10 +16,13 @@ public enum ScheduleErrorCode implements BaseErrorCode {
 
     FAMILY_REQUIRED(HttpStatus.FORBIDDEN, "SCHEDULE403_1", "가족 공간이 없습니다."),
     BUCKET_FORBIDDEN(HttpStatus.FORBIDDEN, "SCHEDULE403_2", "같은 가족의 버킷 항목에서만 일정을 만들 수 있습니다."),
+    NOT_INVITED(HttpStatus.FORBIDDEN, "SCHEDULE403_3", "초대받은 일정에만 응답할 수 있습니다."),
 
     BUCKET_NOT_FOUND(HttpStatus.NOT_FOUND, "SCHEDULE404_1", "존재하지 않는 버킷 항목입니다."),
+    SCHEDULE_NOT_FOUND(HttpStatus.NOT_FOUND, "SCHEDULE404_2", "존재하지 않는 일정입니다."),
 
-    BUCKET_NOT_SCHEDULABLE(HttpStatus.CONFLICT, "SCHEDULE409_1", "일정을 만들 수 없는 버킷 항목입니다.");
+    BUCKET_NOT_SCHEDULABLE(HttpStatus.CONFLICT, "SCHEDULE409_1", "일정을 만들 수 없는 버킷 항목입니다."),
+    RESPONSE_CLOSED(HttpStatus.CONFLICT, "SCHEDULE409_2", "응답할 수 없는 일정입니다.");
 
     private final HttpStatus httpStatus;
     private final String code;

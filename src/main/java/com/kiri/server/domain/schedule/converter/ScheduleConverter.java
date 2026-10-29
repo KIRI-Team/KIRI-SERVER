@@ -22,6 +22,14 @@ public class ScheduleConverter {
                 .build();
     }
 
+    public static ScheduleResDTO.Responded toResponded(Schedule schedule, ScheduleParticipant participant) {
+        return ScheduleResDTO.Responded.builder()
+                .scheduleId(schedule.getId())
+                .myStatus(participant.getStatus())
+                .status(schedule.getStatus())
+                .build();
+    }
+
     public static ScheduleResDTO.Calendar toCalendar(int year, int month, List<ScheduleResDTO.CalendarItem> schedules) {
         return ScheduleResDTO.Calendar.builder()
                 .year(year)

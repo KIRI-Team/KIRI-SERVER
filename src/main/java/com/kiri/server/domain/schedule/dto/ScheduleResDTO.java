@@ -2,6 +2,7 @@ package com.kiri.server.domain.schedule.dto;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
 import com.kiri.server.domain.schedule.enums.CalendarMyStatus;
+import com.kiri.server.domain.schedule.enums.ParticipantStatus;
 import com.kiri.server.domain.schedule.enums.ScheduleStatus;
 import lombok.Builder;
 
@@ -45,6 +46,14 @@ public class ScheduleResDTO {
             LocalDateTime responseDeadline,
             Long proposerId,
             List<Long> participantMemberIds
+    ) {
+    }
+
+    @Builder
+    public record Responded(
+            Long scheduleId,
+            ParticipantStatus myStatus,
+            ScheduleStatus status
     ) {
     }
 }
