@@ -34,9 +34,10 @@ public class MissionController implements MissionControllerDocs {
 
     @GetMapping("/{missionId}")
     public ApiResponse<MissionResDTO.Detail> getDetail(
+            @AuthenticationPrincipal Long memberId,
             @PathVariable Long missionId
     ) {
         BaseSuccessCode code = MissionSuccessCode.DETAIL_SUCCESS;
-        return ApiResponse.onSuccess(code, missionQueryService.getDetail(missionId));
+        return ApiResponse.onSuccess(code, missionQueryService.getDetail(memberId, missionId));
     }
 }

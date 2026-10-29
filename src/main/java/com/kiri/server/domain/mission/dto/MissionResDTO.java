@@ -1,6 +1,7 @@
 package com.kiri.server.domain.mission.dto;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
+import com.kiri.server.domain.bucket.enums.BucketSaveState;
 import com.kiri.server.domain.mission.enums.Category;
 import com.kiri.server.domain.mission.enums.IndoorOutdoor;
 import com.kiri.server.domain.mission.enums.MissionStatus;
@@ -64,6 +65,7 @@ public class MissionResDTO {
             List<ChecklistItem> prepareItems,
             List<ChecklistItem> steps,
             Boolean bucketSaved,
+            BucketSaveState bucketState,
             Double averageRating,
             Integer reviewCount
     ) {
