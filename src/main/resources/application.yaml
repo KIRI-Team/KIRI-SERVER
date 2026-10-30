@@ -97,3 +97,15 @@ tour-api:
   read-timeout: 10s
   max-calls-per-run: 240
   sync-cron: "0 0 */6 * * *"
+
+aws:
+  s3:
+    region: ap-northeast-2
+    bucket: ${S3_IMAGE_BUCKET}
+    presigned-url-expiration: 5m
+    max-upload-size: 10MB
+  cloudfront:
+    cdn-base-url: ${CDN_BASE_URL}
+    key-pair-id: ${CLOUDFRONT_KEY_PAIR_ID}
+    private-key: ${CLOUDFRONT_PRIVATE_KEY}
+    signed-url-expiration: 2h
