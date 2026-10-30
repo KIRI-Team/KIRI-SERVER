@@ -312,4 +312,138 @@ class ScheduleCommandServiceTest {
                 .extracting(e -> ((ScheduleException) e).getErrorCode())
                 .isEqualTo(ScheduleErrorCode.NOT_CANCELABLE);
     }
+
+    private Schedule updatableSchedule(ScheduleStatus status, LocalDate date, LocalTime time) {
+        return Schedule.builder().id(SCHEDULE_ID).proposer(proposer).status(status)
+                .bucketItem(bucket(BucketStatus.SCHEDULED, null))
+                .scheduleDate(date).scheduleTime(time)
+                .responseDeadline(LocalDateTime.of(2026, 12, 19, 14, 0)).build();
+    }
+
+    private ScheduleParticipant participant(Schedule schedule, Member member, ParticipantStatus status) {
+        return ScheduleParticipant.builder().schedule(schedule).member(member)
+                .status(status).reconfirmRequired(false).build();
+    }
+
+    private ScheduleReqDTO.Update updateReq(LocalDate date, LocalTime time, List<Long> ids) {
+        return ScheduleReqDTO.Update.builder()
+                .scheduleDate(date).scheduleTime(time).participantMemberIds(ids).requestMessage("수정").build();
+    }
+
+    @Test
+    @DisplayName("날짜를 바꾸면 기존 수락자는 재확인 필요가 되고 일정이 PENDING_RESPONSE로 돌아간다.")
+    void update_coreChange() {
+        Schedule schedule = updatableSchedule(ScheduleStatus.CONFIRMED, LocalDate.of(2026, 12, 20), LocalTime.of(14, 0));
+        ScheduleParticipant m2p = participant(schedule, m2, ParticipantStatus.ACCEPTED);
+        given(memberRepository.findById(PROPOSER_ID)).willReturn(Optional.of(proposer));
+        given(scheduleRepository.findByIdForUpdate(SCHEDULE_ID)).willReturn(Optional.of(schedule));
+        given(memberRepository.findAllByFamilyAndDeletedAtIsNull(family)).willReturn(List.of(proposer, m2, m3));
+        given(scheduleParticipantRepository.findBySchedule_Id(SCHEDULE_ID))
+                .willReturn(List.of(participant(schedule, proposer, ParticipantStatus.ACCEPTED), m2p));
+        given(memberRepository.getReferenceById(3L)).willReturn(m3);
+        given(scheduleParticipantRepository.countBySchedule_IdAndStatusAndReconfirmRequiredFalseAndMember_IdNot(
+                SCHEDULE_ID, ParticipantStatus.ACCEPTED, PROPOSER_ID)).willReturn(0L);
+
+        ScheduleResDTO.Updated result = service.update(PROPOSER_ID, SCHEDULE_ID,
+                updateReq(LocalDate.of(2026, 12, 21), LocalTime.of(14, 0), List.of(2L, 3L)));
+
+        assertThat(result.scheduleDate()).isEqualTo(LocalDate.of(2026, 12, 21));
+        assertThat(result.status()).isEqualTo(ScheduleStatus.PENDING_RESPONSE);
+        assertThat(result.participantMemberIds()).containsExactly(2L, 3L);
+        assertThat(m2p.getReconfirmRequired()).isTrue();
+        verify(scheduleParticipantRepository).saveAll(any());
+    }
+
+    @Test
+    @DisplayName("참여자를 교체하면 빠진 참여자는 삭제되고 새 참여자는 미응답으로 추가된다.")
+    void update_replaceParticipants() {
+        Schedule schedule = updatableSchedule(ScheduleStatus.CONFIRMED, LocalDate.of(2026, 12, 20), LocalTime.of(14, 0));
+        ScheduleParticipant m2p = participant(schedule, m2, ParticipantStatus.ACCEPTED);
+        given(memberRepository.findById(PROPOSER_ID)).willReturn(Optional.of(proposer));
+        given(scheduleRepository.findByIdForUpdate(SCHEDULE_ID)).willReturn(Optional.of(schedule));
+        given(memberRepository.findAllByFamilyAndDeletedAtIsNull(family)).willReturn(List.of(proposer, m2, m3));
+        given(scheduleParticipantRepository.findBySchedule_Id(SCHEDULE_ID))
+                .willReturn(List.of(participant(schedule, proposer, ParticipantStatus.ACCEPTED), m2p));
+        given(memberRepository.getReferenceById(3L)).willReturn(m3);
+        given(scheduleParticipantRepository.countBySchedule_IdAndStatusAndReconfirmRequiredFalseAndMember_IdNot(
+                SCHEDULE_ID, ParticipantStatus.ACCEPTED, PROPOSER_ID)).willReturn(0L);
+
+        ScheduleResDTO.Updated result = service.update(PROPOSER_ID, SCHEDULE_ID,
+                updateReq(LocalDate.of(2026, 12, 20), LocalTime.of(14, 0), List.of(3L)));
+
+        assertThat(result.participantMemberIds()).containsExactly(3L);
+        ArgumentCaptor<List<ScheduleParticipant>> removed = ArgumentCaptor.forClass(List.class);
+        verify(scheduleParticipantRepository).deleteAll(removed.capture());
+        assertThat(removed.getValue()).containsExactly(m2p);
+        verify(scheduleParticipantRepository).saveAll(any());
+    }
+
+    @Test
+    @DisplayName("제안자가 아니면 SCHEDULE403_4로 예외를 던진다.")
+    void update_notProposer() {
+        Schedule schedule = updatableSchedule(ScheduleStatus.CONFIRMED, LocalDate.of(2026, 12, 20), LocalTime.of(14, 0));
+        given(memberRepository.findById(2L)).willReturn(Optional.of(m2));
+        given(scheduleRepository.findByIdForUpdate(SCHEDULE_ID)).willReturn(Optional.of(schedule));
+
+        assertThatThrownBy(() -> service.update(2L, SCHEDULE_ID,
+                updateReq(LocalDate.of(2026, 12, 21), LocalTime.of(14, 0), List.of(3L))))
+                .isInstanceOf(ScheduleException.class)
+                .extracting(e -> ((ScheduleException) e).getErrorCode())
+                .isEqualTo(ScheduleErrorCode.NOT_PROPOSER);
+    }
+
+    @Test
+    @DisplayName("취소된 일정은 SCHEDULE409_4로 예외를 던진다.")
+    void update_notUpdatable() {
+        Schedule schedule = updatableSchedule(ScheduleStatus.CANCELLED, LocalDate.of(2026, 12, 20), LocalTime.of(14, 0));
+        given(memberRepository.findById(PROPOSER_ID)).willReturn(Optional.of(proposer));
+        given(scheduleRepository.findByIdForUpdate(SCHEDULE_ID)).willReturn(Optional.of(schedule));
+
+        assertThatThrownBy(() -> service.update(PROPOSER_ID, SCHEDULE_ID,
+                updateReq(LocalDate.of(2026, 12, 21), LocalTime.of(14, 0), List.of(2L))))
+                .isInstanceOf(ScheduleException.class)
+                .extracting(e -> ((ScheduleException) e).getErrorCode())
+                .isEqualTo(ScheduleErrorCode.NOT_UPDATABLE);
+    }
+
+    @Test
+    @DisplayName("활동이 시작된 일정은 SCHEDULE409_4로 예외를 던진다.")
+    void update_alreadyStarted() {
+        Schedule schedule = updatableSchedule(ScheduleStatus.CONFIRMED, LocalDate.of(2026, 10, 20), LocalTime.of(14, 0));
+        given(memberRepository.findById(PROPOSER_ID)).willReturn(Optional.of(proposer));
+        given(scheduleRepository.findByIdForUpdate(SCHEDULE_ID)).willReturn(Optional.of(schedule));
+
+        assertThatThrownBy(() -> service.update(PROPOSER_ID, SCHEDULE_ID,
+                updateReq(LocalDate.of(2026, 12, 21), LocalTime.of(14, 0), List.of(2L))))
+                .isInstanceOf(ScheduleException.class)
+                .extracting(e -> ((ScheduleException) e).getErrorCode())
+                .isEqualTo(ScheduleErrorCode.NOT_UPDATABLE);
+    }
+
+    @Test
+    @DisplayName("존재하지 않는 일정이면 SCHEDULE404_2로 예외를 던진다.")
+    void update_scheduleNotFound() {
+        given(memberRepository.findById(PROPOSER_ID)).willReturn(Optional.of(proposer));
+        given(scheduleRepository.findByIdForUpdate(SCHEDULE_ID)).willReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.update(PROPOSER_ID, SCHEDULE_ID,
+                updateReq(LocalDate.of(2026, 12, 21), LocalTime.of(14, 0), List.of(2L))))
+                .isInstanceOf(ScheduleException.class)
+                .extracting(e -> ((ScheduleException) e).getErrorCode())
+                .isEqualTo(ScheduleErrorCode.SCHEDULE_NOT_FOUND);
+    }
+
+    @Test
+    @DisplayName("지난 시각으로 수정하면 SCHEDULE400_2로 예외를 던진다.")
+    void update_pastDateTime() {
+        Schedule schedule = updatableSchedule(ScheduleStatus.CONFIRMED, LocalDate.of(2026, 12, 20), LocalTime.of(14, 0));
+        given(memberRepository.findById(PROPOSER_ID)).willReturn(Optional.of(proposer));
+        given(scheduleRepository.findByIdForUpdate(SCHEDULE_ID)).willReturn(Optional.of(schedule));
+
+        assertThatThrownBy(() -> service.update(PROPOSER_ID, SCHEDULE_ID,
+                updateReq(LocalDate.of(2026, 10, 1), LocalTime.of(14, 0), List.of(2L))))
+                .isInstanceOf(ScheduleException.class)
+                .extracting(e -> ((ScheduleException) e).getErrorCode())
+                .isEqualTo(ScheduleErrorCode.PAST_SCHEDULE_DATETIME);
+    }
 }
