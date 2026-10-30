@@ -30,6 +30,14 @@ public class ScheduleConverter {
                 .build();
     }
 
+    public static ScheduleResDTO.Cancelled toCancelled(Schedule schedule) {
+        return ScheduleResDTO.Cancelled.builder()
+                .scheduleId(schedule.getId())
+                .status(schedule.getStatus())
+                .bucketItemId(schedule.getBucketItem() == null ? null : schedule.getBucketItem().getId())
+                .build();
+    }
+
     public static ScheduleResDTO.Calendar toCalendar(int year, int month, List<ScheduleResDTO.CalendarItem> schedules) {
         return ScheduleResDTO.Calendar.builder()
                 .year(year)

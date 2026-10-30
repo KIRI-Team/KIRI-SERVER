@@ -106,4 +106,16 @@ public class Schedule extends BaseEntity {
             this.status = ScheduleStatus.PENDING_RESPONSE;
         }
     }
+
+    public boolean isCancelable() {
+        return status == ScheduleStatus.PENDING_RESPONSE || status == ScheduleStatus.CONFIRMED;
+    }
+
+    public void cancel() {
+        this.status = ScheduleStatus.CANCELLED;
+    }
+
+    public boolean isProposer(Long memberId) {
+        return proposer != null && proposer.getId().equals(memberId);
+    }
 }

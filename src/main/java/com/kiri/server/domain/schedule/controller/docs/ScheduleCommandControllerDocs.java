@@ -267,4 +267,92 @@ public interface ScheduleCommandControllerDocs {
             @Parameter(description = "일정 ID", example = "100") Long scheduleId,
             @Valid ScheduleReqDTO.Response request
     );
+
+    @Operation(
+            summary = "일정 취소 API",
+            description = """
+                    # 일정 취소
+
+                    ## 요청 형식
+                    - 헤더: Authorization: Bearer {JWT 토큰}
+                    - Path: scheduleId
+
+                    일정 제안자가 확정 또는 대기 중인 일정을 취소합니다.
+
+                    ## 규칙
+                    - 제안자만 취소할 수 있습니다.
+                    - 대기(PENDING_RESPONSE)·확정(CONFIRMED) 일정만 취소할 수 있고, 이미 취소·완료된 일정은 취소할 수 없습니다.
+                    - 취소 시 일정은 CANCELLED가 되고, 연결된 버킷은 다시 SAVED가 되어 같은 버킷에서 새 일정을 만들 수 있습니다.
+                    """
+    )
+    @ApiResponses(value = {
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200",
+                    description = "취소 성공",
+                    content = @Content(
+                            mediaType = "application/json",
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "isSuccess": true,
+                                      "code": "SCHEDULE200_3",
+                                      "message": "일정 취소 성공",
+                                      "result": {
+                                        "scheduleId": 100,
+                                        "status": "CANCELLED",
+                                        "bucketItemId": 42
+                                      }
+                                    }
+                                    """)
+                    )
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "403",
+                    description = "제안자가 아닌 회원",
+                    content = @Content(
+                            mediaType = "application/json",
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "isSuccess": false,
+                                      "code": "SCHEDULE403_4",
+                                      "message": "일정 제안자만 취소할 수 있습니다.",
+                                      "result": null
+                                    }
+                                    """)
+                    )
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "404",
+                    description = "존재하지 않는 일정",
+                    content = @Content(
+                            mediaType = "application/json",
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "isSuccess": false,
+                                      "code": "SCHEDULE404_2",
+                                      "message": "존재하지 않는 일정입니다.",
+                                      "result": null
+                                    }
+                                    """)
+                    )
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "409",
+                    description = "취소할 수 없는 상태(이미 취소·완료)",
+                    content = @Content(
+                            mediaType = "application/json",
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "isSuccess": false,
+                                      "code": "SCHEDULE409_3",
+                                      "message": "취소할 수 없는 일정입니다.",
+                                      "result": null
+                                    }
+                                    """)
+                    )
+            )
+    })
+    ApiResponse<ScheduleResDTO.Cancelled> cancelSchedule(
+            @Parameter(hidden = true) Long memberId,
+            @Parameter(description = "일정 ID", example = "100") Long scheduleId
+    );
 }

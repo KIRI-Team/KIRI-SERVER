@@ -56,4 +56,12 @@ public class ScheduleResDTO {
             ScheduleStatus status
     ) {
     }
+
+    @Builder
+    public record Cancelled(
+            Long scheduleId,
+            ScheduleStatus status,
+            Long bucketItemId
+    ) {
+    }
 }

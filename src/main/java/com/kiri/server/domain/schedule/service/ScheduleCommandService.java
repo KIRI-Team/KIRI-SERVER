@@ -87,6 +87,30 @@ public class ScheduleCommandService {
         return ScheduleConverter.toCreated(schedule, participantMemberIds);
     }
 
+    @Transactional
+    public ScheduleResDTO.Cancelled cancel(Long memberId, Long scheduleId) {
+        if (!memberRepository.existsById(memberId)) {
+            throw new MemberException(MemberErrorCode.NOT_FOUND);
+        }
+
+        Schedule schedule = scheduleRepository.findByIdForUpdate(scheduleId)
+                .orElseThrow(() -> new ScheduleException(ScheduleErrorCode.SCHEDULE_NOT_FOUND));
+        if (!schedule.isProposer(memberId)) {
+            throw new ScheduleException(ScheduleErrorCode.NOT_PROPOSER);
+        }
+        if (!schedule.isCancelable()) {
+            throw new ScheduleException(ScheduleErrorCode.NOT_CANCELABLE);
+        }
+
+        schedule.cancel();
+        BucketItem bucketItem = schedule.getBucketItem();
+        if (bucketItem != null) {
+            bucketItem.markSaved();
+        }
+
+        return ScheduleConverter.toCancelled(schedule);
+    }
+
     private LocalDateTime validateDateTime(ScheduleReqDTO.Create request, Mission mission, LocalDateTime now) {
         LocalDateTime startAt = LocalDateTime.of(request.scheduleDate(), request.scheduleTime());
         if (!startAt.isAfter(now)) {

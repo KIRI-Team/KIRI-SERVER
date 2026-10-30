@@ -63,4 +63,8 @@ public class BucketItem extends BaseEntity {
     public void markScheduled() {
         this.status = BucketStatus.SCHEDULED;
     }
+
+    public void markSaved() {
+        this.status = BucketStatus.SAVED;
+    }
 }
