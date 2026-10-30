@@ -64,4 +64,19 @@ public class ScheduleResDTO {
             Long bucketItemId
     ) {
     }
+
+    @Builder
+    public record Updated(
+            Long scheduleId,
+            @JsonFormat(pattern = "yyyy-MM-dd")
+            LocalDate scheduleDate,
+            @JsonFormat(pattern = "HH:mm")
+            LocalTime scheduleTime,
+            ScheduleStatus status,
+            @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
+            LocalDateTime responseDeadline,
+            Long proposerId,
+            List<Long> participantMemberIds
+    ) {
+    }
 }

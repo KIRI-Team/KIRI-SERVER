@@ -38,6 +38,18 @@ public class ScheduleConverter {
                 .build();
     }
 
+    public static ScheduleResDTO.Updated toUpdated(Schedule schedule, List<Long> participantMemberIds) {
+        return ScheduleResDTO.Updated.builder()
+                .scheduleId(schedule.getId())
+                .scheduleDate(schedule.getScheduleDate())
+                .scheduleTime(schedule.getScheduleTime())
+                .status(schedule.getStatus())
+                .responseDeadline(schedule.getResponseDeadline())
+                .proposerId(schedule.getProposer() == null ? null : schedule.getProposer().getId())
+                .participantMemberIds(participantMemberIds)
+                .build();
+    }
+
     public static ScheduleResDTO.Calendar toCalendar(int year, int month, List<ScheduleResDTO.CalendarItem> schedules) {
         return ScheduleResDTO.Calendar.builder()
                 .year(year)
