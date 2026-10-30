@@ -77,4 +77,8 @@ public class ScheduleParticipant extends BaseEntity {
         this.reconfirmRequired = false;
         this.respondedAt = respondedAt;
     }
+
+    public void markReconfirmRequired() {
+        this.reconfirmRequired = true;
+    }
 }

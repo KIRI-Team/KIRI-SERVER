@@ -118,4 +118,24 @@ public class Schedule extends BaseEntity {
     public boolean isProposer(Long memberId) {
         return proposer != null && proposer.getId().equals(memberId);
     }
+
+    public LocalDateTime startDateTime() {
+        return LocalDateTime.of(scheduleDate, scheduleTime);
+    }
+
+    public boolean isUpdatable() {
+        return status == ScheduleStatus.PENDING_RESPONSE || status == ScheduleStatus.CONFIRMED;
+    }
+
+    public boolean hasStarted(LocalDateTime now) {
+        return startedAt != null || !startDateTime().isAfter(now);
+    }
+
+    public void update(LocalDate scheduleDate, LocalTime scheduleTime, String requestMessage,
+                       LocalDateTime responseDeadline) {
+        this.scheduleDate = scheduleDate;
+        this.scheduleTime = scheduleTime;
+        this.requestMessage = requestMessage;
+        this.responseDeadline = responseDeadline;
+    }
 }
