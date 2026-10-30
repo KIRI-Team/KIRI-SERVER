@@ -55,8 +55,8 @@ public class ScheduleResponseService {
         participant.respond(request.action().toParticipantStatus(), now);
 
         long acceptedExcludingProposer = scheduleParticipantRepository
-                .countBySchedule_IdAndStatusAndMember_IdNot(scheduleId, ParticipantStatus.ACCEPTED,
-                        schedule.getProposer().getId());
+                .countBySchedule_IdAndStatusAndReconfirmRequiredFalseAndMember_IdNot(scheduleId,
+                        ParticipantStatus.ACCEPTED, schedule.getProposer().getId());
         schedule.recalculateStatus(acceptedExcludingProposer, now);
 
         return ScheduleConverter.toResponded(schedule, participant);
@@ -71,8 +71,8 @@ public class ScheduleResponseService {
             return;
         }
         long acceptedExcludingProposer = scheduleParticipantRepository
-                .countBySchedule_IdAndStatusAndMember_IdNot(scheduleId, ParticipantStatus.ACCEPTED,
-                        schedule.getProposer().getId());
+                .countBySchedule_IdAndStatusAndReconfirmRequiredFalseAndMember_IdNot(scheduleId,
+                        ParticipantStatus.ACCEPTED, schedule.getProposer().getId());
         schedule.recalculateStatus(acceptedExcludingProposer, now);
     }
 }

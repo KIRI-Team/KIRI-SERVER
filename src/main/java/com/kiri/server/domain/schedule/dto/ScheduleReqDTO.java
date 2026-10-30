@@ -56,6 +56,28 @@ public class ScheduleReqDTO {
     }
 
     @Builder
+    public record Update(
+            @Schema(description = "일정 날짜(yyyy-MM-dd)", example = "2026-11-16")
+            @NotNull(message = "scheduleDate는 필수입니다.")
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
+            LocalDate scheduleDate,
+
+            @Schema(description = "일정 시간(HH:mm)", example = "15:00")
+            @NotNull(message = "scheduleTime은 필수입니다.")
+            @DateTimeFormat(pattern = "HH:mm")
+            LocalTime scheduleTime,
+
+            @Schema(description = "초대할 가족 구성원 memberId 목록(제안자 제외)", example = "[2, 3]")
+            @NotEmpty(message = "초대할 가족 구성원을 1명 이상 선택해 주세요.")
+            List<Long> participantMemberIds,
+
+            @Schema(description = "가족에게 한 줄 메시지", example = "시간이 바뀌었어요!")
+            @Size(max = 100, message = "메시지는 100자 이하로 입력해 주세요.")
+            String requestMessage
+    ) {
+    }
+
+    @Builder
     public record Response(
             @Schema(description = "응답 종류", example = "ACCEPT")
             @NotNull(message = "action은 필수입니다.")

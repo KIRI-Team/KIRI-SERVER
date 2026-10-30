@@ -29,7 +29,9 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
@@ -67,7 +69,8 @@ public class ScheduleCommandService {
         }
 
         LocalDateTime now = LocalDateTime.now(clock);
-        LocalDateTime startAt = validateDateTime(request, bucketItem.getMission(), now);
+        LocalDateTime startAt = validateDateTime(request.scheduleDate(), request.scheduleTime(),
+                bucketItem.getMission(), now);
         List<Long> participantMemberIds = resolveParticipants(request.participantMemberIds(), proposer, family);
 
         LocalDateTime responseDeadline = calculateDeadline(startAt, now);
@@ -111,16 +114,91 @@ public class ScheduleCommandService {
         return ScheduleConverter.toCancelled(schedule);
     }
 
-    private LocalDateTime validateDateTime(ScheduleReqDTO.Create request, Mission mission, LocalDateTime now) {
-        LocalDateTime startAt = LocalDateTime.of(request.scheduleDate(), request.scheduleTime());
+    @Transactional
+    public ScheduleResDTO.Updated update(Long memberId, Long scheduleId, ScheduleReqDTO.Update request) {
+        Member proposer = memberRepository.findById(memberId)
+                .orElseThrow(() -> new MemberException(MemberErrorCode.NOT_FOUND));
+        Family family = proposer.getFamily();
+        if (family == null) {
+            throw new ScheduleException(ScheduleErrorCode.FAMILY_REQUIRED);
+        }
+
+        Schedule schedule = scheduleRepository.findByIdForUpdate(scheduleId)
+                .orElseThrow(() -> new ScheduleException(ScheduleErrorCode.SCHEDULE_NOT_FOUND));
+        if (!schedule.isProposer(memberId)) {
+            throw new ScheduleException(ScheduleErrorCode.NOT_PROPOSER);
+        }
+
+        LocalDateTime now = LocalDateTime.now(clock);
+        if (!schedule.isUpdatable() || schedule.hasStarted(now)) {
+            throw new ScheduleException(ScheduleErrorCode.NOT_UPDATABLE);
+        }
+
+        Mission mission = schedule.getBucketItem() == null ? null : schedule.getBucketItem().getMission();
+        LocalDateTime startAt = validateDateTime(request.scheduleDate(), request.scheduleTime(), mission, now);
+
+        List<Long> targetIds = resolveParticipants(request.participantMemberIds(), proposer, family);
+        Set<Long> targetSet = new LinkedHashSet<>(targetIds);
+
+        List<ScheduleParticipant> existing = scheduleParticipantRepository.findBySchedule_Id(scheduleId);
+        Set<Long> existingMemberIds = new HashSet<>();
+        List<ScheduleParticipant> toRemove = new ArrayList<>();
+        List<ScheduleParticipant> keptAccepted = new ArrayList<>();
+        for (ScheduleParticipant p : existing) {
+            if (p.getMember() == null || p.getMember().getId().equals(proposer.getId())) {
+                continue;
+            }
+            Long id = p.getMember().getId();
+            existingMemberIds.add(id);
+            if (!targetSet.contains(id)) {
+                toRemove.add(p);
+            } else if (p.getStatus() == ParticipantStatus.ACCEPTED) {
+                keptAccepted.add(p);
+            }
+        }
+
+        boolean coreChanged = !schedule.getScheduleDate().equals(request.scheduleDate())
+                || !schedule.getScheduleTime().equals(request.scheduleTime())
+                || !targetSet.equals(existingMemberIds);
+
+        if (!toRemove.isEmpty()) {
+            scheduleParticipantRepository.deleteAll(toRemove);
+        }
+        List<ScheduleParticipant> toAdd = new ArrayList<>();
+        targetIds.forEach(id -> {
+            if (!existingMemberIds.contains(id)) {
+                toAdd.add(ScheduleParticipant.of(schedule, memberRepository.getReferenceById(id),
+                        ParticipantStatus.PENDING, null));
+            }
+        });
+        if (!toAdd.isEmpty()) {
+            scheduleParticipantRepository.saveAll(toAdd);
+        }
+        if (coreChanged) {
+            keptAccepted.forEach(ScheduleParticipant::markReconfirmRequired);
+        }
+
+        LocalDateTime responseDeadline = calculateDeadline(startAt, now);
+        schedule.update(request.scheduleDate(), request.scheduleTime(), request.requestMessage(), responseDeadline);
+
+        long acceptedExcludingProposer = scheduleParticipantRepository
+                .countBySchedule_IdAndStatusAndReconfirmRequiredFalseAndMember_IdNot(scheduleId,
+                        ParticipantStatus.ACCEPTED, proposer.getId());
+        schedule.recalculateStatus(acceptedExcludingProposer, now);
+
+        return ScheduleConverter.toUpdated(schedule, targetIds);
+    }
+
+    private LocalDateTime validateDateTime(LocalDate scheduleDate, LocalTime scheduleTime, Mission mission,
+                                           LocalDateTime now) {
+        LocalDateTime startAt = LocalDateTime.of(scheduleDate, scheduleTime);
         if (!startAt.isAfter(now)) {
             throw new ScheduleException(ScheduleErrorCode.PAST_SCHEDULE_DATETIME);
         }
         if (mission != null && mission.getMissionType() == MissionType.PERIOD) {
-            LocalDate date = request.scheduleDate();
             LocalDate start = mission.getStartDate();
             LocalDate end = mission.getEndDate();
-            if ((start != null && date.isBefore(start)) || (end != null && date.isAfter(end))) {
+            if ((start != null && scheduleDate.isBefore(start)) || (end != null && scheduleDate.isAfter(end))) {
                 throw new ScheduleException(ScheduleErrorCode.OUT_OF_EVENT_PERIOD);
             }
         }

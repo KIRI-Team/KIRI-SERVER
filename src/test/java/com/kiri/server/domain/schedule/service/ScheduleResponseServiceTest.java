@@ -85,7 +85,7 @@ class ScheduleResponseServiceTest {
         given(memberRepository.existsById(MEMBER_ID)).willReturn(true);
         given(scheduleRepository.findByIdForUpdate(SCHEDULE_ID)).willReturn(Optional.of(schedule));
         given(scheduleParticipantRepository.findBySchedule_IdAndMember_IdForUpdate(SCHEDULE_ID, MEMBER_ID)).willReturn(Optional.of(p));
-        given(scheduleParticipantRepository.countBySchedule_IdAndStatusAndMember_IdNot(SCHEDULE_ID, ParticipantStatus.ACCEPTED, PROPOSER_ID))
+        given(scheduleParticipantRepository.countBySchedule_IdAndStatusAndReconfirmRequiredFalseAndMember_IdNot(SCHEDULE_ID, ParticipantStatus.ACCEPTED, PROPOSER_ID))
                 .willReturn(1L);
 
         ScheduleResDTO.Responded result = service.respond(MEMBER_ID, SCHEDULE_ID, req(ResponseAction.ACCEPT));
@@ -104,7 +104,7 @@ class ScheduleResponseServiceTest {
         given(memberRepository.existsById(MEMBER_ID)).willReturn(true);
         given(scheduleRepository.findByIdForUpdate(SCHEDULE_ID)).willReturn(Optional.of(schedule));
         given(scheduleParticipantRepository.findBySchedule_IdAndMember_IdForUpdate(SCHEDULE_ID, MEMBER_ID)).willReturn(Optional.of(p));
-        given(scheduleParticipantRepository.countBySchedule_IdAndStatusAndMember_IdNot(SCHEDULE_ID, ParticipantStatus.ACCEPTED, PROPOSER_ID))
+        given(scheduleParticipantRepository.countBySchedule_IdAndStatusAndReconfirmRequiredFalseAndMember_IdNot(SCHEDULE_ID, ParticipantStatus.ACCEPTED, PROPOSER_ID))
                 .willReturn(0L);
 
         ScheduleResDTO.Responded result = service.respond(MEMBER_ID, SCHEDULE_ID, req(ResponseAction.DECLINE));
@@ -122,7 +122,7 @@ class ScheduleResponseServiceTest {
         given(memberRepository.existsById(MEMBER_ID)).willReturn(true);
         given(scheduleRepository.findByIdForUpdate(SCHEDULE_ID)).willReturn(Optional.of(schedule));
         given(scheduleParticipantRepository.findBySchedule_IdAndMember_IdForUpdate(SCHEDULE_ID, MEMBER_ID)).willReturn(Optional.of(p));
-        given(scheduleParticipantRepository.countBySchedule_IdAndStatusAndMember_IdNot(SCHEDULE_ID, ParticipantStatus.ACCEPTED, PROPOSER_ID))
+        given(scheduleParticipantRepository.countBySchedule_IdAndStatusAndReconfirmRequiredFalseAndMember_IdNot(SCHEDULE_ID, ParticipantStatus.ACCEPTED, PROPOSER_ID))
                 .willReturn(1L);
 
         service.respond(MEMBER_ID, SCHEDULE_ID, req(ResponseAction.ACCEPT));
@@ -200,7 +200,7 @@ class ScheduleResponseServiceTest {
         LocalDateTime now = LocalDateTime.now(CLOCK);
         Schedule schedule = schedule(ScheduleStatus.PENDING_RESPONSE, now.minusHours(1));
         given(scheduleRepository.findByIdForUpdate(SCHEDULE_ID)).willReturn(Optional.of(schedule));
-        given(scheduleParticipantRepository.countBySchedule_IdAndStatusAndMember_IdNot(SCHEDULE_ID, ParticipantStatus.ACCEPTED, PROPOSER_ID))
+        given(scheduleParticipantRepository.countBySchedule_IdAndStatusAndReconfirmRequiredFalseAndMember_IdNot(SCHEDULE_ID, ParticipantStatus.ACCEPTED, PROPOSER_ID))
                 .willReturn(0L);
 
         service.finalizeExpired(SCHEDULE_ID, now);

@@ -17,10 +17,13 @@ public interface ScheduleParticipantRepository extends JpaRepository<SchedulePar
 
     List<ScheduleParticipant> findBySchedule_IdInAndMember_Id(List<Long> scheduleIds, Long memberId);
 
+    List<ScheduleParticipant> findBySchedule_Id(Long scheduleId);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT p FROM ScheduleParticipant p WHERE p.schedule.id = :scheduleId AND p.member.id = :memberId")
     Optional<ScheduleParticipant> findBySchedule_IdAndMember_IdForUpdate(@Param("scheduleId") Long scheduleId,
                                                                          @Param("memberId") Long memberId);
 
-    long countBySchedule_IdAndStatusAndMember_IdNot(Long scheduleId, ParticipantStatus status, Long proposerId);
+    long countBySchedule_IdAndStatusAndReconfirmRequiredFalseAndMember_IdNot(Long scheduleId, ParticipantStatus status,
+                                                                             Long proposerId);
 }

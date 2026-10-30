@@ -59,4 +59,16 @@ public class ScheduleCommandController implements ScheduleCommandControllerDocs 
                 scheduleCommandService.cancel(memberId, scheduleId)
         );
     }
+
+    @PatchMapping("/schedules/{scheduleId}")
+    public ApiResponse<ScheduleResDTO.Updated> updateSchedule(
+            @AuthenticationPrincipal Long memberId,
+            @PathVariable Long scheduleId,
+            @Valid @RequestBody ScheduleReqDTO.Update request
+    ) {
+        return ApiResponse.onSuccess(
+                ScheduleSuccessCode.UPDATE_SUCCESS,
+                scheduleCommandService.update(memberId, scheduleId, request)
+        );
+    }
 }

@@ -236,4 +236,88 @@ class ScheduleCommandControllerTest {
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value("SCHEDULE409_3"));
     }
+
+    private ScheduleReqDTO.Update validUpdateRequest() {
+        return ScheduleReqDTO.Update.builder()
+                .scheduleDate(LocalDate.of(2026, 11, 16))
+                .scheduleTime(LocalTime.of(15, 0))
+                .participantMemberIds(List.of(2L, 3L))
+                .requestMessage("시간이 바뀌었어요")
+                .build();
+    }
+
+    @Test
+    @DisplayName("토큰 없이 수정하면 COMMON401_1로 응답한다.")
+    void update_noToken() throws Exception {
+        mockMvc.perform(patch("/api/v1/schedules/{scheduleId}", 100L)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body(validUpdateRequest())))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("COMMON401_1"));
+    }
+
+    @Test
+    @DisplayName("수정에 성공하면 SCHEDULE200_4와 수정 결과를 반환한다.")
+    void update_success() throws Exception {
+        given(scheduleCommandService.update(eq(MEMBER_ID), eq(100L), any()))
+                .willReturn(ScheduleResDTO.Updated.builder()
+                        .scheduleId(100L)
+                        .scheduleDate(LocalDate.of(2026, 11, 16)).scheduleTime(LocalTime.of(15, 0))
+                        .status(ScheduleStatus.PENDING_RESPONSE)
+                        .responseDeadline(LocalDateTime.of(2026, 11, 15, 15, 0))
+                        .proposerId(MEMBER_ID).participantMemberIds(List.of(2L, 3L)).build());
+
+        mockMvc.perform(patch("/api/v1/schedules/{scheduleId}", 100L)
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body(validUpdateRequest())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value("SCHEDULE200_4"))
+                .andExpect(jsonPath("$.result.scheduleDate").value("2026-11-16"))
+                .andExpect(jsonPath("$.result.status").value("PENDING_RESPONSE"))
+                .andExpect(jsonPath("$.result.responseDeadline").value("2026-11-15T15:00:00"));
+    }
+
+    @Test
+    @DisplayName("날짜가 없으면 COMMON400_1로 응답한다.")
+    void update_missingDate() throws Exception {
+        Map<String, Object> req = Map.of(
+                "scheduleTime", "15:00",
+                "participantMemberIds", List.of(2L));
+
+        mockMvc.perform(patch("/api/v1/schedules/{scheduleId}", 100L)
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body(req)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("COMMON400_1"));
+    }
+
+    @Test
+    @DisplayName("제안자가 아니면 SCHEDULE403_4로 응답한다.")
+    void update_notProposer() throws Exception {
+        given(scheduleCommandService.update(eq(MEMBER_ID), eq(100L), any()))
+                .willThrow(new ScheduleException(ScheduleErrorCode.NOT_PROPOSER));
+
+        mockMvc.perform(patch("/api/v1/schedules/{scheduleId}", 100L)
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body(validUpdateRequest())))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("SCHEDULE403_4"));
+    }
+
+    @Test
+    @DisplayName("수정할 수 없는 상태면 SCHEDULE409_4로 응답한다.")
+    void update_notUpdatable() throws Exception {
+        given(scheduleCommandService.update(eq(MEMBER_ID), eq(100L), any()))
+                .willThrow(new ScheduleException(ScheduleErrorCode.NOT_UPDATABLE));
+
+        mockMvc.perform(patch("/api/v1/schedules/{scheduleId}", 100L)
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body(validUpdateRequest())))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("SCHEDULE409_4"));
+    }
 }

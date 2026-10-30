@@ -314,7 +314,7 @@ public interface ScheduleCommandControllerDocs {
                                     {
                                       "isSuccess": false,
                                       "code": "SCHEDULE403_4",
-                                      "message": "일정 제안자만 취소할 수 있습니다.",
+                                      "message": "일정 제안자만 수정·취소할 수 있습니다.",
                                       "result": null
                                     }
                                     """)
@@ -354,5 +354,135 @@ public interface ScheduleCommandControllerDocs {
     ApiResponse<ScheduleResDTO.Cancelled> cancelSchedule(
             @Parameter(hidden = true) Long memberId,
             @Parameter(description = "일정 ID", example = "100") Long scheduleId
+    );
+
+    @Operation(
+            summary = "일정 수정 API",
+            description = """
+                    # 일정 수정
+
+                    ## 요청 형식
+                    - 헤더: Authorization: Bearer {JWT 토큰}
+                    - Path: scheduleId
+                    - Body: 날짜·시간(필수), 초대할 가족 구성원 목록(제안자 제외, 1명 이상), 가족에게 한 줄(선택)
+
+                    일정 제안자가 기존 일정의 날짜·시간·참여자를 수정합니다. 장소는 버킷(미션)에 묶인 값이라 수정 대상이 아닙니다.
+
+                    ## 규칙
+                    - 제안자만 수정할 수 있습니다.
+                    - 대기(PENDING_RESPONSE)·확정(CONFIRMED) 일정만 수정할 수 있고, 활동이 시작된 뒤에는 수정할 수 없습니다.
+                    - 날짜·시간·참여자 중 하나라도 바뀌면 기존 수락자는 재확인 필요 상태가 되고, 다시 수락/거절로 응답해야 합니다.
+                    - 새 응답 마감은 변경된 시작 시각 기준 24시간 전이며, 24시간 이하가 남았으면 시작 시각입니다.
+                    - 재확인 필요 상태는 확정 계산에서 수락으로 세지 않으므로, 수정 직후 일정은 보통 PENDING_RESPONSE로 돌아갑니다.
+                    - 새로 초대된 구성원은 미응답(PENDING)으로 추가되고, 기존 미응답자는 거절로 바뀌지 않습니다.
+                    """
+    )
+    @ApiResponses(value = {
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200",
+                    description = "수정 성공",
+                    content = @Content(
+                            mediaType = "application/json",
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "isSuccess": true,
+                                      "code": "SCHEDULE200_4",
+                                      "message": "일정 수정 성공",
+                                      "result": {
+                                        "scheduleId": 100,
+                                        "scheduleDate": "2026-11-16",
+                                        "scheduleTime": "15:00",
+                                        "status": "PENDING_RESPONSE",
+                                        "responseDeadline": "2026-11-15T15:00:00",
+                                        "proposerId": 1,
+                                        "participantMemberIds": [2, 3]
+                                      }
+                                    }
+                                    """)
+                    )
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "400",
+                    description = "입력값 오류(날짜·시간 누락/지난 시각/운영기간 밖/초대 대상 오류)",
+                    content = @Content(
+                            mediaType = "application/json",
+                            examples = {
+                                    @ExampleObject(name = "필수값 누락", value = """
+                                            {
+                                              "isSuccess": false,
+                                              "code": "COMMON400_1",
+                                              "message": "잘못된 요청입니다.",
+                                              "result": { "scheduleDate": "scheduleDate는 필수입니다." }
+                                            }
+                                            """),
+                                    @ExampleObject(name = "지난 시각", value = """
+                                            {
+                                              "isSuccess": false,
+                                              "code": "SCHEDULE400_2",
+                                              "message": "지난 시각으로는 일정을 만들 수 없습니다.",
+                                              "result": null
+                                            }
+                                            """),
+                                    @ExampleObject(name = "초대 대상 오류", value = """
+                                            {
+                                              "isSuccess": false,
+                                              "code": "SCHEDULE400_4",
+                                              "message": "같은 가족 구성원만 초대할 수 있습니다.",
+                                              "result": null
+                                            }
+                                            """)
+                            }
+                    )
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "403",
+                    description = "제안자가 아닌 회원",
+                    content = @Content(
+                            mediaType = "application/json",
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "isSuccess": false,
+                                      "code": "SCHEDULE403_4",
+                                      "message": "일정 제안자만 수정·취소할 수 있습니다.",
+                                      "result": null
+                                    }
+                                    """)
+                    )
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "404",
+                    description = "존재하지 않는 일정",
+                    content = @Content(
+                            mediaType = "application/json",
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "isSuccess": false,
+                                      "code": "SCHEDULE404_2",
+                                      "message": "존재하지 않는 일정입니다.",
+                                      "result": null
+                                    }
+                                    """)
+                    )
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "409",
+                    description = "수정할 수 없는 상태(취소·미확정·완료 또는 활동 시작 후)",
+                    content = @Content(
+                            mediaType = "application/json",
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "isSuccess": false,
+                                      "code": "SCHEDULE409_4",
+                                      "message": "수정할 수 없는 일정입니다.",
+                                      "result": null
+                                    }
+                                    """)
+                    )
+            )
+    })
+    ApiResponse<ScheduleResDTO.Updated> updateSchedule(
+            @Parameter(hidden = true) Long memberId,
+            @Parameter(description = "일정 ID", example = "100") Long scheduleId,
+            @Valid ScheduleReqDTO.Update request
     );
 }
