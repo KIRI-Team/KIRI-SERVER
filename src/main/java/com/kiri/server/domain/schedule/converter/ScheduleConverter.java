@@ -4,7 +4,10 @@ import com.kiri.server.domain.schedule.dto.ScheduleResDTO;
 import com.kiri.server.domain.schedule.entity.Schedule;
 import com.kiri.server.domain.schedule.entity.ScheduleParticipant;
 import com.kiri.server.domain.schedule.enums.CalendarMyStatus;
+import com.kiri.server.domain.schedule.enums.UpcomingCardType;
 
+import java.time.LocalDate;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 
 public class ScheduleConverter {
@@ -65,6 +68,28 @@ public class ScheduleConverter {
                 .time(schedule.getScheduleTime())
                 .status(schedule.getStatus())
                 .myStatus(toMyStatus(myParticipant))
+                .build();
+    }
+
+    public static ScheduleResDTO.UpcomingCard toUpcomingCard(Schedule schedule, ScheduleParticipant myParticipant,
+                                                             UpcomingCardType type, LocalDate today) {
+        return ScheduleResDTO.UpcomingCard.builder()
+                .scheduleId(schedule.getId())
+                .date(schedule.getScheduleDate())
+                .time(schedule.getScheduleTime())
+                .status(schedule.getStatus())
+                .myStatus(toMyStatus(myParticipant))
+                .dDay((int) ChronoUnit.DAYS.between(today, schedule.getScheduleDate()))
+                .type(type)
+                .title(schedule.getBucketItem() == null ? null : schedule.getBucketItem().getMission().getTitle())
+                .build();
+    }
+
+    public static ScheduleResDTO.UpcomingHome toUpcomingHome(ScheduleResDTO.UpcomingCard responseRequired,
+                                                             ScheduleResDTO.UpcomingCard upcoming) {
+        return ScheduleResDTO.UpcomingHome.builder()
+                .responseRequired(responseRequired)
+                .upcoming(upcoming)
                 .build();
     }
 
