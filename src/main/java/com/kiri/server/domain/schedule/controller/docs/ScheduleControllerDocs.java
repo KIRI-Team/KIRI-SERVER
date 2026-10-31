@@ -213,4 +213,177 @@ public interface ScheduleControllerDocs {
     ApiResponse<ScheduleResDTO.UpcomingHome> getUpcoming(
             @Parameter(hidden = true) Long memberId
     );
+
+    @Operation(
+            summary = "컨디션 커스텀 조회 API",
+            description = """
+                    # 컨디션 커스텀 화면 조회
+
+                    ## 요청 형식
+                    - 헤더: Authorization: Bearer {JWT 토큰}
+                    - Path: scheduleId
+
+                    컨디션 조정 화면에 필요한 일정의 미션 정보와 현재 적용된 컨디션 조건을 조회합니다.
+
+                    ## 응답 규칙
+                    - missionTitle, estimatedSteps*, duration*: 일정에 연결된 미션의 값 (범위는 min~max로 표시)
+                    - conditions: 현재 일정에 적용된 조건 목록. 적용한 조건이 없으면 빈 배열입니다.
+                      (REDUCE_STEPS 걸음 수 낮추기 / MORE_REST 휴식 시간 늘리기 / LOWER_BUDGET 예산 낮추기 / AVOID_CROWD 사람 많은 곳 피하기)
+                    - 같은 가족의 일정만 조회할 수 있으며, 다른 가족의 일정은 존재하지 않는 일정과 같이 404로 응답합니다.
+                    """
+    )
+    @ApiResponses(value = {
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200",
+                    description = "조회 성공",
+                    content = @Content(
+                            mediaType = "application/json",
+                            examples = {
+                                    @ExampleObject(
+                                            name = "적용한 조건 있음",
+                                            value = """
+                                                    {
+                                                      "isSuccess": true,
+                                                      "code": "SCHEDULE200_6",
+                                                      "message": "컨디션 커스텀 조회 성공",
+                                                      "result": {
+                                                        "missionTitle": "한강 뚜벅뚜벅 축제 가보기",
+                                                        "estimatedStepsMin": 5000,
+                                                        "estimatedStepsMax": 12000,
+                                                        "durationMinMinutes": 60,
+                                                        "durationMaxMinutes": 180,
+                                                        "conditions": ["REDUCE_STEPS", "MORE_REST"]
+                                                      }
+                                                    }
+                                                    """
+                                    ),
+                                    @ExampleObject(
+                                            name = "적용한 조건 없음",
+                                            value = """
+                                                    {
+                                                      "isSuccess": true,
+                                                      "code": "SCHEDULE200_6",
+                                                      "message": "컨디션 커스텀 조회 성공",
+                                                      "result": {
+                                                        "missionTitle": "한강 뚜벅뚜벅 축제 가보기",
+                                                        "estimatedStepsMin": 5000,
+                                                        "estimatedStepsMax": 12000,
+                                                        "durationMinMinutes": 60,
+                                                        "durationMaxMinutes": 180,
+                                                        "conditions": []
+                                                      }
+                                                    }
+                                                    """
+                                    )
+                            }
+                    )
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "400",
+                    description = "scheduleId 형식 오류(COMMON400_1)",
+                    content = @Content(
+                            mediaType = "application/json",
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "isSuccess": false,
+                                      "code": "COMMON400_1",
+                                      "message": "잘못된 요청입니다.",
+                                      "result": null
+                                    }
+                                    """)
+                    )
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "401",
+                    description = "인증 실패 - 토큰 미삽입(COMMON401_1) / 유효하지 않은 토큰(AUTH401_1) / 토큰 만료(AUTH401_2)",
+                    content = @Content(
+                            mediaType = "application/json",
+                            examples = {
+                                    @ExampleObject(
+                                            name = "토큰 미삽입",
+                                            value = """
+                                                    {
+                                                      "isSuccess": false,
+                                                      "code": "COMMON401_1",
+                                                      "message": "인증이 필요합니다.",
+                                                      "result": null
+                                                    }
+                                                    """
+                                    ),
+                                    @ExampleObject(
+                                            name = "유효하지 않은 토큰",
+                                            value = """
+                                                    {
+                                                      "isSuccess": false,
+                                                      "code": "AUTH401_1",
+                                                      "message": "유효하지 않은 토큰입니다.",
+                                                      "result": null
+                                                    }
+                                                    """
+                                    ),
+                                    @ExampleObject(
+                                            name = "토큰 만료",
+                                            value = """
+                                                    {
+                                                      "isSuccess": false,
+                                                      "code": "AUTH401_2",
+                                                      "message": "토큰이 만료되었습니다",
+                                                      "result": null
+                                                    }
+                                                    """
+                                    )
+                            }
+                    )
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "403",
+                    description = "가족공간이 없는 회원(SCHEDULE403_1)",
+                    content = @Content(
+                            mediaType = "application/json",
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "isSuccess": false,
+                                      "code": "SCHEDULE403_1",
+                                      "message": "가족 공간이 없습니다.",
+                                      "result": null
+                                    }
+                                    """)
+                    )
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "404",
+                    description = "토큰의 회원이 없음(MEMBER404_1) / 없거나 다른 가족의 일정(SCHEDULE404_2)",
+                    content = @Content(
+                            mediaType = "application/json",
+                            examples = {
+                                    @ExampleObject(
+                                            name = "회원 없음",
+                                            value = """
+                                                    {
+                                                      "isSuccess": false,
+                                                      "code": "MEMBER404_1",
+                                                      "message": "존재하지 않는 회원입니다.",
+                                                      "result": null
+                                                    }
+                                                    """
+                                    ),
+                                    @ExampleObject(
+                                            name = "일정 없음",
+                                            value = """
+                                                    {
+                                                      "isSuccess": false,
+                                                      "code": "SCHEDULE404_2",
+                                                      "message": "존재하지 않는 일정입니다.",
+                                                      "result": null
+                                                    }
+                                                    """
+                                    )
+                            }
+                    )
+            )
+    })
+    ApiResponse<ScheduleResDTO.Conditions> getConditions(
+            @Parameter(hidden = true) Long memberId,
+            @Parameter(description = "일정 ID", example = "118") Long scheduleId
+    );
 }

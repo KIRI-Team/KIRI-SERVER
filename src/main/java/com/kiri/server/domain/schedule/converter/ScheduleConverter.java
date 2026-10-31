@@ -1,5 +1,6 @@
 package com.kiri.server.domain.schedule.converter;
 
+import com.kiri.server.domain.mission.entity.Mission;
 import com.kiri.server.domain.schedule.dto.ScheduleResDTO;
 import com.kiri.server.domain.schedule.entity.Schedule;
 import com.kiri.server.domain.schedule.entity.ScheduleCondition;
@@ -91,6 +92,18 @@ public class ScheduleConverter {
                 .dDay((int) ChronoUnit.DAYS.between(today, schedule.getScheduleDate()))
                 .type(type)
                 .title(schedule.getBucketItem() == null ? null : schedule.getBucketItem().getMission().getTitle())
+                .build();
+    }
+
+    public static ScheduleResDTO.Conditions toConditions(Schedule schedule, List<ConditionType> conditions) {
+        Mission mission = schedule.getBucketItem().getMission();
+        return ScheduleResDTO.Conditions.builder()
+                .missionTitle(mission.getTitle())
+                .estimatedStepsMin(mission.getEstimatedStepsMin())
+                .estimatedStepsMax(mission.getEstimatedStepsMax())
+                .durationMinMinutes(mission.getDurationMinMinutes())
+                .durationMaxMinutes(mission.getDurationMaxMinutes())
+                .conditions(conditions)
                 .build();
     }
 

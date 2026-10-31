@@ -16,6 +16,7 @@ import com.kiri.server.domain.schedule.enums.ScheduleStatus;
 import com.kiri.server.domain.schedule.enums.UpcomingCardType;
 import com.kiri.server.domain.schedule.exception.ScheduleException;
 import com.kiri.server.domain.schedule.exception.code.ScheduleErrorCode;
+import com.kiri.server.domain.schedule.repository.ScheduleConditionRepository;
 import com.kiri.server.domain.schedule.repository.ScheduleParticipantRepository;
 import com.kiri.server.domain.schedule.repository.ScheduleRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -53,6 +54,9 @@ class ScheduleQueryServiceTest {
     private ScheduleParticipantRepository scheduleParticipantRepository;
 
     @Mock
+    private ScheduleConditionRepository scheduleConditionRepository;
+
+    @Mock
     private MemberRepository memberRepository;
 
     private ScheduleQueryService scheduleQueryService;
@@ -60,7 +64,8 @@ class ScheduleQueryServiceTest {
     @BeforeEach
     void setUp() {
         scheduleQueryService = new ScheduleQueryService(
-                scheduleRepository, scheduleParticipantRepository, memberRepository, CLOCK);
+                scheduleRepository, scheduleParticipantRepository, scheduleConditionRepository, memberRepository,
+                CLOCK);
     }
 
     private ScheduleReqDTO.CalendarCondition condition(int year, int month) {

@@ -9,12 +9,15 @@ import com.kiri.server.domain.schedule.converter.ScheduleConverter;
 import com.kiri.server.domain.schedule.dto.ScheduleReqDTO;
 import com.kiri.server.domain.schedule.dto.ScheduleResDTO;
 import com.kiri.server.domain.schedule.entity.Schedule;
+import com.kiri.server.domain.schedule.entity.ScheduleCondition;
 import com.kiri.server.domain.schedule.entity.ScheduleParticipant;
+import com.kiri.server.domain.schedule.enums.ConditionType;
 import com.kiri.server.domain.schedule.enums.ParticipantStatus;
 import com.kiri.server.domain.schedule.enums.ScheduleStatus;
 import com.kiri.server.domain.schedule.enums.UpcomingCardType;
 import com.kiri.server.domain.schedule.exception.ScheduleException;
 import com.kiri.server.domain.schedule.exception.code.ScheduleErrorCode;
+import com.kiri.server.domain.schedule.repository.ScheduleConditionRepository;
 import com.kiri.server.domain.schedule.repository.ScheduleParticipantRepository;
 import com.kiri.server.domain.schedule.repository.ScheduleRepository;
 import lombok.RequiredArgsConstructor;
@@ -39,6 +42,7 @@ public class ScheduleQueryService {
 
     private final ScheduleRepository scheduleRepository;
     private final ScheduleParticipantRepository scheduleParticipantRepository;
+    private final ScheduleConditionRepository scheduleConditionRepository;
     private final MemberRepository memberRepository;
     private final Clock clock;
 
@@ -104,6 +108,26 @@ public class ScheduleQueryService {
                         today);
 
         return ScheduleConverter.toUpcomingHome(responseRequiredCard, upcomingCard);
+    }
+
+    @Transactional(readOnly = true)
+    public ScheduleResDTO.Conditions getConditions(Long memberId, Long scheduleId) {
+        Member member = memberRepository.findById(memberId)
+                .orElseThrow(() -> new MemberException(MemberErrorCode.NOT_FOUND));
+        Family family = member.getFamily();
+        if (family == null) {
+            throw new ScheduleException(ScheduleErrorCode.FAMILY_REQUIRED);
+        }
+
+        Schedule schedule = scheduleRepository.findWithMissionByIdAndFamilyId(scheduleId, family.getId())
+                .orElseThrow(() -> new ScheduleException(ScheduleErrorCode.SCHEDULE_NOT_FOUND));
+
+        List<ConditionType> conditions = scheduleConditionRepository.findBySchedule_Id(scheduleId).stream()
+                .map(ScheduleCondition::getConditionType)
+                .sorted()
+                .toList();
+
+        return ScheduleConverter.toConditions(schedule, conditions);
     }
 
     private Map<Long, ScheduleParticipant> findMyParticipants(Schedule responseRequired, Schedule upcoming,

@@ -28,6 +28,16 @@ public interface ScheduleRepository extends JpaRepository<Schedule, Long> {
     @Query("SELECT s FROM Schedule s WHERE s.id = :id")
     Optional<Schedule> findByIdForUpdate(@Param("id") Long id);
 
+    @Query("""
+            SELECT s FROM Schedule s
+            JOIN FETCH s.bucketItem bi
+            JOIN FETCH bi.mission
+            WHERE s.id = :scheduleId
+              AND s.family.id = :familyId
+            """)
+    Optional<Schedule> findWithMissionByIdAndFamilyId(@Param("scheduleId") Long scheduleId,
+                                                      @Param("familyId") Long familyId);
+
     @Query("SELECT s.id FROM Schedule s WHERE s.status = :status AND s.responseDeadline < :now")
     List<Long> findIdsByStatusAndDeadlineBefore(@Param("status") ScheduleStatus status, @Param("now") LocalDateTime now);
 
