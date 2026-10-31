@@ -2,8 +2,10 @@ package com.kiri.server.domain.schedule.converter;
 
 import com.kiri.server.domain.schedule.dto.ScheduleResDTO;
 import com.kiri.server.domain.schedule.entity.Schedule;
+import com.kiri.server.domain.schedule.entity.ScheduleCondition;
 import com.kiri.server.domain.schedule.entity.ScheduleParticipant;
 import com.kiri.server.domain.schedule.enums.CalendarMyStatus;
+import com.kiri.server.domain.schedule.enums.ConditionType;
 import com.kiri.server.domain.schedule.enums.UpcomingCardType;
 
 import java.time.LocalDate;
@@ -11,6 +13,13 @@ import java.time.temporal.ChronoUnit;
 import java.util.List;
 
 public class ScheduleConverter {
+
+    public static ScheduleCondition toScheduleCondition(Schedule schedule, ConditionType conditionType) {
+        return ScheduleCondition.builder()
+                .schedule(schedule)
+                .conditionType(conditionType)
+                .build();
+    }
 
     public static ScheduleResDTO.Created toCreated(Schedule schedule, List<Long> participantMemberIds) {
         return ScheduleResDTO.Created.builder()
