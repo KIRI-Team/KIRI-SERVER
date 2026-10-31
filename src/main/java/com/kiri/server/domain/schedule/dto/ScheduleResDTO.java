@@ -4,6 +4,7 @@ import com.fasterxml.jackson.annotation.JsonFormat;
 import com.kiri.server.domain.schedule.enums.CalendarMyStatus;
 import com.kiri.server.domain.schedule.enums.ParticipantStatus;
 import com.kiri.server.domain.schedule.enums.ScheduleStatus;
+import com.kiri.server.domain.schedule.enums.UpcomingCardType;
 import lombok.Builder;
 
 import java.time.LocalDate;
@@ -77,6 +78,28 @@ public class ScheduleResDTO {
             LocalDateTime responseDeadline,
             Long proposerId,
             List<Long> participantMemberIds
+    ) {
+    }
+
+    @Builder
+    public record UpcomingHome(
+            UpcomingCard responseRequired,
+            UpcomingCard upcoming
+    ) {
+    }
+
+    @Builder
+    public record UpcomingCard(
+            Long scheduleId,
+            @JsonFormat(pattern = "yyyy-MM-dd")
+            LocalDate date,
+            @JsonFormat(pattern = "HH:mm")
+            LocalTime time,
+            ScheduleStatus status,
+            CalendarMyStatus myStatus,
+            Integer dDay,
+            UpcomingCardType type,
+            String title
     ) {
     }
 }

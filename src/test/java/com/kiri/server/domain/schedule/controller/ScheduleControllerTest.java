@@ -4,6 +4,7 @@ import com.kiri.server.domain.schedule.dto.ScheduleReqDTO;
 import com.kiri.server.domain.schedule.dto.ScheduleResDTO;
 import com.kiri.server.domain.schedule.enums.CalendarMyStatus;
 import com.kiri.server.domain.schedule.enums.ScheduleStatus;
+import com.kiri.server.domain.schedule.enums.UpcomingCardType;
 import com.kiri.server.domain.schedule.exception.ScheduleException;
 import com.kiri.server.domain.schedule.exception.code.ScheduleErrorCode;
 import com.kiri.server.domain.schedule.service.ScheduleQueryService;
@@ -143,6 +144,79 @@ class ScheduleControllerTest {
                         .header(HttpHeaders.AUTHORIZATION, bearerToken)
                         .param("year", "2026")
                         .param("month", "10"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("SCHEDULE403_1"));
+    }
+
+    @Test
+    @DisplayName("토큰 없이 다가오는 일정을 조회하면 COMMON401_1로 응답한다.")
+    void getUpcoming_noToken() throws Exception {
+        mockMvc.perform(get("/api/v1/schedules/upcoming"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("COMMON401_1"));
+    }
+
+    @Test
+    @DisplayName("다가오는 일정 조회에 성공하면 SCHEDULE200_5와 두 슬롯을 반환한다.")
+    void getUpcoming_success() throws Exception {
+        ScheduleResDTO.UpcomingCard responseRequired = ScheduleResDTO.UpcomingCard.builder()
+                .scheduleId(120L)
+                .date(LocalDate.of(2026, 11, 5))
+                .time(LocalTime.of(18, 0))
+                .status(ScheduleStatus.PENDING_RESPONSE)
+                .myStatus(CalendarMyStatus.PENDING)
+                .dDay(4)
+                .type(UpcomingCardType.RESPONSE_REQUIRED)
+                .title("광장시장에서 시장음식 먹어보기")
+                .build();
+        ScheduleResDTO.UpcomingCard upcoming = ScheduleResDTO.UpcomingCard.builder()
+                .scheduleId(118L)
+                .date(LocalDate.of(2026, 11, 3))
+                .time(LocalTime.of(14, 50))
+                .status(ScheduleStatus.CONFIRMED)
+                .myStatus(CalendarMyStatus.ACCEPTED)
+                .dDay(2)
+                .type(UpcomingCardType.UPCOMING)
+                .title("한강 뚜벅뚜벅 축제 가보기")
+                .build();
+        given(scheduleQueryService.getUpcoming(any())).willReturn(ScheduleResDTO.UpcomingHome.builder()
+                .responseRequired(responseRequired).upcoming(upcoming).build());
+
+        mockMvc.perform(get("/api/v1/schedules/upcoming")
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value("SCHEDULE200_5"))
+                .andExpect(jsonPath("$.result.responseRequired.scheduleId").value(120))
+                .andExpect(jsonPath("$.result.responseRequired.type").value("RESPONSE_REQUIRED"))
+                .andExpect(jsonPath("$.result.responseRequired.myStatus").value("PENDING"))
+                .andExpect(jsonPath("$.result.responseRequired.dDay").value(4))
+                .andExpect(jsonPath("$.result.upcoming.scheduleId").value(118))
+                .andExpect(jsonPath("$.result.upcoming.type").value("UPCOMING"))
+                .andExpect(jsonPath("$.result.upcoming.date").value("2026-11-03"))
+                .andExpect(jsonPath("$.result.upcoming.time").value("14:50"));
+    }
+
+    @Test
+    @DisplayName("로그인 회원 ID를 다가오는 일정 조회에 전달한다.")
+    void getUpcoming_bindsMemberId() throws Exception {
+        given(scheduleQueryService.getUpcoming(any()))
+                .willReturn(ScheduleResDTO.UpcomingHome.builder().build());
+
+        mockMvc.perform(get("/api/v1/schedules/upcoming")
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken))
+                .andExpect(status().isOk());
+
+        verify(scheduleQueryService).getUpcoming(eq(MEMBER_ID));
+    }
+
+    @Test
+    @DisplayName("가족공간이 없으면 다가오는 일정 조회도 SCHEDULE403_1로 응답한다.")
+    void getUpcoming_noFamily() throws Exception {
+        given(scheduleQueryService.getUpcoming(any()))
+                .willThrow(new ScheduleException(ScheduleErrorCode.FAMILY_REQUIRED));
+
+        mockMvc.perform(get("/api/v1/schedules/upcoming")
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("SCHEDULE403_1"));
     }
