@@ -1,9 +1,11 @@
 package com.kiri.server.domain.schedule.service;
 
+import com.kiri.server.domain.bucket.entity.BucketItem;
 import com.kiri.server.domain.family.entity.Family;
 import com.kiri.server.domain.member.entity.Member;
 import com.kiri.server.domain.member.exception.MemberException;
 import com.kiri.server.domain.member.repository.MemberRepository;
+import com.kiri.server.domain.mission.entity.Mission;
 import com.kiri.server.domain.schedule.dto.ScheduleReqDTO;
 import com.kiri.server.domain.schedule.dto.ScheduleResDTO;
 import com.kiri.server.domain.schedule.entity.Schedule;
@@ -11,18 +13,23 @@ import com.kiri.server.domain.schedule.entity.ScheduleParticipant;
 import com.kiri.server.domain.schedule.enums.CalendarMyStatus;
 import com.kiri.server.domain.schedule.enums.ParticipantStatus;
 import com.kiri.server.domain.schedule.enums.ScheduleStatus;
+import com.kiri.server.domain.schedule.enums.UpcomingCardType;
 import com.kiri.server.domain.schedule.exception.ScheduleException;
 import com.kiri.server.domain.schedule.exception.code.ScheduleErrorCode;
 import com.kiri.server.domain.schedule.repository.ScheduleParticipantRepository;
 import com.kiri.server.domain.schedule.repository.ScheduleRepository;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.time.Clock;
+import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalTime;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.Optional;
 
@@ -37,6 +44,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 class ScheduleQueryServiceTest {
 
     private static final Long MEMBER_ID = 1L;
+    private static final Clock CLOCK = Clock.fixed(Instant.parse("2026-11-01T00:00:00Z"), ZoneId.of("Asia/Seoul"));
 
     @Mock
     private ScheduleRepository scheduleRepository;
@@ -47,8 +55,13 @@ class ScheduleQueryServiceTest {
     @Mock
     private MemberRepository memberRepository;
 
-    @InjectMocks
     private ScheduleQueryService scheduleQueryService;
+
+    @BeforeEach
+    void setUp() {
+        scheduleQueryService = new ScheduleQueryService(
+                scheduleRepository, scheduleParticipantRepository, memberRepository, CLOCK);
+    }
 
     private ScheduleReqDTO.CalendarCondition condition(int year, int month) {
         return ScheduleReqDTO.CalendarCondition.builder().year(year).month(month).build();
@@ -56,6 +69,17 @@ class ScheduleQueryServiceTest {
 
     private Schedule schedule(Long id, LocalDate date, ScheduleStatus status, Family family) {
         return Schedule.builder().id(id).family(family).scheduleDate(date).status(status).build();
+    }
+
+    private Schedule upcomingSchedule(Long id, LocalDate date, LocalTime time, ScheduleStatus status,
+                                      Family family, String title) {
+        BucketItem bucketItem = BucketItem.builder().mission(Mission.builder().title(title).build()).build();
+        return Schedule.builder().id(id).family(family).bucketItem(bucketItem)
+                .scheduleDate(date).scheduleTime(time).status(status).build();
+    }
+
+    private ScheduleParticipant participant(Schedule schedule, ParticipantStatus status, boolean reconfirm) {
+        return ScheduleParticipant.builder().schedule(schedule).status(status).reconfirmRequired(reconfirm).build();
     }
 
     @Test
@@ -124,5 +148,101 @@ class ScheduleQueryServiceTest {
         assertThat(result.schedules()).extracting(ScheduleResDTO.CalendarItem::myStatus)
                 .containsExactly(CalendarMyStatus.ACCEPTED, CalendarMyStatus.NOT_INVITED, CalendarMyStatus.RECONFIRM_REQUIRED);
         assertThat(result.schedules().get(0).status()).isEqualTo(ScheduleStatus.CONFIRMED);
+    }
+
+    @Test
+    @DisplayName("다가오는 일정 조회: 회원이 없으면 MEMBER404_1로 예외를 던진다.")
+    void getUpcoming_memberNotFound() {
+        given(memberRepository.findById(MEMBER_ID)).willReturn(Optional.empty());
+
+        assertThatThrownBy(() -> scheduleQueryService.getUpcoming(MEMBER_ID))
+                .isInstanceOf(MemberException.class);
+
+        verifyNoInteractions(scheduleRepository, scheduleParticipantRepository);
+    }
+
+    @Test
+    @DisplayName("다가오는 일정 조회: 가족공간이 없으면 SCHEDULE403_1로 예외를 던진다.")
+    void getUpcoming_noFamily() {
+        given(memberRepository.findById(MEMBER_ID)).willReturn(Optional.of(Member.builder().build()));
+
+        assertThatThrownBy(() -> scheduleQueryService.getUpcoming(MEMBER_ID))
+                .isInstanceOf(ScheduleException.class)
+                .extracting(e -> ((ScheduleException) e).getErrorCode())
+                .isEqualTo(ScheduleErrorCode.FAMILY_REQUIRED);
+
+        verifyNoInteractions(scheduleRepository, scheduleParticipantRepository);
+    }
+
+    @Test
+    @DisplayName("응답 필요와 다가오는 확정 일정을 두 슬롯으로 나눠 D-day·타입·활동명과 함께 반환한다.")
+    void getUpcoming_bothSlots() {
+        Family family = Family.builder().id(10L).build();
+        given(memberRepository.findById(MEMBER_ID)).willReturn(Optional.of(Member.builder().family(family).build()));
+
+        Schedule responseRequired = upcomingSchedule(120L, LocalDate.of(2026, 11, 5), LocalTime.of(18, 0),
+                ScheduleStatus.PENDING_RESPONSE, family, "광장시장에서 시장음식 먹어보기");
+        Schedule upcoming = upcomingSchedule(118L, LocalDate.of(2026, 11, 3), LocalTime.of(14, 50),
+                ScheduleStatus.CONFIRMED, family, "한강 뚜벅뚜벅 축제 가보기");
+        given(scheduleRepository.findResponseRequired(any(), eq(MEMBER_ID), any(), any(), any()))
+                .willReturn(List.of(responseRequired));
+        given(scheduleRepository.findUpcomingConfirmed(any(), eq(MEMBER_ID), any(), any(), any(), any()))
+                .willReturn(List.of(upcoming));
+        given(scheduleParticipantRepository.findBySchedule_IdInAndMember_Id(any(), eq(MEMBER_ID)))
+                .willReturn(List.of(
+                        participant(responseRequired, ParticipantStatus.PENDING, false),
+                        participant(upcoming, ParticipantStatus.ACCEPTED, false)));
+
+        ScheduleResDTO.UpcomingHome result = scheduleQueryService.getUpcoming(MEMBER_ID);
+
+        assertThat(result.responseRequired().scheduleId()).isEqualTo(120L);
+        assertThat(result.responseRequired().type()).isEqualTo(UpcomingCardType.RESPONSE_REQUIRED);
+        assertThat(result.responseRequired().myStatus()).isEqualTo(CalendarMyStatus.PENDING);
+        assertThat(result.responseRequired().dDay()).isEqualTo(4);
+        assertThat(result.responseRequired().title()).isEqualTo("광장시장에서 시장음식 먹어보기");
+        assertThat(result.upcoming().scheduleId()).isEqualTo(118L);
+        assertThat(result.upcoming().type()).isEqualTo(UpcomingCardType.UPCOMING);
+        assertThat(result.upcoming().myStatus()).isEqualTo(CalendarMyStatus.ACCEPTED);
+        assertThat(result.upcoming().dDay()).isEqualTo(2);
+        assertThat(result.upcoming().title()).isEqualTo("한강 뚜벅뚜벅 축제 가보기");
+    }
+
+    @Test
+    @DisplayName("당일(D-Day) 확정 일정은 TODAY 타입과 dDay 0으로 반환한다.")
+    void getUpcoming_todayType() {
+        Family family = Family.builder().id(10L).build();
+        given(memberRepository.findById(MEMBER_ID)).willReturn(Optional.of(Member.builder().family(family).build()));
+
+        Schedule today = upcomingSchedule(200L, LocalDate.of(2026, 11, 1), LocalTime.of(9, 30),
+                ScheduleStatus.CONFIRMED, family, "오늘 약속");
+        given(scheduleRepository.findResponseRequired(any(), eq(MEMBER_ID), any(), any(), any()))
+                .willReturn(List.of());
+        given(scheduleRepository.findUpcomingConfirmed(any(), eq(MEMBER_ID), any(), any(), any(), any()))
+                .willReturn(List.of(today));
+        given(scheduleParticipantRepository.findBySchedule_IdInAndMember_Id(any(), eq(MEMBER_ID)))
+                .willReturn(List.of(participant(today, ParticipantStatus.ACCEPTED, false)));
+
+        ScheduleResDTO.UpcomingHome result = scheduleQueryService.getUpcoming(MEMBER_ID);
+
+        assertThat(result.responseRequired()).isNull();
+        assertThat(result.upcoming().type()).isEqualTo(UpcomingCardType.TODAY);
+        assertThat(result.upcoming().dDay()).isEqualTo(0);
+    }
+
+    @Test
+    @DisplayName("응답 필요·다가오는 일정이 모두 없으면 두 슬롯 모두 null이고 참여자 조회는 하지 않는다.")
+    void getUpcoming_empty() {
+        Family family = Family.builder().id(10L).build();
+        given(memberRepository.findById(MEMBER_ID)).willReturn(Optional.of(Member.builder().family(family).build()));
+        given(scheduleRepository.findResponseRequired(any(), eq(MEMBER_ID), any(), any(), any()))
+                .willReturn(List.of());
+        given(scheduleRepository.findUpcomingConfirmed(any(), eq(MEMBER_ID), any(), any(), any(), any()))
+                .willReturn(List.of());
+
+        ScheduleResDTO.UpcomingHome result = scheduleQueryService.getUpcoming(MEMBER_ID);
+
+        assertThat(result.responseRequired()).isNull();
+        assertThat(result.upcoming()).isNull();
+        verifyNoInteractions(scheduleParticipantRepository);
     }
 }
