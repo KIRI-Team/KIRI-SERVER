@@ -31,4 +31,14 @@ public class ScheduleController implements ScheduleControllerDocs {
                 scheduleQueryService.getCalendar(memberId, condition)
         );
     }
+
+    @GetMapping("/upcoming")
+    public ApiResponse<ScheduleResDTO.UpcomingHome> getUpcoming(
+            @AuthenticationPrincipal Long memberId
+    ) {
+        return ApiResponse.onSuccess(
+                ScheduleSuccessCode.UPCOMING_SUCCESS,
+                scheduleQueryService.getUpcoming(memberId)
+        );
+    }
 }
