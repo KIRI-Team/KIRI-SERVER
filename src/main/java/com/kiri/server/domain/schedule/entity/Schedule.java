@@ -138,4 +138,9 @@ public class Schedule extends BaseEntity {
         this.requestMessage = requestMessage;
         this.responseDeadline = responseDeadline;
     }
+
+    public void complete(LocalDateTime completedAt) {
+        this.status = ScheduleStatus.COMPLETED;
+        this.completedAt = completedAt;
+    }
 }
