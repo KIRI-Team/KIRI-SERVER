@@ -29,7 +29,9 @@ public interface MissionRepository extends JpaRepository<Mission, Long> {
               FROM mission m
               JOIN place p ON p.place_id = m.place_id
              WHERE m.status = 'ACTIVE'
-               AND (m.end_date IS NULL OR m.end_date >= :today)
+               AND (m.mission_type = 'PERMANENT'
+                    OR ((m.start_date IS NULL OR m.start_date <= :date)
+                        AND (m.end_date IS NULL OR m.end_date >= :date)))
                AND p.place_id <> :excludePlaceId
                AND p.latitude BETWEEN :minLatitude AND :maxLatitude
                AND p.longitude BETWEEN :minLongitude AND :maxLongitude
@@ -46,7 +48,7 @@ public interface MissionRepository extends JpaRepository<Mission, Long> {
                              @Param("maxLongitude") double maxLongitude,
                              @Param("distanceKm") double distanceKm,
                              @Param("excludePlaceId") Long excludePlaceId,
-                             @Param("today") LocalDate today);
+                             @Param("date") LocalDate date);
 
     @Modifying(flushAutomatically = true, clearAutomatically = true)
     @Query("""

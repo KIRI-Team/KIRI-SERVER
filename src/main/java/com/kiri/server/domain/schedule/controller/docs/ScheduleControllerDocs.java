@@ -12,6 +12,8 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springdoc.core.annotations.ParameterObject;
 
+import java.util.List;
+
 @Tag(name = "일정 API")
 public interface ScheduleControllerDocs {
 
@@ -383,6 +385,182 @@ public interface ScheduleControllerDocs {
             )
     })
     ApiResponse<ScheduleResDTO.Conditions> getConditions(
+            @Parameter(hidden = true) Long memberId,
+            @Parameter(description = "일정 ID", example = "118") Long scheduleId
+    );
+
+    @Operation(
+            summary = "근처 놀거리 추천 조회 API",
+            description = """
+                    # 근처 놀거리 추천 조회
+
+                    ## 요청 형식
+                    - 헤더: Authorization: Bearer {JWT 토큰}
+                    - Path: scheduleId
+
+                    일정의 메인 미션 장소를 기준으로 반경 5km 안에서 함께 들르기 좋은 장소를 추천합니다.
+                    사용자 GPS가 아니라 일정 장소 좌표가 기준입니다.
+
+                    ## 응답 규칙
+                    - 활성(ACTIVE) 상태이고 일정 날짜에 운영 중인 미션이 있는 장소만 추천합니다. 메인 미션 장소는 제외합니다.
+                    - 정렬: 취향 점수 + 컨디션 점수가 높은 순 → 같으면 거리가 가까운 순
+                      - 취향 점수: 일정 참여자(거절한 구성원 제외) 중 해당 카테고리를 선호하는 비율
+                      - 컨디션 점수: 해당 일정에 저장된 조건만 반영
+                        - REDUCE_STEPS: 가까울수록 가산
+                        - MORE_REST: FOOD_CAFE·실내 장소 가산 (실내·외 겸용은 절반)
+                        - LOWER_BUDGET: 무료 > 1만 원 이하 순으로 가산, 요금 정보가 없으면 감점
+                        - AVOID_CROWD: 혼잡 데이터가 없어 현재는 반영하지 않음
+                    - 같은 장소에 미션이 여러 개면 장소 하나로 묶어서 내려줍니다.
+                    - region: 주소의 시·도와 시·군·구까지만 축약해 내려줍니다. (예: 서울특별시 서초구 → 서울시 서초구, 세종특별자치시 → 세종시)
+                    - imageUrl: 장소 이미지가 없으면 미션 이미지, 둘 다 없으면 null입니다.
+                    - 추천할 장소가 없으면 빈 배열입니다.
+                    - 같은 가족의 일정만 조회할 수 있으며, 다른 가족의 일정은 존재하지 않는 일정과 같이 404로 응답합니다.
+                    """
+    )
+    @ApiResponses(value = {
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200",
+                    description = "조회 성공",
+                    content = @Content(
+                            mediaType = "application/json",
+                            examples = {
+                                    @ExampleObject(
+                                            name = "추천 장소 있음",
+                                            value = """
+                                                    {
+                                                      "isSuccess": true,
+                                                      "code": "SCHEDULE200_8",
+                                                      "message": "근처 놀거리 추천 조회 성공",
+                                                      "result": [
+                                                        {
+                                                          "placeName": "세빛섬",
+                                                          "region": "서울시 서초구",
+                                                          "description": "잠수교 바로 옆에 있어 축제를 둘러본 뒤 한강 위 세빛섬과 야경을 함께 구경하기 좋아요",
+                                                          "imageUrl": "https://tong.visitkorea.or.kr/cms/resource/00/1234500_image2_1.jpg"
+                                                        }
+                                                      ]
+                                                    }
+                                                    """
+                                    ),
+                                    @ExampleObject(
+                                            name = "추천 장소 없음",
+                                            value = """
+                                                    {
+                                                      "isSuccess": true,
+                                                      "code": "SCHEDULE200_8",
+                                                      "message": "근처 놀거리 추천 조회 성공",
+                                                      "result": []
+                                                    }
+                                                    """
+                                    )
+                            }
+                    )
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "400",
+                    description = "scheduleId 형식 오류(COMMON400_1)",
+                    content = @Content(
+                            mediaType = "application/json",
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "isSuccess": false,
+                                      "code": "COMMON400_1",
+                                      "message": "잘못된 요청입니다.",
+                                      "result": null
+                                    }
+                                    """)
+                    )
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "401",
+                    description = "인증 실패 - 토큰 미삽입(COMMON401_1) / 유효하지 않은 토큰(AUTH401_1) / 토큰 만료(AUTH401_2)",
+                    content = @Content(
+                            mediaType = "application/json",
+                            examples = {
+                                    @ExampleObject(
+                                            name = "토큰 미삽입",
+                                            value = """
+                                                    {
+                                                      "isSuccess": false,
+                                                      "code": "COMMON401_1",
+                                                      "message": "인증이 필요합니다.",
+                                                      "result": null
+                                                    }
+                                                    """
+                                    ),
+                                    @ExampleObject(
+                                            name = "유효하지 않은 토큰",
+                                            value = """
+                                                    {
+                                                      "isSuccess": false,
+                                                      "code": "AUTH401_1",
+                                                      "message": "유효하지 않은 토큰입니다.",
+                                                      "result": null
+                                                    }
+                                                    """
+                                    ),
+                                    @ExampleObject(
+                                            name = "토큰 만료",
+                                            value = """
+                                                    {
+                                                      "isSuccess": false,
+                                                      "code": "AUTH401_2",
+                                                      "message": "토큰이 만료되었습니다",
+                                                      "result": null
+                                                    }
+                                                    """
+                                    )
+                            }
+                    )
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "403",
+                    description = "가족공간이 없는 회원(SCHEDULE403_1)",
+                    content = @Content(
+                            mediaType = "application/json",
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "isSuccess": false,
+                                      "code": "SCHEDULE403_1",
+                                      "message": "가족 공간이 없습니다.",
+                                      "result": null
+                                    }
+                                    """)
+                    )
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "404",
+                    description = "토큰의 회원이 없음(MEMBER404_1) / 없거나 다른 가족의 일정(SCHEDULE404_2)",
+                    content = @Content(
+                            mediaType = "application/json",
+                            examples = {
+                                    @ExampleObject(
+                                            name = "회원 없음",
+                                            value = """
+                                                    {
+                                                      "isSuccess": false,
+                                                      "code": "MEMBER404_1",
+                                                      "message": "존재하지 않는 회원입니다.",
+                                                      "result": null
+                                                    }
+                                                    """
+                                    ),
+                                    @ExampleObject(
+                                            name = "일정 없음",
+                                            value = """
+                                                    {
+                                                      "isSuccess": false,
+                                                      "code": "SCHEDULE404_2",
+                                                      "message": "존재하지 않는 일정입니다.",
+                                                      "result": null
+                                                    }
+                                                    """
+                                    )
+                            }
+                    )
+            )
+    })
+    ApiResponse<List<ScheduleResDTO.NearbyItem>> getNearby(
             @Parameter(hidden = true) Long memberId,
             @Parameter(description = "일정 ID", example = "118") Long scheduleId
     );
