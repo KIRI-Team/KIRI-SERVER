@@ -9,8 +9,10 @@ import com.kiri.server.domain.mission.entity.Mission;
 import com.kiri.server.domain.schedule.dto.ScheduleReqDTO;
 import com.kiri.server.domain.schedule.dto.ScheduleResDTO;
 import com.kiri.server.domain.schedule.entity.Schedule;
+import com.kiri.server.domain.schedule.entity.ScheduleCondition;
 import com.kiri.server.domain.schedule.entity.ScheduleParticipant;
 import com.kiri.server.domain.schedule.enums.CalendarMyStatus;
+import com.kiri.server.domain.schedule.enums.ConditionType;
 import com.kiri.server.domain.schedule.enums.ParticipantStatus;
 import com.kiri.server.domain.schedule.enums.ScheduleStatus;
 import com.kiri.server.domain.schedule.enums.UpcomingCardType;
@@ -249,5 +251,96 @@ class ScheduleQueryServiceTest {
         assertThat(result.responseRequired()).isNull();
         assertThat(result.upcoming()).isNull();
         verifyNoInteractions(scheduleParticipantRepository);
+    }
+
+    private Schedule conditionSchedule(Long id, Family family) {
+        Mission mission = Mission.builder()
+                .title("한강 뚜벅뚜벅 축제 가보기")
+                .estimatedStepsMin(5000)
+                .estimatedStepsMax(12000)
+                .durationMinMinutes(60)
+                .durationMaxMinutes(180)
+                .build();
+        BucketItem bucketItem = BucketItem.builder().mission(mission).build();
+        return Schedule.builder().id(id).family(family).bucketItem(bucketItem).build();
+    }
+
+    private ScheduleCondition condition(Schedule schedule, ConditionType type) {
+        return ScheduleCondition.builder().schedule(schedule).conditionType(type).build();
+    }
+
+    @Test
+    @DisplayName("컨디션 조회: 회원이 없으면 MEMBER404_1로 예외를 던진다.")
+    void getConditions_memberNotFound() {
+        given(memberRepository.findById(MEMBER_ID)).willReturn(Optional.empty());
+
+        assertThatThrownBy(() -> scheduleQueryService.getConditions(MEMBER_ID, 118L))
+                .isInstanceOf(MemberException.class);
+
+        verifyNoInteractions(scheduleRepository, scheduleConditionRepository);
+    }
+
+    @Test
+    @DisplayName("컨디션 조회: 가족공간이 없으면 SCHEDULE403_1로 예외를 던진다.")
+    void getConditions_noFamily() {
+        given(memberRepository.findById(MEMBER_ID)).willReturn(Optional.of(Member.builder().build()));
+
+        assertThatThrownBy(() -> scheduleQueryService.getConditions(MEMBER_ID, 118L))
+                .isInstanceOf(ScheduleException.class)
+                .extracting(e -> ((ScheduleException) e).getErrorCode())
+                .isEqualTo(ScheduleErrorCode.FAMILY_REQUIRED);
+
+        verifyNoInteractions(scheduleRepository, scheduleConditionRepository);
+    }
+
+    @Test
+    @DisplayName("컨디션 조회: 없거나 다른 가족의 일정이면 SCHEDULE404_2로 예외를 던지고 조건은 조회하지 않는다.")
+    void getConditions_scheduleNotFound() {
+        Family family = Family.builder().id(10L).build();
+        given(memberRepository.findById(MEMBER_ID)).willReturn(Optional.of(Member.builder().family(family).build()));
+        given(scheduleRepository.findWithMissionByIdAndFamilyId(118L, 10L)).willReturn(Optional.empty());
+
+        assertThatThrownBy(() -> scheduleQueryService.getConditions(MEMBER_ID, 118L))
+                .isInstanceOf(ScheduleException.class)
+                .extracting(e -> ((ScheduleException) e).getErrorCode())
+                .isEqualTo(ScheduleErrorCode.SCHEDULE_NOT_FOUND);
+
+        verifyNoInteractions(scheduleConditionRepository);
+    }
+
+    @Test
+    @DisplayName("컨디션 조회: 미션 정보와 적용된 조건을 enum 순서로 정렬해 반환한다.")
+    void getConditions_success() {
+        Family family = Family.builder().id(10L).build();
+        given(memberRepository.findById(MEMBER_ID)).willReturn(Optional.of(Member.builder().family(family).build()));
+        Schedule schedule = conditionSchedule(118L, family);
+        given(scheduleRepository.findWithMissionByIdAndFamilyId(118L, 10L)).willReturn(Optional.of(schedule));
+        given(scheduleConditionRepository.findBySchedule_Id(118L)).willReturn(List.of(
+                condition(schedule, ConditionType.LOWER_BUDGET),
+                condition(schedule, ConditionType.REDUCE_STEPS)));
+
+        ScheduleResDTO.Conditions result = scheduleQueryService.getConditions(MEMBER_ID, 118L);
+
+        assertThat(result.missionTitle()).isEqualTo("한강 뚜벅뚜벅 축제 가보기");
+        assertThat(result.estimatedStepsMin()).isEqualTo(5000);
+        assertThat(result.estimatedStepsMax()).isEqualTo(12000);
+        assertThat(result.durationMinMinutes()).isEqualTo(60);
+        assertThat(result.durationMaxMinutes()).isEqualTo(180);
+        assertThat(result.conditions()).containsExactly(ConditionType.REDUCE_STEPS, ConditionType.LOWER_BUDGET);
+    }
+
+    @Test
+    @DisplayName("컨디션 조회: 적용한 조건이 없으면 빈 목록을 반환한다.")
+    void getConditions_noConditions() {
+        Family family = Family.builder().id(10L).build();
+        given(memberRepository.findById(MEMBER_ID)).willReturn(Optional.of(Member.builder().family(family).build()));
+        given(scheduleRepository.findWithMissionByIdAndFamilyId(118L, 10L))
+                .willReturn(Optional.of(conditionSchedule(118L, family)));
+        given(scheduleConditionRepository.findBySchedule_Id(118L)).willReturn(List.of());
+
+        ScheduleResDTO.Conditions result = scheduleQueryService.getConditions(MEMBER_ID, 118L);
+
+        assertThat(result.missionTitle()).isEqualTo("한강 뚜벅뚜벅 축제 가보기");
+        assertThat(result.conditions()).isEmpty();
     }
 }

@@ -3,6 +3,7 @@ package com.kiri.server.domain.schedule.controller;
 import com.kiri.server.domain.schedule.dto.ScheduleReqDTO;
 import com.kiri.server.domain.schedule.dto.ScheduleResDTO;
 import com.kiri.server.domain.schedule.enums.CalendarMyStatus;
+import com.kiri.server.domain.schedule.enums.ConditionType;
 import com.kiri.server.domain.schedule.enums.ScheduleStatus;
 import com.kiri.server.domain.schedule.enums.UpcomingCardType;
 import com.kiri.server.domain.schedule.exception.ScheduleException;
@@ -219,5 +220,42 @@ class ScheduleControllerTest {
                         .header(HttpHeaders.AUTHORIZATION, bearerToken))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("SCHEDULE403_1"));
+    }
+
+    @Test
+    @DisplayName("로그인 회원 ID와 경로의 일정 ID로 조회해 SCHEDULE200_6과 미션 정보·적용 조건을 반환한다.")
+    void getConditions_success() throws Exception {
+        given(scheduleQueryService.getConditions(MEMBER_ID, 118L)).willReturn(ScheduleResDTO.Conditions.builder()
+                .missionTitle("한강 뚜벅뚜벅 축제 가보기")
+                .estimatedStepsMin(5000)
+                .estimatedStepsMax(12000)
+                .durationMinMinutes(60)
+                .durationMaxMinutes(180)
+                .conditions(List.of(ConditionType.REDUCE_STEPS, ConditionType.MORE_REST))
+                .build());
+
+        mockMvc.perform(get("/api/v1/schedules/118/conditions")
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value("SCHEDULE200_6"))
+                .andExpect(jsonPath("$.result.missionTitle").value("한강 뚜벅뚜벅 축제 가보기"))
+                .andExpect(jsonPath("$.result.estimatedStepsMin").value(5000))
+                .andExpect(jsonPath("$.result.estimatedStepsMax").value(12000))
+                .andExpect(jsonPath("$.result.durationMinMinutes").value(60))
+                .andExpect(jsonPath("$.result.durationMaxMinutes").value(180))
+                .andExpect(jsonPath("$.result.conditions[0]").value("REDUCE_STEPS"))
+                .andExpect(jsonPath("$.result.conditions[1]").value("MORE_REST"));
+    }
+
+    @Test
+    @DisplayName("없거나 다른 가족의 일정이면 SCHEDULE404_2로 응답한다.")
+    void getConditions_scheduleNotFound() throws Exception {
+        given(scheduleQueryService.getConditions(any(), any()))
+                .willThrow(new ScheduleException(ScheduleErrorCode.SCHEDULE_NOT_FOUND));
+
+        mockMvc.perform(get("/api/v1/schedules/118/conditions")
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("SCHEDULE404_2"));
     }
 }
