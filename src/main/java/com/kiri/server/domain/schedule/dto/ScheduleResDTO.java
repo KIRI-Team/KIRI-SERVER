@@ -114,4 +114,13 @@ public class ScheduleResDTO {
             List<ConditionType> conditions
     ) {
     }
+
+    @Builder
+    public record NearbyItem(
+            String placeName,
+            String region,
+            String description,
+            String imageUrl
+    ) {
+    }
 }
