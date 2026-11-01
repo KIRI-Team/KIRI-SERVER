@@ -453,7 +453,11 @@ class ScheduleCommandServiceTest {
     }
 
     private Schedule conditionSchedule(ScheduleStatus status, Family owner) {
-        return Schedule.builder().id(SCHEDULE_ID).family(owner).status(status).build();
+        return conditionSchedule(status, owner, LocalDate.of(2026, 11, 15));
+    }
+
+    private Schedule conditionSchedule(ScheduleStatus status, Family owner, LocalDate date) {
+        return Schedule.builder().id(SCHEDULE_ID).family(owner).status(status).scheduleDate(date).build();
     }
 
     private ScheduleReqDTO.UpdateConditions conditionsReq(ConditionType... types) {
@@ -533,6 +537,36 @@ class ScheduleCommandServiceTest {
                 .isEqualTo(ScheduleErrorCode.CONDITION_NOT_EDITABLE);
 
         verifyNoInteractions(scheduleConditionRepository);
+    }
+
+    @Test
+    @DisplayName("날짜가 지난 일정에 컨디션을 적용하면 SCHEDULE409_5로 예외를 던지고 조건은 건드리지 않는다.")
+    void updateConditions_pastSchedule() {
+        given(memberRepository.findById(PROPOSER_ID)).willReturn(Optional.of(proposer));
+        given(scheduleRepository.findByIdForUpdate(SCHEDULE_ID)).willReturn(Optional.of(
+                conditionSchedule(ScheduleStatus.CONFIRMED, family, LocalDate.of(2026, 10, 31))));
+
+        assertThatThrownBy(() -> service.updateConditions(PROPOSER_ID, SCHEDULE_ID,
+                conditionsReq(ConditionType.MORE_REST)))
+                .isInstanceOf(ScheduleException.class)
+                .extracting(e -> ((ScheduleException) e).getErrorCode())
+                .isEqualTo(ScheduleErrorCode.CONDITION_NOT_EDITABLE);
+
+        verifyNoInteractions(scheduleConditionRepository);
+    }
+
+    @Test
+    @DisplayName("당일 일정에는 컨디션을 적용할 수 있다.")
+    void updateConditions_sameDay() {
+        given(memberRepository.findById(PROPOSER_ID)).willReturn(Optional.of(proposer));
+        given(scheduleRepository.findByIdForUpdate(SCHEDULE_ID)).willReturn(Optional.of(
+                conditionSchedule(ScheduleStatus.CONFIRMED, family, LocalDate.of(2026, 11, 1))));
+        given(scheduleConditionRepository.findBySchedule_Id(SCHEDULE_ID)).willReturn(List.of());
+
+        service.updateConditions(PROPOSER_ID, SCHEDULE_ID, conditionsReq(ConditionType.MORE_REST));
+
+        assertThat(capturedSaved()).extracting(ScheduleCondition::getConditionType)
+                .containsExactly(ConditionType.MORE_REST);
     }
 
     @Test

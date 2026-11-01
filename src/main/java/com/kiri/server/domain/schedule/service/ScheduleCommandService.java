@@ -131,7 +131,8 @@ public class ScheduleCommandService {
         Schedule schedule = scheduleRepository.findByIdForUpdate(scheduleId)
                 .filter(found -> found.getFamily().getId().equals(family.getId()))
                 .orElseThrow(() -> new ScheduleException(ScheduleErrorCode.SCHEDULE_NOT_FOUND));
-        if (!schedule.isUpdatable()) {
+
+        if (!schedule.isUpdatable() || schedule.getScheduleDate().isBefore(LocalDate.now(clock))) {
             throw new ScheduleException(ScheduleErrorCode.CONDITION_NOT_EDITABLE);
         }
 
