@@ -12,11 +12,14 @@ import com.kiri.server.domain.mission.enums.MissionType;
 import com.kiri.server.domain.schedule.dto.ScheduleReqDTO;
 import com.kiri.server.domain.schedule.dto.ScheduleResDTO;
 import com.kiri.server.domain.schedule.entity.Schedule;
+import com.kiri.server.domain.schedule.entity.ScheduleCondition;
 import com.kiri.server.domain.schedule.entity.ScheduleParticipant;
+import com.kiri.server.domain.schedule.enums.ConditionType;
 import com.kiri.server.domain.schedule.enums.ParticipantStatus;
 import com.kiri.server.domain.schedule.enums.ScheduleStatus;
 import com.kiri.server.domain.schedule.exception.ScheduleException;
 import com.kiri.server.domain.schedule.exception.code.ScheduleErrorCode;
+import com.kiri.server.domain.schedule.repository.ScheduleConditionRepository;
 import com.kiri.server.domain.schedule.repository.ScheduleParticipantRepository;
 import com.kiri.server.domain.schedule.repository.ScheduleRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -44,6 +47,7 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 @ExtendWith(MockitoExtension.class)
 class ScheduleCommandServiceTest {
@@ -56,6 +60,7 @@ class ScheduleCommandServiceTest {
     @Mock private BucketItemRepository bucketItemRepository;
     @Mock private ScheduleRepository scheduleRepository;
     @Mock private ScheduleParticipantRepository scheduleParticipantRepository;
+    @Mock private ScheduleConditionRepository scheduleConditionRepository;
 
     private ScheduleCommandService service;
 
@@ -67,7 +72,7 @@ class ScheduleCommandServiceTest {
     @BeforeEach
     void setUp() {
         service = new ScheduleCommandService(memberRepository, bucketItemRepository,
-                scheduleRepository, scheduleParticipantRepository, CLOCK);
+                scheduleRepository, scheduleParticipantRepository, scheduleConditionRepository, CLOCK);
         family = Family.builder().id(10L).name("가족").build();
         proposer = Member.builder().id(PROPOSER_ID).family(family).nickname("제안자").build();
         m2 = Member.builder().id(2L).family(family).nickname("엄마").build();
@@ -445,5 +450,138 @@ class ScheduleCommandServiceTest {
                 .isInstanceOf(ScheduleException.class)
                 .extracting(e -> ((ScheduleException) e).getErrorCode())
                 .isEqualTo(ScheduleErrorCode.PAST_SCHEDULE_DATETIME);
+    }
+
+    private Schedule conditionSchedule(ScheduleStatus status, Family owner) {
+        return Schedule.builder().id(SCHEDULE_ID).family(owner).status(status).build();
+    }
+
+    private ScheduleReqDTO.UpdateConditions conditionsReq(ConditionType... types) {
+        return ScheduleReqDTO.UpdateConditions.builder().conditions(List.of(types)).build();
+    }
+
+    private ScheduleCondition condition(Schedule schedule, ConditionType type) {
+        return ScheduleCondition.builder().schedule(schedule).conditionType(type).build();
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<ScheduleCondition> capturedDeleted() {
+        ArgumentCaptor<List<ScheduleCondition>> captor = ArgumentCaptor.forClass(List.class);
+        verify(scheduleConditionRepository).deleteAll(captor.capture());
+        return captor.getValue();
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<ScheduleCondition> capturedSaved() {
+        ArgumentCaptor<List<ScheduleCondition>> captor = ArgumentCaptor.forClass(List.class);
+        verify(scheduleConditionRepository).saveAll(captor.capture());
+        return captor.getValue();
+    }
+
+    @Test
+    @DisplayName("회원이 없으면 컨디션을 적용하지 않고 MEMBER404_1로 예외를 던진다.")
+    void updateConditions_memberNotFound() {
+        given(memberRepository.findById(PROPOSER_ID)).willReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.updateConditions(PROPOSER_ID, SCHEDULE_ID, conditionsReq()))
+                .isInstanceOf(MemberException.class);
+
+        verifyNoInteractions(scheduleRepository, scheduleConditionRepository);
+    }
+
+    @Test
+    @DisplayName("가족공간이 없으면 컨디션을 적용하지 않고 SCHEDULE403_1로 예외를 던진다.")
+    void updateConditions_noFamily() {
+        given(memberRepository.findById(PROPOSER_ID)).willReturn(Optional.of(Member.builder().id(PROPOSER_ID).build()));
+
+        assertThatThrownBy(() -> service.updateConditions(PROPOSER_ID, SCHEDULE_ID, conditionsReq()))
+                .isInstanceOf(ScheduleException.class)
+                .extracting(e -> ((ScheduleException) e).getErrorCode())
+                .isEqualTo(ScheduleErrorCode.FAMILY_REQUIRED);
+
+        verifyNoInteractions(scheduleRepository, scheduleConditionRepository);
+    }
+
+    @Test
+    @DisplayName("다른 가족의 일정에 컨디션을 적용하면 SCHEDULE404_2로 예외를 던지고 조건은 건드리지 않는다.")
+    void updateConditions_otherFamily() {
+        Family otherFamily = Family.builder().id(99L).build();
+        given(memberRepository.findById(PROPOSER_ID)).willReturn(Optional.of(proposer));
+        given(scheduleRepository.findByIdForUpdate(SCHEDULE_ID))
+                .willReturn(Optional.of(conditionSchedule(ScheduleStatus.CONFIRMED, otherFamily)));
+
+        assertThatThrownBy(() -> service.updateConditions(PROPOSER_ID, SCHEDULE_ID,
+                conditionsReq(ConditionType.MORE_REST)))
+                .isInstanceOf(ScheduleException.class)
+                .extracting(e -> ((ScheduleException) e).getErrorCode())
+                .isEqualTo(ScheduleErrorCode.SCHEDULE_NOT_FOUND);
+
+        verifyNoInteractions(scheduleConditionRepository);
+    }
+
+    @Test
+    @DisplayName("취소된 일정에 컨디션을 적용하면 SCHEDULE409_5로 예외를 던지고 조건은 건드리지 않는다.")
+    void updateConditions_notEditable() {
+        given(memberRepository.findById(PROPOSER_ID)).willReturn(Optional.of(proposer));
+        given(scheduleRepository.findByIdForUpdate(SCHEDULE_ID))
+                .willReturn(Optional.of(conditionSchedule(ScheduleStatus.CANCELLED, family)));
+
+        assertThatThrownBy(() -> service.updateConditions(PROPOSER_ID, SCHEDULE_ID,
+                conditionsReq(ConditionType.MORE_REST)))
+                .isInstanceOf(ScheduleException.class)
+                .extracting(e -> ((ScheduleException) e).getErrorCode())
+                .isEqualTo(ScheduleErrorCode.CONDITION_NOT_EDITABLE);
+
+        verifyNoInteractions(scheduleConditionRepository);
+    }
+
+    @Test
+    @DisplayName("컨디션을 적용하면 요청에서 빠진 조건만 삭제하고 새 조건만 추가하며 겹치는 조건은 유지한다.")
+    void updateConditions_appliesDiff() {
+        Schedule schedule = conditionSchedule(ScheduleStatus.CONFIRMED, family);
+        ScheduleCondition reduceSteps = condition(schedule, ConditionType.REDUCE_STEPS);
+        ScheduleCondition moreRest = condition(schedule, ConditionType.MORE_REST);
+        given(memberRepository.findById(PROPOSER_ID)).willReturn(Optional.of(proposer));
+        given(scheduleRepository.findByIdForUpdate(SCHEDULE_ID)).willReturn(Optional.of(schedule));
+        given(scheduleConditionRepository.findBySchedule_Id(SCHEDULE_ID)).willReturn(List.of(reduceSteps, moreRest));
+
+        service.updateConditions(PROPOSER_ID, SCHEDULE_ID,
+                conditionsReq(ConditionType.MORE_REST, ConditionType.LOWER_BUDGET));
+
+        assertThat(capturedDeleted()).containsExactly(reduceSteps);
+        assertThat(capturedSaved()).extracting(ScheduleCondition::getConditionType)
+                .containsExactly(ConditionType.LOWER_BUDGET);
+    }
+
+    @Test
+    @DisplayName("빈 목록으로 컨디션을 적용하면 기존 조건을 모두 삭제하고 아무것도 추가하지 않는다.")
+    void updateConditions_clearAll() {
+        Schedule schedule = conditionSchedule(ScheduleStatus.PENDING_RESPONSE, family);
+        ScheduleCondition reduceSteps = condition(schedule, ConditionType.REDUCE_STEPS);
+        ScheduleCondition moreRest = condition(schedule, ConditionType.MORE_REST);
+        given(memberRepository.findById(PROPOSER_ID)).willReturn(Optional.of(proposer));
+        given(scheduleRepository.findByIdForUpdate(SCHEDULE_ID)).willReturn(Optional.of(schedule));
+        given(scheduleConditionRepository.findBySchedule_Id(SCHEDULE_ID)).willReturn(List.of(reduceSteps, moreRest));
+
+        service.updateConditions(PROPOSER_ID, SCHEDULE_ID, conditionsReq());
+
+        assertThat(capturedDeleted()).containsExactlyInAnyOrder(reduceSteps, moreRest);
+        assertThat(capturedSaved()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("같은 조건을 중복으로 보내도 컨디션은 한 번만 추가한다.")
+    void updateConditions_deduplicates() {
+        Schedule schedule = conditionSchedule(ScheduleStatus.CONFIRMED, family);
+        given(memberRepository.findById(PROPOSER_ID)).willReturn(Optional.of(proposer));
+        given(scheduleRepository.findByIdForUpdate(SCHEDULE_ID)).willReturn(Optional.of(schedule));
+        given(scheduleConditionRepository.findBySchedule_Id(SCHEDULE_ID)).willReturn(List.of());
+
+        service.updateConditions(PROPOSER_ID, SCHEDULE_ID,
+                conditionsReq(ConditionType.MORE_REST, ConditionType.MORE_REST));
+
+        assertThat(capturedDeleted()).isEmpty();
+        assertThat(capturedSaved()).extracting(ScheduleCondition::getConditionType)
+                .containsExactly(ConditionType.MORE_REST);
     }
 }
