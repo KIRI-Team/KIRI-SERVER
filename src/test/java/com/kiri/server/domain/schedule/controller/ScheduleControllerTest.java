@@ -258,4 +258,37 @@ class ScheduleControllerTest {
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value("SCHEDULE404_2"));
     }
+
+    @Test
+    @DisplayName("로그인 회원 ID와 경로의 일정 ID로 조회해 SCHEDULE200_8과 추천 장소 목록을 반환한다.")
+    void getNearby_success() throws Exception {
+        given(scheduleQueryService.getNearby(MEMBER_ID, 118L)).willReturn(List.of(
+                ScheduleResDTO.NearbyItem.builder()
+                        .placeName("세빛섬")
+                        .region("서울시 서초구")
+                        .description("한강 위에서 야경을 보기 좋아요")
+                        .imageUrl("https://image/sevitseom")
+                        .build()));
+
+        mockMvc.perform(get("/api/v1/schedules/118/nearby")
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value("SCHEDULE200_8"))
+                .andExpect(jsonPath("$.result[0].placeName").value("세빛섬"))
+                .andExpect(jsonPath("$.result[0].region").value("서울시 서초구"))
+                .andExpect(jsonPath("$.result[0].description").value("한강 위에서 야경을 보기 좋아요"))
+                .andExpect(jsonPath("$.result[0].imageUrl").value("https://image/sevitseom"));
+    }
+
+    @Test
+    @DisplayName("없거나 다른 가족의 일정이면 근처 놀거리 조회도 SCHEDULE404_2로 응답한다.")
+    void getNearby_scheduleNotFound() throws Exception {
+        given(scheduleQueryService.getNearby(any(), any()))
+                .willThrow(new ScheduleException(ScheduleErrorCode.SCHEDULE_NOT_FOUND));
+
+        mockMvc.perform(get("/api/v1/schedules/118/nearby")
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("SCHEDULE404_2"));
+    }
 }
