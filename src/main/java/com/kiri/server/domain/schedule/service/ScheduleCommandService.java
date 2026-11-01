@@ -14,11 +14,14 @@ import com.kiri.server.domain.schedule.converter.ScheduleConverter;
 import com.kiri.server.domain.schedule.dto.ScheduleReqDTO;
 import com.kiri.server.domain.schedule.dto.ScheduleResDTO;
 import com.kiri.server.domain.schedule.entity.Schedule;
+import com.kiri.server.domain.schedule.entity.ScheduleCondition;
 import com.kiri.server.domain.schedule.entity.ScheduleParticipant;
+import com.kiri.server.domain.schedule.enums.ConditionType;
 import com.kiri.server.domain.schedule.enums.ParticipantStatus;
 import com.kiri.server.domain.schedule.enums.ScheduleStatus;
 import com.kiri.server.domain.schedule.exception.ScheduleException;
 import com.kiri.server.domain.schedule.exception.code.ScheduleErrorCode;
+import com.kiri.server.domain.schedule.repository.ScheduleConditionRepository;
 import com.kiri.server.domain.schedule.repository.ScheduleParticipantRepository;
 import com.kiri.server.domain.schedule.repository.ScheduleRepository;
 import lombok.RequiredArgsConstructor;
@@ -31,6 +34,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.ArrayList;
+import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -47,6 +51,7 @@ public class ScheduleCommandService {
     private final BucketItemRepository bucketItemRepository;
     private final ScheduleRepository scheduleRepository;
     private final ScheduleParticipantRepository scheduleParticipantRepository;
+    private final ScheduleConditionRepository scheduleConditionRepository;
     private final Clock clock;
 
     @Transactional
@@ -112,6 +117,42 @@ public class ScheduleCommandService {
         }
 
         return ScheduleConverter.toCancelled(schedule);
+    }
+
+    @Transactional
+    public void updateConditions(Long memberId, Long scheduleId, ScheduleReqDTO.UpdateConditions request) {
+        Member member = memberRepository.findById(memberId)
+                .orElseThrow(() -> new MemberException(MemberErrorCode.NOT_FOUND));
+        Family family = member.getFamily();
+        if (family == null) {
+            throw new ScheduleException(ScheduleErrorCode.FAMILY_REQUIRED);
+        }
+
+        Schedule schedule = scheduleRepository.findByIdForUpdate(scheduleId)
+                .filter(found -> found.getFamily().getId().equals(family.getId()))
+                .orElseThrow(() -> new ScheduleException(ScheduleErrorCode.SCHEDULE_NOT_FOUND));
+        if (!schedule.isUpdatable()) {
+            throw new ScheduleException(ScheduleErrorCode.CONDITION_NOT_EDITABLE);
+        }
+
+        Set<ConditionType> requested = request.conditions().isEmpty()
+                ? EnumSet.noneOf(ConditionType.class)
+                : EnumSet.copyOf(request.conditions());
+        List<ScheduleCondition> existing = scheduleConditionRepository.findBySchedule_Id(scheduleId);
+        Set<ConditionType> existingTypes = existing.stream()
+                .map(ScheduleCondition::getConditionType)
+                .collect(Collectors.toSet());
+
+        List<ScheduleCondition> toDelete = existing.stream()
+                .filter(condition -> !requested.contains(condition.getConditionType()))
+                .toList();
+        List<ScheduleCondition> toSave = requested.stream()
+                .filter(type -> !existingTypes.contains(type))
+                .map(type -> ScheduleConverter.toScheduleCondition(schedule, type))
+                .toList();
+
+        scheduleConditionRepository.deleteAll(toDelete);
+        scheduleConditionRepository.saveAll(toSave);
     }
 
     @Transactional
