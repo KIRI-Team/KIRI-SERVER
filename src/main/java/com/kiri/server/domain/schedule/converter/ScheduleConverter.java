@@ -4,6 +4,9 @@ import com.kiri.server.domain.schedule.dto.ScheduleResDTO;
 import com.kiri.server.domain.schedule.entity.Schedule;
 import com.kiri.server.domain.schedule.entity.ScheduleParticipant;
 import com.kiri.server.domain.schedule.enums.CalendarMyStatus;
+import com.kiri.server.domain.schedule.enums.ParticipantStatus;
+import com.kiri.server.domain.schedule.enums.ScheduleDetailStatus;
+import com.kiri.server.domain.schedule.enums.ScheduleStatus;
 import com.kiri.server.domain.schedule.enums.UpcomingCardType;
 
 import java.time.LocalDate;
@@ -91,6 +94,30 @@ public class ScheduleConverter {
                 .responseRequired(responseRequired)
                 .upcoming(upcoming)
                 .build();
+    }
+
+    public static ScheduleResDTO.Detail toDetail(Schedule schedule, List<ScheduleParticipant> participants,
+                                                 LocalDate today) {
+        return ScheduleResDTO.Detail.builder()
+                .date(schedule.getScheduleDate())
+                .time(schedule.getScheduleTime())
+                .status(toDetailStatus(schedule, today))
+                .participants(participants.stream().map(ScheduleConverter::toParticipantItem).toList())
+                .build();
+    }
+
+    private static ScheduleResDTO.ParticipantItem toParticipantItem(ScheduleParticipant participant) {
+        return ScheduleResDTO.ParticipantItem.builder()
+                .nickname(participant.getMember().getDisplayName())
+                .accepted(participant.getStatus() == ParticipantStatus.ACCEPTED)
+                .build();
+    }
+
+    private static ScheduleDetailStatus toDetailStatus(Schedule schedule, LocalDate today) {
+        if (schedule.getStatus() != ScheduleStatus.CONFIRMED) {
+            return ScheduleDetailStatus.SCHEDULED;
+        }
+        return schedule.getScheduleDate().isEqual(today) ? ScheduleDetailStatus.TODAY : ScheduleDetailStatus.CONFIRMED;
     }
 
     private static CalendarMyStatus toMyStatus(ScheduleParticipant participant) {
