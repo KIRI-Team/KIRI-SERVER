@@ -109,3 +109,7 @@ aws:
     key-pair-id: ${CLOUDFRONT_KEY_PAIR_ID}
     private-key: ${CLOUDFRONT_PRIVATE_KEY}
     signed-url-expiration: 2h
+
+gemini:
+  api-key: ${GEMINI_API_KEY}
+  model: gemini-3.5-flash-lite

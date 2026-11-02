@@ -1,17 +1,12 @@
 package com.kiri.server.domain.question.entity;
 
 import com.kiri.server.domain.member.entity.Member;
+import com.kiri.server.domain.mission.enums.IndoorOutdoor;
+import com.kiri.server.domain.taste.enums.ActivityLevel;
+import com.kiri.server.domain.taste.enums.DurationLevel;
+import com.kiri.server.domain.taste.enums.PriceLevel;
 import com.kiri.server.global.entity.BaseEntity;
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.FetchType;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.ManyToOne;
-import jakarta.persistence.Table;
-import jakarta.persistence.UniqueConstraint;
+import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -51,8 +46,36 @@ public class MemberAnswer extends BaseEntity {
     @JoinColumn(name = "member_id", nullable = false)
     private Member member;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "indoor_outdoor", length = 20)
+    private IndoorOutdoor indoorOutdoor;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "duration_level", length = 20)
+    private DurationLevel durationLevel;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "price_level", length = 20)
+    private PriceLevel priceLevel;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "activity_level", length = 20)
+    private ActivityLevel activityLevel;
+
     // 답변 내용 수정
     public void updateContent(String content) {
         this.content = content;
+    }
+
+    public void updateClassification(
+            IndoorOutdoor indoorOutdoor,
+            DurationLevel durationLevel,
+            PriceLevel priceLevel,
+            ActivityLevel activityLevel
+    ) {
+        this.indoorOutdoor = indoorOutdoor;
+        this.durationLevel = durationLevel;
+        this.priceLevel = priceLevel;
+        this.activityLevel = activityLevel;
     }
 }
