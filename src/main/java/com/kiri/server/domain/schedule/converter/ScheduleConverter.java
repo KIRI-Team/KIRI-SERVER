@@ -107,7 +107,7 @@ public class ScheduleConverter {
 
     private static ScheduleResDTO.ParticipantItem toParticipantItem(ScheduleParticipant participant) {
         return ScheduleResDTO.ParticipantItem.builder()
-                .nickname(participant.getMember().getDisplayName())
+                .nickname(participant.getMember() == null ? "탈퇴한 사용자" : participant.getMember().getDisplayName())
                 .accepted(participant.getStatus() == ParticipantStatus.ACCEPTED)
                 .build();
     }
