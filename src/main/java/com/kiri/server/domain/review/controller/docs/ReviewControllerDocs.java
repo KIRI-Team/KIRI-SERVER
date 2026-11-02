@@ -310,4 +310,133 @@ public interface ReviewControllerDocs {
             ),
     })
     ApiResponse<ReviewResDTO.Create> createReview(@Parameter(hidden = true) @AuthenticationPrincipal Long memberId, @PathVariable Long scheduleId, @Valid @RequestBody ReviewReqDTO.Create dto);
+
+    // 리뷰(기록) 목록 조회
+    @Operation(
+            summary = "리뷰(기록) 목록 조회 API",
+            description = """
+                    # 리뷰(기록) 목록 조회
+                    완료된 약속(일정) 하나에 대해, 해당 일정 참여자들이 작성한 리뷰를 목록으로 조회합니다.
+                    기록 완료 화면 '가족 추억' 탭에서 사용합니다. 참여자 수가 가족 규모라 페이징 없이 전체를 작성순으로 반환합니다.
+
+                    ## 요청 형식
+                    - **Header**
+                        - Authorization: Bearer {Access_Token}
+                    - **Path Variable**
+                        - scheduleId: 리뷰를 조회할 일정 ID
+
+                    ## 동작 방식
+                    1. Access Token으로 인증된 사용자와 그 가족을 확인합니다.
+                    2. scheduleId로 일정을 조회하고, 요청자 가족의 일정인지 검증합니다.
+                    3. 해당 일정의 리뷰를 작성순으로 조회합니다. (작성자·사진 포함)
+                    4. 각 리뷰의 imageKey를 이미지 URL로 변환하여 반환합니다.
+                    5. isMine으로 본인 작성 리뷰(수정하기 노출용)를 구분합니다.
+
+                    ## 참고
+                    - 상단 활동 정보(제목·시작시간·장소 등)는 일정 상세 조회 API 소관으로, 이 API에는 포함되지 않습니다.
+                    """
+    )
+    @ApiResponses(value = {
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200",
+                    description = "조회 성공 (리뷰가 없으면 reviews 빈 배열)",
+                    content = @Content(
+                            mediaType = "application/json",
+                            examples = @ExampleObject(value = """
+                                    {
+                                        "isSuccess": true,
+                                        "code": "REVIEW200_2",
+                                        "message": "리뷰 목록 조회가 완료되었습니다.",
+                                        "result": {
+                                            "scheduleId": 10,
+                                            "reviews": [
+                                                {
+                                                    "reviewId": 1,
+                                                    "writer": {
+                                                        "memberId": 5,
+                                                        "nickname": "김주연",
+                                                        "familyRole": "DAUGHTER"
+                                                    },
+                                                    "content": "아빠가 자주 가는 식당에 처음 가봤다.",
+                                                    "starRating": 5,
+                                                    "isRejoinIntended": true,
+                                                    "imageUrls": [
+                                                        "https://cdn.example.com/review/1/image-1.jpg",
+                                                        "https://cdn.example.com/review/1/image-2.jpg"
+                                                    ],
+                                                    "createdAt": "2026-06-13T14:50:00",
+                                                    "isMine": true
+                                                }
+                                            ]
+                                        }
+                                    }
+                                    """
+                            )
+                    )
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "401",
+                    description = "인증 실패 (Authorization 헤더 누락, 유효하지 않은/만료된 토큰)",
+                    content = @Content(
+                            mediaType = "application/json",
+                            examples = @ExampleObject(value = """
+                                    {
+                                        "isSuccess": false,
+                                        "code": "COMMON401_1",
+                                        "message": "인증이 필요합니다.",
+                                        "result": null
+                                    }
+                                    """
+                            )
+                    )
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "403",
+                    description = "요청자 가족의 일정이 아닌 경우(가족 공간 없음 포함)",
+                    content = @Content(
+                            mediaType = "application/json",
+                            examples = @ExampleObject(value = """
+                                    {
+                                        "isSuccess": false,
+                                        "code": "REVIEW403_2",
+                                        "message": "해당 일정의 리뷰를 조회할 권한이 없습니다.",
+                                        "result": null
+                                    }
+                                    """
+                            )
+                    )
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "404",
+                    description = "사용자나 일정이 존재하지 않는 경우",
+                    content = @Content(
+                            mediaType = "application/json",
+                            examples = {
+                                    @ExampleObject(
+                                            name = "회원 없음",
+                                            value = """
+                                                    {
+                                                        "isSuccess": false,
+                                                        "code": "MEMBER404_1",
+                                                        "message": "존재하지 않는 회원입니다.",
+                                                        "result": null
+                                                    }
+                                            """
+                                    ),
+                                    @ExampleObject(
+                                            name = "일정 없음",
+                                            value = """
+                                                    {
+                                                        "isSuccess": false,
+                                                        "code": "SCHEDULE404_2",
+                                                        "message": "존재하지 않는 일정입니다.",
+                                                        "result": null
+                                                    }
+                                            """
+                                    )
+                            }
+                    )
+            )
+    })
+    ApiResponse<ReviewResDTO.ScheduleReviews> getScheduleReviews(@Parameter(hidden = true) @AuthenticationPrincipal Long memberId, @PathVariable Long scheduleId);
 }
