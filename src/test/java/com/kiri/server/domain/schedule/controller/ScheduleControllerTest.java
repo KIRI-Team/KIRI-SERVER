@@ -3,6 +3,7 @@ package com.kiri.server.domain.schedule.controller;
 import com.kiri.server.domain.schedule.dto.ScheduleReqDTO;
 import com.kiri.server.domain.schedule.dto.ScheduleResDTO;
 import com.kiri.server.domain.schedule.enums.CalendarMyStatus;
+import com.kiri.server.domain.schedule.enums.ScheduleDetailStatus;
 import com.kiri.server.domain.schedule.enums.ScheduleStatus;
 import com.kiri.server.domain.schedule.enums.UpcomingCardType;
 import com.kiri.server.domain.schedule.exception.ScheduleException;
@@ -219,5 +220,76 @@ class ScheduleControllerTest {
                         .header(HttpHeaders.AUTHORIZATION, bearerToken))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("SCHEDULE403_1"));
+    }
+
+    @Test
+    @DisplayName("일정 상세 조회에 성공하면 SCHEDULE200_9와 날짜·시간·상태·참여자를 반환한다.")
+    void getDetail_success() throws Exception {
+        given(scheduleQueryService.getDetail(any(), any())).willReturn(ScheduleResDTO.Detail.builder()
+                .date(LocalDate.of(2026, 11, 3))
+                .time(LocalTime.of(14, 50))
+                .status(ScheduleDetailStatus.CONFIRMED)
+                .participants(List.of(
+                        ScheduleResDTO.ParticipantItem.builder().nickname("엄마").accepted(true).build(),
+                        ScheduleResDTO.ParticipantItem.builder().nickname("첫째").accepted(false).build()))
+                .build());
+
+        mockMvc.perform(get("/api/v1/schedules/118")
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value("SCHEDULE200_9"))
+                .andExpect(jsonPath("$.result.date").value("2026-11-03"))
+                .andExpect(jsonPath("$.result.time").value("14:50"))
+                .andExpect(jsonPath("$.result.status").value("CONFIRMED"))
+                .andExpect(jsonPath("$.result.participants[0].nickname").value("엄마"))
+                .andExpect(jsonPath("$.result.participants[0].accepted").value(true))
+                .andExpect(jsonPath("$.result.participants[1].nickname").value("첫째"))
+                .andExpect(jsonPath("$.result.participants[1].accepted").value(false));
+    }
+
+    @Test
+    @DisplayName("로그인 회원 ID와 경로의 일정 ID를 일정 상세 조회에 전달한다.")
+    void getDetail_bindsIds() throws Exception {
+        given(scheduleQueryService.getDetail(any(), any()))
+                .willReturn(ScheduleResDTO.Detail.builder().participants(List.of()).build());
+
+        mockMvc.perform(get("/api/v1/schedules/118")
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken))
+                .andExpect(status().isOk());
+
+        verify(scheduleQueryService).getDetail(eq(MEMBER_ID), eq(118L));
+    }
+
+    @Test
+    @DisplayName("scheduleId가 숫자가 아니면 COMMON400_1로 응답한다.")
+    void getDetail_invalidScheduleId() throws Exception {
+        mockMvc.perform(get("/api/v1/schedules/abc")
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("COMMON400_1"));
+    }
+
+    @Test
+    @DisplayName("없거나 다른 가족의 일정이면 SCHEDULE404_2로 응답한다.")
+    void getDetail_notFound() throws Exception {
+        given(scheduleQueryService.getDetail(any(), any()))
+                .willThrow(new ScheduleException(ScheduleErrorCode.SCHEDULE_NOT_FOUND));
+
+        mockMvc.perform(get("/api/v1/schedules/118")
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("SCHEDULE404_2"));
+    }
+
+    @Test
+    @DisplayName("취소된 일정이면 SCHEDULE409_7로 응답한다.")
+    void getDetail_cancelled() throws Exception {
+        given(scheduleQueryService.getDetail(any(), any()))
+                .willThrow(new ScheduleException(ScheduleErrorCode.SCHEDULE_CANCELLED));
+
+        mockMvc.perform(get("/api/v1/schedules/118")
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("SCHEDULE409_7"));
     }
 }

@@ -25,7 +25,8 @@ public enum ScheduleErrorCode implements BaseErrorCode {
     BUCKET_NOT_SCHEDULABLE(HttpStatus.CONFLICT, "SCHEDULE409_1", "일정을 만들 수 없는 버킷 항목입니다."),
     RESPONSE_CLOSED(HttpStatus.CONFLICT, "SCHEDULE409_2", "응답할 수 없는 일정입니다."),
     NOT_CANCELABLE(HttpStatus.CONFLICT, "SCHEDULE409_3", "취소할 수 없는 일정입니다."),
-    NOT_UPDATABLE(HttpStatus.CONFLICT, "SCHEDULE409_4", "수정할 수 없는 일정입니다.");
+    NOT_UPDATABLE(HttpStatus.CONFLICT, "SCHEDULE409_4", "수정할 수 없는 일정입니다."),
+    SCHEDULE_CANCELLED(HttpStatus.CONFLICT, "SCHEDULE409_7", "취소된 일정입니다.");
 
     private final HttpStatus httpStatus;
     private final String code;

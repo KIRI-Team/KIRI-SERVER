@@ -4,7 +4,11 @@ import com.kiri.server.domain.schedule.dto.ScheduleResDTO;
 import com.kiri.server.domain.schedule.entity.Schedule;
 import com.kiri.server.domain.schedule.entity.ScheduleParticipant;
 import com.kiri.server.domain.schedule.enums.CalendarMyStatus;
+import com.kiri.server.domain.schedule.enums.ParticipantStatus;
+import com.kiri.server.domain.schedule.enums.ScheduleDetailStatus;
 import com.kiri.server.domain.schedule.enums.UpcomingCardType;
+import com.kiri.server.domain.schedule.exception.ScheduleException;
+import com.kiri.server.domain.schedule.exception.code.ScheduleErrorCode;
 
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
@@ -91,6 +95,33 @@ public class ScheduleConverter {
                 .responseRequired(responseRequired)
                 .upcoming(upcoming)
                 .build();
+    }
+
+    public static ScheduleResDTO.Detail toDetail(Schedule schedule, List<ScheduleParticipant> participants,
+                                                 LocalDate today) {
+        return ScheduleResDTO.Detail.builder()
+                .date(schedule.getScheduleDate())
+                .time(schedule.getScheduleTime())
+                .status(toDetailStatus(schedule, today))
+                .participants(participants.stream().map(ScheduleConverter::toParticipantItem).toList())
+                .build();
+    }
+
+    private static ScheduleResDTO.ParticipantItem toParticipantItem(ScheduleParticipant participant) {
+        return ScheduleResDTO.ParticipantItem.builder()
+                .nickname(participant.getMember() == null ? "탈퇴한 사용자" : participant.getMember().getDisplayName())
+                .accepted(participant.getStatus() == ParticipantStatus.ACCEPTED)
+                .build();
+    }
+
+    private static ScheduleDetailStatus toDetailStatus(Schedule schedule, LocalDate today) {
+        return switch (schedule.getStatus()) {
+            case PENDING_RESPONSE, NOT_CONFIRMED -> ScheduleDetailStatus.SCHEDULED;
+            case CONFIRMED -> schedule.getScheduleDate().isEqual(today)
+                    ? ScheduleDetailStatus.TODAY : ScheduleDetailStatus.CONFIRMED;
+            case COMPLETED -> ScheduleDetailStatus.COMPLETED;
+            case CANCELLED -> throw new ScheduleException(ScheduleErrorCode.SCHEDULE_CANCELLED);
+        };
     }
 
     private static CalendarMyStatus toMyStatus(ScheduleParticipant participant) {
