@@ -232,6 +232,8 @@ public interface ScheduleControllerDocs {
                     - conditions: 현재 일정에 적용된 조건 목록. 적용한 조건이 없으면 빈 배열입니다.
                       (REDUCE_STEPS 걸음 수 낮추기 / MORE_REST 휴식 시간 늘리기 / LOWER_BUDGET 예산 낮추기 / AVOID_CROWD 사람 많은 곳 피하기)
                     - 같은 가족의 일정만 조회할 수 있으며, 다른 가족의 일정은 존재하지 않는 일정과 같이 404로 응답합니다.
+                    - 약속 당일 화면 기능이라 수락한 최종 참여자만 조회할 수 있습니다. (응답 대기·거절·재확인 필요·초대 안 됨은 403)
+                    - 확정(CONFIRMED)된 일정의 당일에만 조회할 수 있습니다. (그 외 409)
                     """
     )
     @ApiResponses(value = {
@@ -339,17 +341,27 @@ public interface ScheduleControllerDocs {
             ),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
                     responseCode = "403",
-                    description = "가족공간이 없는 회원(SCHEDULE403_1)",
+                    description = "가족공간이 없는 회원(SCHEDULE403_1) / 약속의 최종 참여자가 아님(SCHEDULE403_5)",
                     content = @Content(
                             mediaType = "application/json",
-                            examples = @ExampleObject(value = """
-                                    {
-                                      "isSuccess": false,
-                                      "code": "SCHEDULE403_1",
-                                      "message": "가족 공간이 없습니다.",
-                                      "result": null
-                                    }
-                                    """)
+                            examples = {
+                                    @ExampleObject(name = "가족공간 없음", value = """
+                                            {
+                                              "isSuccess": false,
+                                              "code": "SCHEDULE403_1",
+                                              "message": "가족 공간이 없습니다.",
+                                              "result": null
+                                            }
+                                            """),
+                                    @ExampleObject(name = "최종 참여자 아님", value = """
+                                            {
+                                              "isSuccess": false,
+                                              "code": "SCHEDULE403_5",
+                                              "message": "약속에 참여하는 가족만 이용할 수 있습니다.",
+                                              "result": null
+                                            }
+                                            """)
+                            }
                     )
             ),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
@@ -381,6 +393,21 @@ public interface ScheduleControllerDocs {
                                                     """
                                     )
                             }
+                    )
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "409",
+                    description = "확정되지 않았거나 일정 당일이 아님(SCHEDULE409_6)",
+                    content = @Content(
+                            mediaType = "application/json",
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "isSuccess": false,
+                                      "code": "SCHEDULE409_6",
+                                      "message": "일정 당일에만 컨디션을 조회할 수 있습니다.",
+                                      "result": null
+                                    }
+                                    """)
                     )
             )
     })

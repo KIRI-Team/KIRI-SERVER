@@ -276,7 +276,13 @@ class ScheduleQueryServiceTest {
                 .durationMaxMinutes(180)
                 .build();
         BucketItem bucketItem = BucketItem.builder().mission(mission).build();
-        return Schedule.builder().id(id).family(family).bucketItem(bucketItem).build();
+        return Schedule.builder().id(id).family(family).bucketItem(bucketItem).status(ScheduleStatus.CONFIRMED)
+                .scheduleDate(LocalDate.of(2026, 11, 1)).build();
+    }
+
+    private void stubFinalParticipant(Long scheduleId, boolean finalParticipant) {
+        given(scheduleParticipantRepository.existsBySchedule_IdAndMember_IdAndStatusAndReconfirmRequiredFalse(
+                scheduleId, MEMBER_ID, ParticipantStatus.ACCEPTED)).willReturn(finalParticipant);
     }
 
     private ScheduleCondition condition(Schedule schedule, ConditionType type) {
@@ -323,12 +329,65 @@ class ScheduleQueryServiceTest {
     }
 
     @Test
+    @DisplayName("컨디션 조회: 최종 참여자가 아니면 SCHEDULE403_5로 예외를 던지고 조건은 조회하지 않는다.")
+    void getConditions_notFinalParticipant() {
+        Family family = Family.builder().id(10L).build();
+        given(memberRepository.findById(MEMBER_ID)).willReturn(Optional.of(Member.builder().family(family).build()));
+        given(scheduleRepository.findWithMissionByIdAndFamilyId(118L, 10L))
+                .willReturn(Optional.of(conditionSchedule(118L, family)));
+        stubFinalParticipant(118L, false);
+
+        assertThatThrownBy(() -> scheduleQueryService.getConditions(MEMBER_ID, 118L))
+                .isInstanceOf(ScheduleException.class)
+                .extracting(e -> ((ScheduleException) e).getErrorCode())
+                .isEqualTo(ScheduleErrorCode.NOT_FINAL_PARTICIPANT);
+
+        verifyNoInteractions(scheduleConditionRepository);
+    }
+
+    @Test
+    @DisplayName("컨디션 조회: 확정되지 않은 일정이면 SCHEDULE409_6으로 예외를 던지고 조건은 조회하지 않는다.")
+    void getConditions_notConfirmed() {
+        Family family = Family.builder().id(10L).build();
+        given(memberRepository.findById(MEMBER_ID)).willReturn(Optional.of(Member.builder().family(family).build()));
+        Schedule schedule = Schedule.builder().id(118L).family(family).status(ScheduleStatus.PENDING_RESPONSE).build();
+        given(scheduleRepository.findWithMissionByIdAndFamilyId(118L, 10L)).willReturn(Optional.of(schedule));
+        stubFinalParticipant(118L, true);
+
+        assertThatThrownBy(() -> scheduleQueryService.getConditions(MEMBER_ID, 118L))
+                .isInstanceOf(ScheduleException.class)
+                .extracting(e -> ((ScheduleException) e).getErrorCode())
+                .isEqualTo(ScheduleErrorCode.CONDITION_NOT_VIEWABLE);
+
+        verifyNoInteractions(scheduleConditionRepository);
+    }
+
+    @Test
+    @DisplayName("컨디션 조회: 일정 당일이 아니면 SCHEDULE409_6으로 예외를 던지고 조건은 조회하지 않는다.")
+    void getConditions_notToday() {
+        Family family = Family.builder().id(10L).build();
+        given(memberRepository.findById(MEMBER_ID)).willReturn(Optional.of(Member.builder().family(family).build()));
+        Schedule schedule = Schedule.builder().id(118L).family(family).status(ScheduleStatus.CONFIRMED)
+                .scheduleDate(LocalDate.of(2026, 11, 2)).build();
+        given(scheduleRepository.findWithMissionByIdAndFamilyId(118L, 10L)).willReturn(Optional.of(schedule));
+        stubFinalParticipant(118L, true);
+
+        assertThatThrownBy(() -> scheduleQueryService.getConditions(MEMBER_ID, 118L))
+                .isInstanceOf(ScheduleException.class)
+                .extracting(e -> ((ScheduleException) e).getErrorCode())
+                .isEqualTo(ScheduleErrorCode.CONDITION_NOT_VIEWABLE);
+
+        verifyNoInteractions(scheduleConditionRepository);
+    }
+
+    @Test
     @DisplayName("컨디션 조회: 미션 정보와 적용된 조건을 enum 순서로 정렬해 반환한다.")
     void getConditions_success() {
         Family family = Family.builder().id(10L).build();
         given(memberRepository.findById(MEMBER_ID)).willReturn(Optional.of(Member.builder().family(family).build()));
         Schedule schedule = conditionSchedule(118L, family);
         given(scheduleRepository.findWithMissionByIdAndFamilyId(118L, 10L)).willReturn(Optional.of(schedule));
+        stubFinalParticipant(118L, true);
         given(scheduleConditionRepository.findBySchedule_Id(118L)).willReturn(List.of(
                 condition(schedule, ConditionType.LOWER_BUDGET),
                 condition(schedule, ConditionType.REDUCE_STEPS)));
@@ -350,6 +409,7 @@ class ScheduleQueryServiceTest {
         given(memberRepository.findById(MEMBER_ID)).willReturn(Optional.of(Member.builder().family(family).build()));
         given(scheduleRepository.findWithMissionByIdAndFamilyId(118L, 10L))
                 .willReturn(Optional.of(conditionSchedule(118L, family)));
+        stubFinalParticipant(118L, true);
         given(scheduleConditionRepository.findBySchedule_Id(118L)).willReturn(List.of());
 
         ScheduleResDTO.Conditions result = scheduleQueryService.getConditions(MEMBER_ID, 118L);

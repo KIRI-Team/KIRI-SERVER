@@ -18,6 +18,7 @@ public enum ScheduleErrorCode implements BaseErrorCode {
     BUCKET_FORBIDDEN(HttpStatus.FORBIDDEN, "SCHEDULE403_2", "같은 가족의 버킷 항목에서만 일정을 만들 수 있습니다."),
     NOT_INVITED(HttpStatus.FORBIDDEN, "SCHEDULE403_3", "초대받은 일정에만 응답할 수 있습니다."),
     NOT_PROPOSER(HttpStatus.FORBIDDEN, "SCHEDULE403_4", "일정 제안자만 수정·취소할 수 있습니다."),
+    NOT_FINAL_PARTICIPANT(HttpStatus.FORBIDDEN, "SCHEDULE403_5", "약속에 참여하는 가족만 이용할 수 있습니다."),
 
     BUCKET_NOT_FOUND(HttpStatus.NOT_FOUND, "SCHEDULE404_1", "존재하지 않는 버킷 항목입니다."),
     SCHEDULE_NOT_FOUND(HttpStatus.NOT_FOUND, "SCHEDULE404_2", "존재하지 않는 일정입니다."),
@@ -26,7 +27,8 @@ public enum ScheduleErrorCode implements BaseErrorCode {
     RESPONSE_CLOSED(HttpStatus.CONFLICT, "SCHEDULE409_2", "응답할 수 없는 일정입니다."),
     NOT_CANCELABLE(HttpStatus.CONFLICT, "SCHEDULE409_3", "취소할 수 없는 일정입니다."),
     NOT_UPDATABLE(HttpStatus.CONFLICT, "SCHEDULE409_4", "수정할 수 없는 일정입니다."),
-    CONDITION_NOT_EDITABLE(HttpStatus.CONFLICT, "SCHEDULE409_5", "일정 당일에만 컨디션을 변경할 수 있습니다.");
+    CONDITION_NOT_EDITABLE(HttpStatus.CONFLICT, "SCHEDULE409_5", "일정 당일에만 컨디션을 변경할 수 있습니다."),
+    CONDITION_NOT_VIEWABLE(HttpStatus.CONFLICT, "SCHEDULE409_6", "일정 당일에만 컨디션을 조회할 수 있습니다.");
 
     private final HttpStatus httpStatus;
     private final String code;

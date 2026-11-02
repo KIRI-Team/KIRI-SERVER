@@ -24,6 +24,9 @@ public interface ScheduleParticipantRepository extends JpaRepository<SchedulePar
     Optional<ScheduleParticipant> findBySchedule_IdAndMember_IdForUpdate(@Param("scheduleId") Long scheduleId,
                                                                          @Param("memberId") Long memberId);
 
+    boolean existsBySchedule_IdAndMember_IdAndStatusAndReconfirmRequiredFalse(Long scheduleId, Long memberId,
+                                                                              ParticipantStatus status);
+
     long countBySchedule_IdAndStatusAndReconfirmRequiredFalseAndMember_IdNot(Long scheduleId, ParticipantStatus status,
                                                                              Long proposerId);
 }

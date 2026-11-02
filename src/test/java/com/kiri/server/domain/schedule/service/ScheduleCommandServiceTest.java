@@ -460,6 +460,11 @@ class ScheduleCommandServiceTest {
         return Schedule.builder().id(SCHEDULE_ID).family(owner).status(status).scheduleDate(date).build();
     }
 
+    private void stubFinalParticipant(boolean finalParticipant) {
+        given(scheduleParticipantRepository.existsBySchedule_IdAndMember_IdAndStatusAndReconfirmRequiredFalse(
+                SCHEDULE_ID, PROPOSER_ID, ParticipantStatus.ACCEPTED)).willReturn(finalParticipant);
+    }
+
     private ScheduleReqDTO.UpdateConditions conditionsReq(ConditionType... types) {
         return ScheduleReqDTO.UpdateConditions.builder().conditions(List.of(types)).build();
     }
@@ -524,11 +529,46 @@ class ScheduleCommandServiceTest {
     }
 
     @Test
+    @DisplayName("최종 참여자가 아니면 컨디션을 적용하지 않고 SCHEDULE403_5로 예외를 던진다.")
+    void updateConditions_notFinalParticipant() {
+        given(memberRepository.findById(PROPOSER_ID)).willReturn(Optional.of(proposer));
+        given(scheduleRepository.findByIdForUpdate(SCHEDULE_ID))
+                .willReturn(Optional.of(conditionSchedule(ScheduleStatus.CONFIRMED, family)));
+        stubFinalParticipant(false);
+
+        assertThatThrownBy(() -> service.updateConditions(PROPOSER_ID, SCHEDULE_ID,
+                conditionsReq(ConditionType.MORE_REST)))
+                .isInstanceOf(ScheduleException.class)
+                .extracting(e -> ((ScheduleException) e).getErrorCode())
+                .isEqualTo(ScheduleErrorCode.NOT_FINAL_PARTICIPANT);
+
+        verifyNoInteractions(scheduleConditionRepository);
+    }
+
+    @Test
+    @DisplayName("아직 확정되지 않은 일정에 컨디션을 적용하면 SCHEDULE409_5로 예외를 던지고 조건은 건드리지 않는다.")
+    void updateConditions_notConfirmed() {
+        given(memberRepository.findById(PROPOSER_ID)).willReturn(Optional.of(proposer));
+        given(scheduleRepository.findByIdForUpdate(SCHEDULE_ID))
+                .willReturn(Optional.of(conditionSchedule(ScheduleStatus.PENDING_RESPONSE, family)));
+        stubFinalParticipant(true);
+
+        assertThatThrownBy(() -> service.updateConditions(PROPOSER_ID, SCHEDULE_ID,
+                conditionsReq(ConditionType.MORE_REST)))
+                .isInstanceOf(ScheduleException.class)
+                .extracting(e -> ((ScheduleException) e).getErrorCode())
+                .isEqualTo(ScheduleErrorCode.CONDITION_NOT_EDITABLE);
+
+        verifyNoInteractions(scheduleConditionRepository);
+    }
+
+    @Test
     @DisplayName("취소된 일정에 컨디션을 적용하면 SCHEDULE409_5로 예외를 던지고 조건은 건드리지 않는다.")
     void updateConditions_notEditable() {
         given(memberRepository.findById(PROPOSER_ID)).willReturn(Optional.of(proposer));
         given(scheduleRepository.findByIdForUpdate(SCHEDULE_ID))
                 .willReturn(Optional.of(conditionSchedule(ScheduleStatus.CANCELLED, family)));
+        stubFinalParticipant(true);
 
         assertThatThrownBy(() -> service.updateConditions(PROPOSER_ID, SCHEDULE_ID,
                 conditionsReq(ConditionType.MORE_REST)))
@@ -545,6 +585,7 @@ class ScheduleCommandServiceTest {
         given(memberRepository.findById(PROPOSER_ID)).willReturn(Optional.of(proposer));
         given(scheduleRepository.findByIdForUpdate(SCHEDULE_ID)).willReturn(Optional.of(
                 conditionSchedule(ScheduleStatus.CONFIRMED, family, LocalDate.of(2026, 10, 31))));
+        stubFinalParticipant(true);
 
         assertThatThrownBy(() -> service.updateConditions(PROPOSER_ID, SCHEDULE_ID,
                 conditionsReq(ConditionType.MORE_REST)))
@@ -561,6 +602,7 @@ class ScheduleCommandServiceTest {
         given(memberRepository.findById(PROPOSER_ID)).willReturn(Optional.of(proposer));
         given(scheduleRepository.findByIdForUpdate(SCHEDULE_ID)).willReturn(Optional.of(
                 conditionSchedule(ScheduleStatus.CONFIRMED, family, LocalDate.of(2026, 11, 2))));
+        stubFinalParticipant(true);
 
         assertThatThrownBy(() -> service.updateConditions(PROPOSER_ID, SCHEDULE_ID,
                 conditionsReq(ConditionType.MORE_REST)))
@@ -577,6 +619,7 @@ class ScheduleCommandServiceTest {
         given(memberRepository.findById(PROPOSER_ID)).willReturn(Optional.of(proposer));
         given(scheduleRepository.findByIdForUpdate(SCHEDULE_ID)).willReturn(Optional.of(
                 conditionSchedule(ScheduleStatus.CONFIRMED, family, LocalDate.of(2026, 11, 1))));
+        stubFinalParticipant(true);
         given(scheduleConditionRepository.findBySchedule_Id(SCHEDULE_ID)).willReturn(List.of());
 
         service.updateConditions(PROPOSER_ID, SCHEDULE_ID, conditionsReq(ConditionType.MORE_REST));
@@ -593,6 +636,7 @@ class ScheduleCommandServiceTest {
         ScheduleCondition moreRest = condition(schedule, ConditionType.MORE_REST);
         given(memberRepository.findById(PROPOSER_ID)).willReturn(Optional.of(proposer));
         given(scheduleRepository.findByIdForUpdate(SCHEDULE_ID)).willReturn(Optional.of(schedule));
+        stubFinalParticipant(true);
         given(scheduleConditionRepository.findBySchedule_Id(SCHEDULE_ID)).willReturn(List.of(reduceSteps, moreRest));
 
         service.updateConditions(PROPOSER_ID, SCHEDULE_ID,
@@ -606,11 +650,12 @@ class ScheduleCommandServiceTest {
     @Test
     @DisplayName("빈 목록으로 컨디션을 적용하면 기존 조건을 모두 삭제하고 아무것도 추가하지 않는다.")
     void updateConditions_clearAll() {
-        Schedule schedule = conditionSchedule(ScheduleStatus.PENDING_RESPONSE, family);
+        Schedule schedule = conditionSchedule(ScheduleStatus.CONFIRMED, family);
         ScheduleCondition reduceSteps = condition(schedule, ConditionType.REDUCE_STEPS);
         ScheduleCondition moreRest = condition(schedule, ConditionType.MORE_REST);
         given(memberRepository.findById(PROPOSER_ID)).willReturn(Optional.of(proposer));
         given(scheduleRepository.findByIdForUpdate(SCHEDULE_ID)).willReturn(Optional.of(schedule));
+        stubFinalParticipant(true);
         given(scheduleConditionRepository.findBySchedule_Id(SCHEDULE_ID)).willReturn(List.of(reduceSteps, moreRest));
 
         service.updateConditions(PROPOSER_ID, SCHEDULE_ID, conditionsReq());
@@ -625,6 +670,7 @@ class ScheduleCommandServiceTest {
         Schedule schedule = conditionSchedule(ScheduleStatus.CONFIRMED, family);
         given(memberRepository.findById(PROPOSER_ID)).willReturn(Optional.of(proposer));
         given(scheduleRepository.findByIdForUpdate(SCHEDULE_ID)).willReturn(Optional.of(schedule));
+        stubFinalParticipant(true);
         given(scheduleConditionRepository.findBySchedule_Id(SCHEDULE_ID)).willReturn(List.of());
 
         service.updateConditions(PROPOSER_ID, SCHEDULE_ID,

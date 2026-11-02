@@ -140,6 +140,14 @@ public class ScheduleQueryService {
 
         Schedule schedule = scheduleRepository.findWithMissionByIdAndFamilyId(scheduleId, family.getId())
                 .orElseThrow(() -> new ScheduleException(ScheduleErrorCode.SCHEDULE_NOT_FOUND));
+        if (!scheduleParticipantRepository.existsBySchedule_IdAndMember_IdAndStatusAndReconfirmRequiredFalse(
+                scheduleId, memberId, ParticipantStatus.ACCEPTED)) {
+            throw new ScheduleException(ScheduleErrorCode.NOT_FINAL_PARTICIPANT);
+        }
+        if (schedule.getStatus() != ScheduleStatus.CONFIRMED
+                || !schedule.getScheduleDate().isEqual(LocalDate.now(clock))) {
+            throw new ScheduleException(ScheduleErrorCode.CONDITION_NOT_VIEWABLE);
+        }
 
         List<ConditionType> conditions = scheduleConditionRepository.findBySchedule_Id(scheduleId).stream()
                 .map(ScheduleCondition::getConditionType)
