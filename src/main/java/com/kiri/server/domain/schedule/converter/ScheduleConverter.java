@@ -6,7 +6,6 @@ import com.kiri.server.domain.schedule.entity.ScheduleParticipant;
 import com.kiri.server.domain.schedule.enums.CalendarMyStatus;
 import com.kiri.server.domain.schedule.enums.ParticipantStatus;
 import com.kiri.server.domain.schedule.enums.ScheduleDetailStatus;
-import com.kiri.server.domain.schedule.enums.ScheduleStatus;
 import com.kiri.server.domain.schedule.enums.UpcomingCardType;
 
 import java.time.LocalDate;
@@ -114,10 +113,13 @@ public class ScheduleConverter {
     }
 
     private static ScheduleDetailStatus toDetailStatus(Schedule schedule, LocalDate today) {
-        if (schedule.getStatus() != ScheduleStatus.CONFIRMED) {
-            return ScheduleDetailStatus.SCHEDULED;
-        }
-        return schedule.getScheduleDate().isEqual(today) ? ScheduleDetailStatus.TODAY : ScheduleDetailStatus.CONFIRMED;
+        return switch (schedule.getStatus()) {
+            case PENDING_RESPONSE, NOT_CONFIRMED -> ScheduleDetailStatus.SCHEDULED;
+            case CONFIRMED -> schedule.getScheduleDate().isEqual(today)
+                    ? ScheduleDetailStatus.TODAY : ScheduleDetailStatus.CONFIRMED;
+            case COMPLETED -> ScheduleDetailStatus.COMPLETED;
+            case CANCELLED -> ScheduleDetailStatus.CANCELLED;
+        };
     }
 
     private static CalendarMyStatus toMyStatus(ScheduleParticipant participant) {

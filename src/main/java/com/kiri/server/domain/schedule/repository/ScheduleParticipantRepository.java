@@ -19,6 +19,9 @@ public interface ScheduleParticipantRepository extends JpaRepository<SchedulePar
 
     List<ScheduleParticipant> findBySchedule_Id(Long scheduleId);
 
+    @Query("SELECT p FROM ScheduleParticipant p LEFT JOIN FETCH p.member WHERE p.schedule.id = :scheduleId ORDER BY p.id")
+    List<ScheduleParticipant> findAllWithMemberByScheduleId(@Param("scheduleId") Long scheduleId);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT p FROM ScheduleParticipant p WHERE p.schedule.id = :scheduleId AND p.member.id = :memberId")
     Optional<ScheduleParticipant> findBySchedule_IdAndMember_IdForUpdate(@Param("scheduleId") Long scheduleId,
