@@ -7,6 +7,8 @@ import com.kiri.server.domain.schedule.enums.CalendarMyStatus;
 import com.kiri.server.domain.schedule.enums.ParticipantStatus;
 import com.kiri.server.domain.schedule.enums.ScheduleDetailStatus;
 import com.kiri.server.domain.schedule.enums.UpcomingCardType;
+import com.kiri.server.domain.schedule.exception.ScheduleException;
+import com.kiri.server.domain.schedule.exception.code.ScheduleErrorCode;
 
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
@@ -118,7 +120,7 @@ public class ScheduleConverter {
             case CONFIRMED -> schedule.getScheduleDate().isEqual(today)
                     ? ScheduleDetailStatus.TODAY : ScheduleDetailStatus.CONFIRMED;
             case COMPLETED -> ScheduleDetailStatus.COMPLETED;
-            case CANCELLED -> ScheduleDetailStatus.CANCELLED;
+            case CANCELLED -> throw new ScheduleException(ScheduleErrorCode.SCHEDULE_CANCELLED);
         };
     }
 

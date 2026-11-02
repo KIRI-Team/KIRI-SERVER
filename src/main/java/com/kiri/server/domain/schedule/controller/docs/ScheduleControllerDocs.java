@@ -234,11 +234,11 @@ public interface ScheduleControllerDocs {
                       - CONFIRMED: 약속 확정 (확정, 일정 당일이 아님)
                       - TODAY: 약속 당일이에요! (확정, 일정 날짜가 오늘)
                       - COMPLETED: 약속 완료
-                      - CANCELLED: 약속 취소
                     - participants: 제안자가 맨 앞이며, 이후 초대 순서입니다.
                       - nickname: 탈퇴한 회원은 "탈퇴한 사용자"로 표시합니다.
                       - accepted: 수락했으면 true, 응답 대기·거절이면 false
                     - 같은 가족의 일정이면 초대받지 않은 구성원도 조회할 수 있으며, 다른 가족의 일정은 존재하지 않는 일정과 같이 404로 응답합니다.
+                    - 취소된 일정은 조회할 수 없습니다. (409)
                     """
     )
     @ApiResponses(value = {
@@ -367,6 +367,21 @@ public interface ScheduleControllerDocs {
                                                     """
                                     )
                             }
+                    )
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "409",
+                    description = "취소된 일정(SCHEDULE409_7)",
+                    content = @Content(
+                            mediaType = "application/json",
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "isSuccess": false,
+                                      "code": "SCHEDULE409_7",
+                                      "message": "취소된 일정입니다.",
+                                      "result": null
+                                    }
+                                    """)
                     )
             )
     })

@@ -134,6 +134,9 @@ public class ScheduleQueryService {
         Schedule schedule = scheduleRepository.findById(scheduleId)
                 .filter(found -> found.getFamily().getId().equals(family.getId()))
                 .orElseThrow(() -> new ScheduleException(ScheduleErrorCode.SCHEDULE_NOT_FOUND));
+        if (schedule.getStatus() == ScheduleStatus.CANCELLED) {
+            throw new ScheduleException(ScheduleErrorCode.SCHEDULE_CANCELLED);
+        }
         List<ScheduleParticipant> participants = scheduleParticipantRepository.findAllWithMemberByScheduleId(scheduleId);
 
         return ScheduleConverter.toDetail(schedule, participants, LocalDate.now(clock));

@@ -4,6 +4,5 @@ public enum ScheduleDetailStatus {
     SCHEDULED,
     CONFIRMED,
     TODAY,
-    COMPLETED,
-    CANCELLED
+    COMPLETED
 }

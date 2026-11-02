@@ -280,4 +280,16 @@ class ScheduleControllerTest {
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value("SCHEDULE404_2"));
     }
+
+    @Test
+    @DisplayName("취소된 일정이면 SCHEDULE409_7로 응답한다.")
+    void getDetail_cancelled() throws Exception {
+        given(scheduleQueryService.getDetail(any(), any()))
+                .willThrow(new ScheduleException(ScheduleErrorCode.SCHEDULE_CANCELLED));
+
+        mockMvc.perform(get("/api/v1/schedules/118")
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("SCHEDULE409_7"));
+    }
 }

@@ -306,6 +306,22 @@ class ScheduleQueryServiceTest {
     }
 
     @Test
+    @DisplayName("일정 상세 조회: 취소된 일정이면 SCHEDULE409_7로 예외를 던진다.")
+    void getDetail_cancelled() {
+        Family family = Family.builder().id(10L).build();
+        given(memberRepository.findById(MEMBER_ID)).willReturn(Optional.of(Member.builder().family(family).build()));
+        given(scheduleRepository.findById(118L)).willReturn(Optional.of(
+                schedule(118L, LocalDate.of(2026, 11, 3), ScheduleStatus.CANCELLED, family)));
+
+        assertThatThrownBy(() -> scheduleQueryService.getDetail(MEMBER_ID, 118L))
+                .isInstanceOf(ScheduleException.class)
+                .extracting(e -> ((ScheduleException) e).getErrorCode())
+                .isEqualTo(ScheduleErrorCode.SCHEDULE_CANCELLED);
+
+        verifyNoInteractions(scheduleParticipantRepository);
+    }
+
+    @Test
     @DisplayName("일정 상세 조회: 날짜·시간과 참여자별 닉네임·수락 여부를 조회 순서대로 반환하고, 탈퇴한 참여자는 '탈퇴한 사용자'로 표시한다.")
     void getDetail_participants() {
         Family family = Family.builder().id(10L).build();
@@ -343,8 +359,7 @@ class ScheduleQueryServiceTest {
             "NOT_CONFIRMED, 2026-11-03, SCHEDULED",
             "CONFIRMED, 2026-11-03, CONFIRMED",
             "CONFIRMED, 2026-11-01, TODAY",
-            "COMPLETED, 2026-11-01, COMPLETED",
-            "CANCELLED, 2026-11-03, CANCELLED"
+            "COMPLETED, 2026-11-01, COMPLETED"
     })
     @DisplayName("일정 상세 조회: 일정 상태와 날짜로 화면 표시용 상태를 계산한다.")
     void getDetail_status(ScheduleStatus status, LocalDate date, ScheduleDetailStatus expected) {
