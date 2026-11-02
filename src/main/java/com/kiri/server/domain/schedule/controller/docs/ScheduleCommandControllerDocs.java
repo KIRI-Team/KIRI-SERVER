@@ -505,7 +505,7 @@ public interface ScheduleCommandControllerDocs {
                     - 조건 값: REDUCE_STEPS 걸음 수 낮추기 / MORE_REST 휴식 시간 늘리기 / LOWER_BUDGET 예산 낮추기 / AVOID_CROWD 사람 많은 곳 피하기
                     - 같은 가족이면 누구나 변경할 수 있으며, 다른 가족의 일정은 존재하지 않는 일정과 같이 404로 응답합니다.
                     - 대기(PENDING_RESPONSE)·확정(CONFIRMED) 일정만 변경할 수 있습니다.
-                    - 일정 날짜가 지난 일정은 변경할 수 없습니다. 당일에는 시작 시각이 지나도 변경할 수 있습니다.
+                    - 일정 당일에만 변경할 수 있습니다. 당일에는 시작 시각이 지나도 변경할 수 있습니다.
                     """
     )
     @ApiResponses(value = {
@@ -624,14 +624,14 @@ public interface ScheduleCommandControllerDocs {
             ),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
                     responseCode = "409",
-                    description = "컨디션을 변경할 수 없는 일정(취소·미확정·완료 또는 날짜가 지난 일정)(SCHEDULE409_5)",
+                    description = "컨디션을 변경할 수 없는 일정(취소·미확정·완료 또는 일정 당일이 아님)(SCHEDULE409_5)",
                     content = @Content(
                             mediaType = "application/json",
                             examples = @ExampleObject(value = """
                                     {
                                       "isSuccess": false,
                                       "code": "SCHEDULE409_5",
-                                      "message": "취소되었거나 종료된 일정은 컨디션을 변경할 수 없습니다.",
+                                      "message": "일정 당일에만 컨디션을 변경할 수 있습니다.",
                                       "result": null
                                     }
                                     """)

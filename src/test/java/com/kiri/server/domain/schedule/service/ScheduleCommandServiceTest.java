@@ -453,7 +453,7 @@ class ScheduleCommandServiceTest {
     }
 
     private Schedule conditionSchedule(ScheduleStatus status, Family owner) {
-        return conditionSchedule(status, owner, LocalDate.of(2026, 11, 15));
+        return conditionSchedule(status, owner, LocalDate.of(2026, 11, 1));
     }
 
     private Schedule conditionSchedule(ScheduleStatus status, Family owner, LocalDate date) {
@@ -545,6 +545,22 @@ class ScheduleCommandServiceTest {
         given(memberRepository.findById(PROPOSER_ID)).willReturn(Optional.of(proposer));
         given(scheduleRepository.findByIdForUpdate(SCHEDULE_ID)).willReturn(Optional.of(
                 conditionSchedule(ScheduleStatus.CONFIRMED, family, LocalDate.of(2026, 10, 31))));
+
+        assertThatThrownBy(() -> service.updateConditions(PROPOSER_ID, SCHEDULE_ID,
+                conditionsReq(ConditionType.MORE_REST)))
+                .isInstanceOf(ScheduleException.class)
+                .extracting(e -> ((ScheduleException) e).getErrorCode())
+                .isEqualTo(ScheduleErrorCode.CONDITION_NOT_EDITABLE);
+
+        verifyNoInteractions(scheduleConditionRepository);
+    }
+
+    @Test
+    @DisplayName("아직 당일이 아닌 일정에 컨디션을 적용하면 SCHEDULE409_5로 예외를 던지고 조건은 건드리지 않는다.")
+    void updateConditions_futureSchedule() {
+        given(memberRepository.findById(PROPOSER_ID)).willReturn(Optional.of(proposer));
+        given(scheduleRepository.findByIdForUpdate(SCHEDULE_ID)).willReturn(Optional.of(
+                conditionSchedule(ScheduleStatus.CONFIRMED, family, LocalDate.of(2026, 11, 2))));
 
         assertThatThrownBy(() -> service.updateConditions(PROPOSER_ID, SCHEDULE_ID,
                 conditionsReq(ConditionType.MORE_REST)))

@@ -132,7 +132,7 @@ public class ScheduleCommandService {
                 .filter(found -> found.getFamily().getId().equals(family.getId()))
                 .orElseThrow(() -> new ScheduleException(ScheduleErrorCode.SCHEDULE_NOT_FOUND));
 
-        if (!schedule.isUpdatable() || schedule.getScheduleDate().isBefore(LocalDate.now(clock))) {
+        if (!schedule.isUpdatable() || !schedule.getScheduleDate().isEqual(LocalDate.now(clock))) {
             throw new ScheduleException(ScheduleErrorCode.CONDITION_NOT_EDITABLE);
         }
 
