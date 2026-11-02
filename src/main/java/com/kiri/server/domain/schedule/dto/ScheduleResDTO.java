@@ -102,4 +102,22 @@ public class ScheduleResDTO {
             String title
     ) {
     }
+
+    @Builder
+    public record Detail(
+            @JsonFormat(pattern = "yyyy-MM-dd")
+            LocalDate date,
+            @JsonFormat(pattern = "HH:mm")
+            LocalTime time,
+            ScheduleStatus status,
+            List<ParticipantItem> participants
+    ) {
+    }
+
+    @Builder
+    public record ParticipantItem(
+            String nickname,
+            boolean accepted
+    ) {
+    }
 }
