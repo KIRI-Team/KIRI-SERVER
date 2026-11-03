@@ -42,6 +42,7 @@ out/
 
 ### Terraform ###
 **/.terraform/*
+**/.build/
 *.tfstate
 *.tfstate.*
 *.tfvars
