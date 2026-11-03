@@ -5,6 +5,7 @@ import com.kiri.server.domain.mission.enums.ChecklistSource;
 import com.kiri.server.domain.mission.enums.IndoorOutdoor;
 import com.kiri.server.domain.mission.enums.ItemType;
 import com.kiri.server.domain.mission.enums.MissionType;
+import com.kiri.server.domain.mission.enums.WalkingLevel;
 import com.kiri.server.domain.place.enums.PlaceType;
 import lombok.Builder;
 
@@ -27,8 +28,7 @@ public record MissionDraft(
         Integer price,
         Integer durationMinMinutes,
         Integer durationMaxMinutes,
-        Integer estimatedStepsMin,
-        Integer estimatedStepsMax,
+        WalkingLevel walkingLevel,
         String imageUrl,
         String imageSource,
         PlaceDraft place,
