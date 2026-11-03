@@ -18,6 +18,7 @@ import com.kiri.server.domain.mission.enums.Category;
 import com.kiri.server.domain.mission.enums.ItemType;
 import com.kiri.server.domain.mission.enums.MissionStatus;
 import com.kiri.server.domain.mission.enums.MissionType;
+import com.kiri.server.domain.mission.enums.WalkingLevel;
 import com.kiri.server.domain.mission.exception.MissionException;
 import com.kiri.server.domain.mission.exception.code.MissionErrorCode;
 import com.kiri.server.domain.mission.repository.MissionChecklistItemRepository;
@@ -251,6 +252,7 @@ class MissionQueryServiceTest {
         assertThat(detail.steps()).extracting(MissionResDTO.ChecklistItem::title)
                 .containsExactly("상설 전시 관람하기", "기획 전시 관람하기");
         assertThat(detail.sourceUrl()).isEqualTo("https://korean.visitkorea.or.kr/detail");
+        assertThat(detail.walkingLevel()).isEqualTo(WalkingLevel.HIGH);
         assertThat(detail.place().latitude()).isEqualTo(37.5444);
         assertThat(detail)
                 .extracting(MissionResDTO.Detail::bucketSaved, MissionResDTO.Detail::bucketState,
@@ -395,6 +397,7 @@ class MissionQueryServiceTest {
                 .description("설명")
                 .category(Category.OUTDOOR)
                 .missionType(MissionType.PERMANENT)
+                .walkingLevel(WalkingLevel.HIGH)
                 .status(status)
                 .build();
     }

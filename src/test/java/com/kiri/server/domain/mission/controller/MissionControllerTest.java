@@ -7,6 +7,7 @@ import com.kiri.server.domain.mission.enums.Category;
 import com.kiri.server.domain.mission.enums.IndoorOutdoor;
 import com.kiri.server.domain.mission.enums.MissionStatus;
 import com.kiri.server.domain.mission.enums.MissionType;
+import com.kiri.server.domain.mission.enums.WalkingLevel;
 import com.kiri.server.domain.mission.exception.MissionException;
 import com.kiri.server.domain.mission.exception.code.MissionErrorCode;
 import com.kiri.server.domain.mission.service.MissionQueryService;
@@ -192,6 +193,7 @@ class MissionControllerTest {
                 .openingTime(LocalTime.of(10, 0))
                 .closingTime(LocalTime.of(18, 0))
                 .price(0)
+                .walkingLevel(WalkingLevel.MEDIUM)
                 .place(MissionResDTO.PlaceInfo.builder()
                         .placeId(52L).name("국립현대미술관 서울").latitude(37.5786).longitude(126.98).build())
                 .prepareItems(List.of())
@@ -208,6 +210,7 @@ class MissionControllerTest {
                 .andExpect(jsonPath("$.result.openingTime").value("10:00"))
                 .andExpect(jsonPath("$.result.closingTime").value("18:00"))
                 .andExpect(jsonPath("$.result.place.name").value("국립현대미술관 서울"))
+                .andExpect(jsonPath("$.result.walkingLevel").value("MEDIUM"))
                 .andExpect(jsonPath("$.result.steps[0].title").value("상설 전시 관람하기"))
                 .andExpect(jsonPath("$.result.bucketSaved").value(false))
                 .andExpect(jsonPath("$.result.bucketState").value("NONE"));
