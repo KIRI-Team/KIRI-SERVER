@@ -7,6 +7,7 @@ import com.kiri.server.domain.mission.enums.ChecklistSource;
 import com.kiri.server.domain.mission.enums.IndoorOutdoor;
 import com.kiri.server.domain.mission.enums.ItemType;
 import com.kiri.server.domain.mission.enums.MissionType;
+import com.kiri.server.domain.mission.enums.WalkingLevel;
 import com.kiri.server.domain.mission.generator.dto.DraftResult;
 import com.kiri.server.domain.mission.generator.dto.MissionDraft;
 import com.kiri.server.domain.place.enums.PlaceType;
@@ -45,6 +46,7 @@ class MissionDraftFactoryTest {
 
         assertThat(draft.title()).isEqualTo("한강 뚜벅뚜벅 축제 방문하기");
         assertThat(draft.category()).isEqualTo(Category.POPUP);
+        assertThat(draft.walkingLevel()).isEqualTo(WalkingLevel.MEDIUM);
         assertThat(draft.missionType()).isEqualTo(MissionType.PERIOD);
         assertThat(draft.startDate()).isEqualTo(LocalDate.of(2026, 10, 3));
         assertThat(draft.openingTime()).isEqualTo(LocalTime.of(10, 0));
@@ -76,6 +78,7 @@ class MissionDraftFactoryTest {
 
         assertThat(draft.title()).isEqualTo("가을밤 음악회 관람하기");
         assertThat(draft.category()).isEqualTo(Category.PERFORMANCE);
+        assertThat(draft.walkingLevel()).isEqualTo(WalkingLevel.LOW);
         assertThat(draft.price()).isEqualTo(30000);
         assertThat(draft.durationMinMinutes()).isEqualTo(120);
         assertThat(draft.durationMaxMinutes()).isEqualTo(120);
@@ -91,6 +94,7 @@ class MissionDraftFactoryTest {
 
         assertThat(draft.title()).isEqualTo("가족과 남산공원 나들이 가기");
         assertThat(draft.category()).isEqualTo(Category.OUTDOOR);
+        assertThat(draft.walkingLevel()).isEqualTo(WalkingLevel.HIGH);
         assertThat(draft.missionType()).isEqualTo(MissionType.PERMANENT);
         assertThat(draft.indoorOutdoor()).isEqualTo(IndoorOutdoor.OUTDOOR);
         assertThat(draft.price()).isNull();
@@ -112,6 +116,7 @@ class MissionDraftFactoryTest {
         MissionDraft draft = ready(factory.create(content));
 
         assertThat(draft.title()).isEqualTo("국립중앙박물관 관람하기");
+        assertThat(draft.walkingLevel()).isEqualTo(WalkingLevel.MEDIUM);
         assertThat(draft.indoorOutdoor()).isEqualTo(IndoorOutdoor.INDOOR);
         assertThat(draft.openingTime()).isNull();
         assertThat(draft.place().openingTime()).isEqualTo(LocalTime.of(10, 0));

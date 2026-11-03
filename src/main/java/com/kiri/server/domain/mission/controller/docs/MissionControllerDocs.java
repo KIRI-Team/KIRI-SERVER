@@ -209,6 +209,8 @@ public interface MissionControllerDocs {
                     - imageUrl이 null이면 기본 이미지를 사용합니다. imageSource는 이미지가 있을 때만 내려갑니다.
                     - price는 0이면 무료, null이면 정보 없음입니다.
                     - openingTime·closingTime은 미션 값이 없으면 장소 운영시간을 사용하고, 둘 다 없으면 null입니다.
+                    - durationMinMinutes·durationMaxMinutes는 예상 활동시간을 분 단위 범위로 내려줍니다.
+                    - walkingLevel은 예상 걷기량으로 LOW(적음)·MEDIUM(보통)·HIGH(많음)이며, 판단할 정보가 없으면 null입니다.
                     - bucketState는 로그인한 회원 본인의 버킷 저장 상태입니다. NONE(저장 이력 없음, "버킷에 저장"), SAVED(SAVED·SCHEDULED 버킷 있음, "저장됨"), COMPLETED_ONLY(완료된 버킷만 있음, "다시 버킷에 저장")입니다.
                     - bucketSaved는 bucketState가 SAVED일 때만 true입니다. 가족이 없는 회원은 항상 NONE·false입니다.
                     - averageRating·reviewCount는 리뷰 기능 연결 전까지 null·0입니다.
@@ -242,8 +244,7 @@ public interface MissionControllerDocs {
                                         "price": 0,
                                         "durationMinMinutes": 60,
                                         "durationMaxMinutes": 120,
-                                        "estimatedStepsMin": 3000,
-                                        "estimatedStepsMax": 5000,
+                                        "walkingLevel": "MEDIUM",
                                         "sourceUrl": "https://korean.visitkorea.or.kr/detail/ms_detail.do?cotid=...",
                                         "place": {
                                           "placeId": 52,
