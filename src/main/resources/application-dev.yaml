@@ -13,3 +13,6 @@ springdoc:
   swagger-ui:
     enabled: true
 
+sentry:
+  dsn: ${SENTRY_DSN}
+  environment: dev

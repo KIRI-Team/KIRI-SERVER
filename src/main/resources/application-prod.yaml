@@ -6,3 +6,7 @@ spring:
 logging:
   level:
     org.hibernate.SQL: warn
+
+sentry:
+  dsn: ${SENTRY_DSN}
+  environment: prod
