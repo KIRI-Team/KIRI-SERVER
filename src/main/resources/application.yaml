@@ -45,6 +45,8 @@ management:
     git:
       mode: full
   metrics:
+    tags:
+      application: kiri-server
     distribution:
       slo:
         http.server.requests: 100ms, 300ms, 1s, 3s
