@@ -27,7 +27,7 @@ class QuestionScoreCalculatorTest {
 
     @Test
     @DisplayName("오늘의 질문 답변은 가중치가 1이다.")
-    void calculateAnswerWeight_today() {
+    void calculateAnswerWeightToday() {
         BigDecimal result = calculator.calculateAnswerWeight(0);
 
         assertThat(result).isEqualByComparingTo("1");
@@ -35,7 +35,7 @@ class QuestionScoreCalculatorTest {
 
     @Test
     @DisplayName("30일 전 질문 답변은 가중치가 0.5이다.")
-    void calculateAnswerWeight_30DaysAgo() {
+    void calculateAnswerWeight30DaysAgo() {
         BigDecimal result = calculator.calculateAnswerWeight(30);
 
         assertThat(result).isEqualByComparingTo("0.5");
@@ -43,7 +43,7 @@ class QuestionScoreCalculatorTest {
 
     @Test
     @DisplayName("60일 전 질문 답변은 가중치가 0.25이다.")
-    void calculateAnswerWeight_60DaysAgo() {
+    void calculateAnswerWeight60DaysAgo() {
         BigDecimal result = calculator.calculateAnswerWeight(60);
 
         assertThat(result).isEqualByComparingTo("0.25");
@@ -51,13 +51,13 @@ class QuestionScoreCalculatorTest {
 
     @Test
     @DisplayName("지난 일수가 음수이면 예외가 발생한다.")
-    void calculateAnswerWeight_negativeDays() {
+    void calculateAnswerWeightNegativeDays() {
         assertThatThrownBy(() -> calculator.calculateAnswerWeight(-1)).isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test
     @DisplayName("질문 무게 합이 2이면 신뢰도 c는 1이다.")
-    void calculateReliability_max() {
+    void calculateReliabilityMax() {
         BigDecimal result = calculator.calculateReliability(new BigDecimal("2"));
 
         assertThat(result).isEqualByComparingTo("1");
@@ -65,7 +65,7 @@ class QuestionScoreCalculatorTest {
 
     @Test
     @DisplayName("질문 무게 합이 1이면 신뢰도 c는 0.5이다.")
-    void calculateReliability_half() {
+    void calculateReliabilityHalf() {
         BigDecimal result = calculator.calculateReliability(new BigDecimal("1"));
 
         assertThat(result).isEqualByComparingTo("0.5");
@@ -73,7 +73,7 @@ class QuestionScoreCalculatorTest {
 
     @Test
     @DisplayName("질문 무게 합이 2를 초과하면 신뢰도 c는 1로 제한된다.")
-    void calculateReliability_overMax() {
+    void calculateReliabilityOverMax() {
         BigDecimal result = calculator.calculateReliability(new BigDecimal("3"));
 
         assertThat(result).isEqualByComparingTo("1");
@@ -81,7 +81,7 @@ class QuestionScoreCalculatorTest {
 
     @Test
     @DisplayName("질문 무게 합이 0이면 신뢰도 c는 0이다.")
-    void calculateReliability_zero() {
+    void calculateReliabilityZero() {
         BigDecimal result = calculator.calculateReliability(BigDecimal.ZERO);
 
         assertThat(result).isEqualByComparingTo("0");
@@ -105,7 +105,7 @@ class QuestionScoreCalculatorTest {
 
     @Test
     @DisplayName("질문 답변의 가중치 합으로 신뢰도 c를 계산한다.")
-    void calculateReliability_fromAnswers() {
+    void calculateReliabilityFromAnswers() {
         LocalDate today = LocalDate.of(2026, 11, 3);
 
         MemberAnswer todayAnswer = mock(MemberAnswer.class);

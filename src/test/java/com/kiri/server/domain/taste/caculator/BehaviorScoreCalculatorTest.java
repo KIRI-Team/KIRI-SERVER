@@ -31,7 +31,7 @@ class BehaviorScoreCalculatorTest {
 
     @Test
     @DisplayName("오늘 발생한 행동의 감쇠 가중치는 1이다.")
-    void calculateBehaviorWeight_today() {
+    void calculateBehaviorWeightToday() {
         BigDecimal result = calculator.calculateBehaviorWeight(0);
 
         assertThat(result).isEqualByComparingTo("1.0");
@@ -39,7 +39,7 @@ class BehaviorScoreCalculatorTest {
 
     @Test
     @DisplayName("90일 전에 발생한 행동의 감쇠 가중치는 0.5이다.")
-    void calculateBehaviorWeight_90DaysAgo() {
+    void calculateBehaviorWeight90DaysAgo() {
         BigDecimal result = calculator.calculateBehaviorWeight(90);
 
         assertThat(result).isEqualByComparingTo("0.5");
@@ -47,7 +47,7 @@ class BehaviorScoreCalculatorTest {
 
     @Test
     @DisplayName("180일 전에 발생한 행동의 감쇠 가중치는 0.25이다.")
-    void calculateBehaviorWeight_180DaysAgo() {
+    void calculateBehaviorWeight180DaysAgo() {
         BigDecimal result = calculator.calculateBehaviorWeight(180);
 
         assertThat(result).isEqualByComparingTo("0.25");
@@ -55,13 +55,13 @@ class BehaviorScoreCalculatorTest {
 
     @Test
     @DisplayName("지난 일수가 음수이면 예외가 발생한다.")
-    void calculateBehaviorWeight_negativeDays_throwsException() {
+    void calculateBehaviorWeightNegativeDaysThrowsException() {
         assertThatThrownBy(() -> calculator.calculateBehaviorWeight(-1)).isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test
     @DisplayName("버킷을 1회 저장하면 0.3점이다.")
-    void calculateBucketScore_oneSave() {
+    void calculateBucketScoreOneSave() {
         BigDecimal result = calculator.calculateBucketScore(1);
 
         assertThat(result).isEqualByComparingTo("0.3");
@@ -69,7 +69,7 @@ class BehaviorScoreCalculatorTest {
 
     @Test
     @DisplayName("버킷을 2회 저장하면 0.6점이다.")
-    void calculateBucketScore_twoSaves() {
+    void calculateBucketScoreTwoSaves() {
         BigDecimal result = calculator.calculateBucketScore(2);
 
         assertThat(result).isEqualByComparingTo("0.6");
@@ -77,7 +77,7 @@ class BehaviorScoreCalculatorTest {
 
     @Test
     @DisplayName("버킷 저장 횟수가 2회를 초과해도 최대 0.6점까지만 반영된다.")
-    void calculateBucketScore_moreThanTwoSaves_isLimitedToTwo() {
+    void calculateBucketScoreMoreThanTwoSavesIsLimitedToTwo() {
         BigDecimal result = calculator.calculateBucketScore(5);
 
         assertThat(result).isEqualByComparingTo("0.6");
@@ -85,13 +85,13 @@ class BehaviorScoreCalculatorTest {
 
     @Test
     @DisplayName("버킷 저장 횟수가 음수이면 예외가 발생한다.")
-    void calculateBucketScore_negativeCount_throwsException() {
+    void calculateBucketScoreNegativeCountThrowsException() {
         assertThatThrownBy(() -> calculator.calculateBucketScore(-1)).isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test
     @DisplayName("리뷰 별점이 5점이면 0.2점이다.")
-    void calculateReviewScore_fiveStars() {
+    void calculateReviewScoreFiveStars() {
         BigDecimal result = calculator.calculateReviewScore(5);
 
         assertThat(result).isEqualByComparingTo("0.2");
@@ -99,7 +99,7 @@ class BehaviorScoreCalculatorTest {
 
     @Test
     @DisplayName("리뷰 별점이 3점이면 0점이다.")
-    void calculateReviewScore_threeStars() {
+    void calculateReviewScoreThreeStars() {
         BigDecimal result = calculator.calculateReviewScore(3);
 
         assertThat(result).isEqualByComparingTo("0.0");
@@ -107,7 +107,7 @@ class BehaviorScoreCalculatorTest {
 
     @Test
     @DisplayName("리뷰 별점이 1점이면 -0.2점이다.")
-    void calculateReviewScore_oneStar() {
+    void calculateReviewScoreOneStar() {
         BigDecimal result = calculator.calculateReviewScore(1);
 
         assertThat(result).isEqualByComparingTo("-0.2");
@@ -115,7 +115,7 @@ class BehaviorScoreCalculatorTest {
 
     @Test
     @DisplayName("재참여 의향이 있으면 0.1점이다.")
-    void calculateRejoinScore_yes() {
+    void calculateRejoinScoreYes() {
         BigDecimal result = calculator.calculateRejoinScore(true);
 
         assertThat(result).isEqualByComparingTo("0.1");
@@ -123,7 +123,7 @@ class BehaviorScoreCalculatorTest {
 
     @Test
     @DisplayName("재참여 의향이 없으면 -0.1점이다.")
-    void calculateRejoinScore_no() {
+    void calculateRejoinScoreNo() {
         BigDecimal result = calculator.calculateRejoinScore(false);
 
         assertThat(result).isEqualByComparingTo("-0.1");
@@ -131,7 +131,7 @@ class BehaviorScoreCalculatorTest {
 
     @Test
     @DisplayName("재참여 의향이 null이면 0점이다.")
-    void calculateRejoinScore_null() {
+    void calculateRejoinScoreNull() {
         BigDecimal result = calculator.calculateRejoinScore(null);
 
         assertThat(result).isEqualByComparingTo("0");
@@ -185,7 +185,7 @@ class BehaviorScoreCalculatorTest {
 
     @Test
     @DisplayName("카테고리별 최종 행동 점수는 최대 0.6까지 제한된다.")
-    void calculateCategoryBehaviorScores_maximum() {
+    void calculateCategoryBehaviorScoresMaximum() {
         Mission mission = mock(Mission.class);
         when(mission.getCategory()).thenReturn(Category.FOOD_CAFE);
 

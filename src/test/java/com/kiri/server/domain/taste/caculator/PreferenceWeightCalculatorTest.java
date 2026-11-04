@@ -13,7 +13,7 @@ class PreferenceWeightCalculatorTest {
 
     @Test
     @DisplayName("질문과 취향 테스트가 모두 있으면 취향 테스트 무게가 더 크다.")
-    void calculate_both() {
+    void calculateBoth() {
         BigDecimal c = new BigDecimal("1.0");
 
         var result = calculator.calculate(c, true, true);
@@ -25,7 +25,7 @@ class PreferenceWeightCalculatorTest {
 
     @Test
     @DisplayName("질문만 있으면 질문 무게는 c이다.")
-    void calculate_questionOnly() {
+    void calculateQuestionOnly() {
         var result = calculator.calculate(new BigDecimal("0.7"), true, false);
 
         assertThat(result.questionWeight()).isEqualByComparingTo("0.7");
@@ -35,7 +35,7 @@ class PreferenceWeightCalculatorTest {
 
     @Test
     @DisplayName("취향 테스트만 있으면 취향 테스트 무게는 0.8이다.")
-    void calculate_tasteTestOnly() {
+    void calculateTasteTestOnly() {
         var result = calculator.calculate(new BigDecimal("0.7"), false, true);
 
         assertThat(result.questionWeight()).isEqualByComparingTo("0");
@@ -45,7 +45,7 @@ class PreferenceWeightCalculatorTest {
 
     @Test
     @DisplayName("질문 무게가 최대여도 취향 테스트 무게가 더 크다.")
-    void calculate_both_maxQuestionReliability() {
+    void calculateBothMaxQuestionReliability() {
         var result = calculator.calculate(new BigDecimal("1.0"), true, true);
 
         assertThat(result.tasteTestWeight()).isGreaterThan(result.questionWeight());

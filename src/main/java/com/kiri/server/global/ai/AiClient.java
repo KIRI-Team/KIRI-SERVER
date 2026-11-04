@@ -10,16 +10,19 @@ import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 
 @Component
-@RequiredArgsConstructor
 public class AiClient {
 
-    private final @Qualifier("aiRestClient") RestClient restClient;
+    private final RestClient restClient;
 
     @Value("${gemini.api-key}")
     private String apiKey;
 
     @Value("${gemini.model}")
     private String model;
+
+    public AiClient(@Qualifier("aiRestClient") RestClient restClient) {
+        this.restClient = restClient;
+    }
 
     public String generate(String prompt) {
 
