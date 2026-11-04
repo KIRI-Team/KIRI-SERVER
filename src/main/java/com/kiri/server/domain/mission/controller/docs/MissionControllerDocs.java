@@ -11,6 +11,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springdoc.core.annotations.ParameterObject;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 
 @Tag(name = "미션 API")
 public interface MissionControllerDocs {
@@ -345,4 +346,141 @@ public interface MissionControllerDocs {
             @Parameter(hidden = true) Long memberId,
             @Parameter(description = "미션 ID", example = "130") Long missionId
     );
+
+    @Operation(
+            summary = "주간 미션 조회 API",
+            description = """
+                    # 주간 미션 조회
+                    가족 구성원 전체의 취향을 반영하여 미리 계산하고 저장한 추천 미션을 조회합니다.
+
+                    ## 요청 형식
+                    - **Header**
+                        - Authorization: Bearer {Access_Token}
+                        - Content-Type: application/json
+
+                    ## 동작 방식
+                    1. Access Token을 검증하여 로그인한 회원의 memberId를 확인합니다.
+                    2. memberId를 통해 탈퇴하지 않은 회원을 조회합니다.
+                    3. 조회한 회원이 속한 가족 정보를 확인합니다.
+                    4. 해당 가족의 FamilyMissionRecommendation 목록을 추천 순위(recommendationRank) 오름차순으로 조회합니다.
+                    5. 각 추천 정보와 연결된 Mission 정보를 가져옵니다.
+                    6. 조회한 정보를 MissionResDTO.Recommendation으로 변환합니다.
+                    7. 추천 미션을 응답으로 내보냅니다.
+                    """
+    )
+    @ApiResponses(value = {
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200",
+                    description = "조회 성공",
+                    content = @Content(
+                            mediaType = "application/json",
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "isSuccess": true,
+                                      "code": "MISSION200_3",
+                                      "message": "주간 미션 조회 성공",
+                                      "result": {
+                                        "missionId": 1,
+                                        "title": "가족과 함께 산책하기",
+                                        "description": "가족과 함께 가까운 공원을 산책해 보세요.",
+                                        "category": "OUTDOOR",
+                                        "imageUrl": "https://example.com/mission1.png",
+                                        "recommendationReason": "가족 구성원들의 야외 활동 선호도가 높아요.",
+                                        "score": 0.9234567890
+                                      }
+                                    }
+                                    """)
+                    )
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "401",
+                    description = "인증 실패 (Authorization 헤더 누락, 유효하지 않은 토큰, 만료된 토큰)",
+                    content = @Content(
+                            mediaType = "application/json",
+                            examples = {
+                                    @ExampleObject(
+                                            name = "Authorization 헤더 없음",
+                                            value = """
+                                            {
+                                                "isSuccess": false,
+                                                "code": "COMMON401_1",
+                                                "message": "인증이 필요합니다.",
+                                                "result": null
+                                            }
+                                            """
+                                    ),
+                                    @ExampleObject(
+                                            name = "위조·형식 오류·refresh 토큰 사용",
+                                            value = """
+                                            {
+                                                "isSuccess": false,
+                                                "code": "AUTH401_1",
+                                                "message": "유효하지 않은 토큰입니다.",
+                                                "result": null
+                                            }
+                                            """
+                                    ),
+                                    @ExampleObject(
+                                            name = "accessToken 만료",
+                                            value = """
+                                            {
+                                                "isSuccess": false,
+                                                "code": "AUTH401_2",
+                                                "message": "토큰이 만료되었습니다",
+                                                "result": null
+                                            }
+                                            """
+                                    )
+                            }
+                    )
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "404",
+                    description = "사용자나 가족이 존재하지 않는 경우",
+                    content = @Content(
+                            mediaType = "application/json",
+                            examples = {
+                                    @ExampleObject(
+                                            name = "memberId에 해당하는 회원 없음",
+                                            value = """
+                                                    {
+                                                        "isSuccess": false,
+                                                        "code": "MEMBER404_1",
+                                                        "message": "존재하지 않는 회원입니다.",
+                                                        "result": null
+                                                    }
+                                            """
+                                    ),
+                                    @ExampleObject(
+                                            name = "요청한 familyId에 해당하는 가족이 존재하지 않는 경우",
+                                            value = """
+                                                    {
+                                                        "isSuccess": false,
+                                                        "code": "FAMILY404_1",
+                                                        "message": "존재하지 않는 가족입니다.",
+                                                        "result": null
+                                                    }
+                                            """
+                                    )
+                            }
+                    )
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "500",
+                    description = "서버 오류",
+                    content = @Content(
+                            mediaType = "application/json",
+                            examples = @ExampleObject(value = """
+                                    {
+                                        "isSuccess": false,
+                                        "code": "COMMON500_1",
+                                        "message": "서버 내부 오류가 발생했습니다.",
+                                        "result": null
+                                    }
+                                    """
+                            )
+                    )
+            )
+    })
+    ApiResponse<MissionResDTO.Recommendation> getRecommendations(@Parameter(hidden = true) @AuthenticationPrincipal Long memberId);
 }

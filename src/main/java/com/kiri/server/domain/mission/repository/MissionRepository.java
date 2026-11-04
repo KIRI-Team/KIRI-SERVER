@@ -47,4 +47,17 @@ public interface MissionRepository extends JpaRepository<Mission, Long> {
                               AND r.processStatus = com.kiri.server.domain.external.enums.ProcessStatus.PROCESSED)
             """)
     int publishPending(@Param("today") LocalDate today, @Param("now") LocalDateTime now);
+
+    @Query("""
+    SELECT m
+    FROM Mission m
+    JOIN FETCH m.place
+    WHERE m.status = com.kiri.server.domain.mission.enums.MissionStatus.ACTIVE
+      AND (
+          m.missionType <> com.kiri.server.domain.mission.enums.MissionType.PERIOD
+          OR m.endDate IS NULL
+          OR m.endDate >= :today
+      )
+    """)
+    List<Mission> findAllRecommendableMissions(@Param("today") LocalDate today);
 }
