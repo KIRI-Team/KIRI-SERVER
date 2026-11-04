@@ -4,6 +4,7 @@ import com.kiri.server.domain.mission.controller.docs.MissionControllerDocs;
 import com.kiri.server.domain.mission.dto.MissionReqDTO;
 import com.kiri.server.domain.mission.dto.MissionResDTO;
 import com.kiri.server.domain.mission.exception.code.MissionSuccessCode;
+import com.kiri.server.domain.mission.service.FamilyMissionRecommendationService;
 import com.kiri.server.domain.mission.service.MissionQueryService;
 import com.kiri.server.global.apiPayload.ApiResponse;
 import com.kiri.server.global.apiPayload.code.BaseSuccessCode;
@@ -22,6 +23,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class MissionController implements MissionControllerDocs {
 
     private final MissionQueryService missionQueryService;
+    private final FamilyMissionRecommendationService familyMissionRecommendationService;
 
     @GetMapping
     public ApiResponse<MissionResDTO.Feed> getFeed(
@@ -39,5 +41,13 @@ public class MissionController implements MissionControllerDocs {
     ) {
         BaseSuccessCode code = MissionSuccessCode.DETAIL_SUCCESS;
         return ApiResponse.onSuccess(code, missionQueryService.getDetail(memberId, missionId));
+    }
+
+    @GetMapping("/recommendations")
+    public ApiResponse<MissionResDTO.Recommendation> getRecommendations(
+            @AuthenticationPrincipal Long memberId
+    ) {
+        BaseSuccessCode code = MissionSuccessCode.RECOMMENDATION_LIST_SUCCESS;
+        return ApiResponse.onSuccess(code, familyMissionRecommendationService.getRecommendationsByMemberId(memberId));
     }
 }

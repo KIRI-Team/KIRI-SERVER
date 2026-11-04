@@ -4,6 +4,7 @@ import com.kiri.server.domain.bucket.entity.BucketItem;
 import com.kiri.server.domain.mission.entity.Mission;
 import com.kiri.server.domain.mission.enums.Category;
 import com.kiri.server.domain.mission.enums.IndoorOutdoor;
+import com.kiri.server.domain.mission.enums.WalkingLevel;
 import com.kiri.server.domain.question.entity.MemberAnswer;
 import com.kiri.server.domain.question.entity.MemberAnswerCategory;
 import com.kiri.server.domain.review.entity.Review;
@@ -288,16 +289,19 @@ public class MemberTasteScoreCalculator {
     }
 
     private BigDecimal calculateActivityLevelMatch(ActivityLevel preference, Mission mission) {
-        /*
-         * 현재 프로젝트에는
-         * ActivityLevel(LIGHT/MODERATE/ACTIVE)과
-         * Mission.estimatedStepsMin/Max를 연결하는
-         * 걸음 수 기준이 정의되어 있지 않다.
-         *
-         * 임의의 기준을 만들어 점수를 왜곡하지 않기 위해
-         * 기준 확정 전까지는 0으로 둔다.
-         */
-        return BigDecimal.ZERO;
+        WalkingLevel walkingLevel = mission.getWalkingLevel();
+
+        if (walkingLevel == null) {
+            return BigDecimal.ZERO;
+        }
+
+        WalkingLevel preferredWalkingLevel = switch (preference) {
+            case LIGHT -> WalkingLevel.LOW;
+            case MODERATE -> WalkingLevel.MEDIUM;
+            case ACTIVE -> WalkingLevel.HIGH;
+        };
+
+        return preferredWalkingLevel == walkingLevel ? BigDecimal.ONE : OPPOSITE_MATCH_SCORE;
     }
 
 

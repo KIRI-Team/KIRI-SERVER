@@ -40,6 +40,11 @@ public interface BucketItemRepository extends JpaRepository<BucketItem, Long> {
     @Query("SELECT b FROM BucketItem b WHERE b.id = :id")
     Optional<BucketItem> findByIdForUpdate(@Param("id") Long id);
 
+    List<BucketItem> findAllByMemberId(Long memberId);
+
+    @EntityGraph(attributePaths = {"mission"})
+    List<BucketItem> findAllByMember_IdIn(Collection<Long> memberIds);
+
     interface SaverBucketCount {
 
         Long getMemberId();
