@@ -5,6 +5,7 @@ set -euo pipefail
 DEPLOY_ENV="${DEPLOY_ENV:?DEPLOY_ENV가 필요합니다 (dev/prod)}"
 IMAGE="${IMAGE:?IMAGE가 필요합니다 (<registry>/kiri-server:<tag>)}"
 NGINX_BUNDLE="${NGINX_BUNDLE:-}"
+ALLOY_BUNDLE="${ALLOY_BUNDLE:-}"
 
 MEMORY_LIMIT="${MEMORY_LIMIT:-1200m}"
 APP_JAVA_OPTS="${APP_JAVA_OPTS:--XX:MaxRAMPercentage=60.0}"
@@ -24,6 +25,14 @@ CERTBOT_WEBROOT="/var/www/certbot"
 CERTBOT_PROJECT="kiri-certbot"
 SYSTEMD_DIR="/etc/systemd/system"
 
+ALLOY_DIR="/opt/kiri/alloy"
+ALLOY_DATA_DIR="/var/lib/kiri-alloy"
+ALLOY_CONTAINER="kiri-alloy"
+ALLOY_CHECK_NAME="kiri-alloy-check"
+ALLOY_PARAMETER_PATH="/kiri/${DEPLOY_ENV}/alloy"
+ALLOY_READY_URL="http://127.0.0.1:12345/-/ready"
+ALLOY_READY_TIMEOUT=30
+
 PARAMETER_PATH="/kiri/${DEPLOY_ENV}"
 LOG_GROUP="/kiri/${DEPLOY_ENV}/app"
 
@@ -40,7 +49,8 @@ export HOME="${HOME:-/root}"
 ENV_FILE="$(mktemp)"
 NGINX_STAGING=""
 NGINX_BACKUP=""
-trap 'rm -f "$ENV_FILE"; [[ -n "$NGINX_STAGING" ]] && rm -rf "$NGINX_STAGING"; [[ -n "$NGINX_BACKUP" ]] && rm -rf "$NGINX_BACKUP"' EXIT
+ALLOY_STAGING=""
+trap 'rm -f "$ENV_FILE"; [[ -n "$NGINX_STAGING" ]] && rm -rf "$NGINX_STAGING"; [[ -n "$NGINX_BACKUP" ]] && rm -rf "$NGINX_BACKUP"; [[ -n "$ALLOY_STAGING" ]] && rm -rf "$ALLOY_STAGING"' EXIT
 
 log(){
   echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*"
@@ -54,18 +64,27 @@ if ! flock -w 600 9; then
 fi
 
 # 함수
-write_env_file(){
-  umask 077
+container_running(){
+  [[ "$(docker inspect -f '{{.State.Running}}' "$1" 2>/dev/null)" == "true" ]]
+}
 
+# 하위 경로(nginx/, alloy/)는 포함하지 않음
+print_parameters(){
   aws ssm get-parameters-by-path \
     --region "$REGION" \
-    --path "$PARAMETER_PATH" \
+    --path "$1" \
     --with-decryption \
     --query 'Parameters[*].[Name, Value]' \
     --output text |
   while IFS=$'\t' read -r name value; do
     printf '%s=%s\n' "${name##*/}" "$value"
-  done > "$ENV_FILE"
+  done
+}
+
+write_env_file(){
+  umask 077
+
+  print_parameters "$PARAMETER_PATH" > "$ENV_FILE"
 
   echo "SPRING_PROFILES_ACTIVE=${DEPLOY_ENV}">>"$ENV_FILE"
 
@@ -95,7 +114,7 @@ wait_for_healthy(){
   local elapsed=0
 
   while((elapsed<HEALTH_TIMEOUT));do
-    if [[ "$(docker inspect -f '{{.State.Running}}' "$CONTAINER_NAME" 2>/dev/null)" != "true" ]]; then
+    if ! container_running "$CONTAINER_NAME"; then
       log "컨테이너가 실행 중이 아님"
       return 1
     fi
@@ -178,10 +197,6 @@ rollback(){
   exit 1
 }
 
-nginx_running(){
-  [[ "$(docker inspect -f '{{.State.Running}}' "$NGINX_CONTAINER" 2>/dev/null)" == "true" ]]
-}
-
 nginx_checksum(){
   (cd "$1" 2>/dev/null && cat compose.yml .env conf.d/kiri.conf auth/.htpasswd 2>/dev/null | sha256sum) || true
 }
@@ -236,7 +251,7 @@ ensure_certificates(){
       continue
     fi
 
-    if nginx_running; then
+    if container_running "$NGINX_CONTAINER"; then
       log "인증서 없음: ${domain}. webroot 방식으로 발급"
       install -d -m 755 "$CERTBOT_WEBROOT"
       if ! run_certbot certbot "${issue[@]}" --webroot -w "$CERTBOT_WEBROOT" -d "$domain"; then
@@ -311,13 +326,13 @@ install_nginx_files(){
 activate_nginx(){
   local compose_changed="$1"
 
-  if nginx_running && [[ "$compose_changed" == false ]]; then
+  if container_running "$NGINX_CONTAINER" && [[ "$compose_changed" == false ]]; then
     docker exec "$NGINX_CONTAINER" nginx -s reload || return 1
     log "nginx 설정 다시 읽기 완료"
   else
     (cd "$NGINX_DIR" && docker compose up -d) || return 1
     sleep 3
-    if ! nginx_running; then
+    if ! container_running "$NGINX_CONTAINER"; then
       log "nginx 컨테이너가 실행 직후 종료됨"
       docker logs --tail 20 "$NGINX_CONTAINER" 2>&1 || true
       return 1
@@ -341,7 +356,7 @@ restore_nginx(){
 
   cp -a "${NGINX_BACKUP}/." "${NGINX_DIR}/"
 
-  if (cd "$NGINX_DIR" && docker compose up -d --force-recreate) && sleep 3 && nginx_running; then
+  if (cd "$NGINX_DIR" && docker compose up -d --force-recreate) && sleep 3 && container_running "$NGINX_CONTAINER"; then
     log "이전 nginx 설정으로 복구 완료"
   else
     log "nginx 복구도 실패. 서버에서 확인 필요"
@@ -376,7 +391,7 @@ apply_nginx(){
   install_renew_timer
 
   # 설정 검사
-  if [[ "$(nginx_checksum "$NGINX_STAGING")" == "$(nginx_checksum "$NGINX_DIR")" ]] && nginx_running; then
+  if [[ "$(nginx_checksum "$NGINX_STAGING")" == "$(nginx_checksum "$NGINX_DIR")" ]] && container_running "$NGINX_CONTAINER"; then
     log "nginx 설정 변경 없음"
     return 0
   fi
@@ -402,6 +417,80 @@ apply_nginx(){
   fi
 }
 
+alloy_checksum(){
+  (cd "$1" 2>/dev/null && cat compose.yml .env config.alloy 2>/dev/null | sha256sum) || true
+}
+
+write_alloy_env(){
+  local out="$1"
+
+  (umask 077; print_parameters "$ALLOY_PARAMETER_PATH" > "$out") || return 1
+
+  echo "DEPLOY_ENV=${DEPLOY_ENV}" >> "$out"
+
+  # 값을 안 채우면 전송이 401로 실패
+  if grep -q '=CHANGE_ME$' "$out"; then
+    log "Alloy 파라미터에 CHANGE_ME가 남아 있음: $(grep '=CHANGE_ME$' "$out" | cut -d= -f1 | tr '\n' ' ')"
+    return 1
+  fi
+}
+
+wait_for_alloy_ready(){
+  local elapsed=0
+
+  while (( elapsed < ALLOY_READY_TIMEOUT )); do
+    if ! container_running "$ALLOY_CONTAINER"; then
+      log "Alloy 컨테이너가 실행 직후 종료됨"
+      docker logs --tail 20 "$ALLOY_CONTAINER" 2>&1 || true
+      return 1
+    fi
+
+    if curl -fsS --max-time 3 "$ALLOY_READY_URL" > /dev/null 2>&1; then
+      return 0
+    fi
+
+    sleep 3
+    elapsed=$(( elapsed + 3 ))
+  done
+
+  log "Alloy 준비 시간 초과 (${ALLOY_READY_TIMEOUT}초)"
+  docker logs --tail 20 "$ALLOY_CONTAINER" 2>&1 || true
+  return 1
+}
+
+apply_alloy(){
+  if [[ -z "$ALLOY_BUNDLE" ]]; then
+    log "Alloy 설정 묶음 없음. Alloy 반영 건너뜀"
+    return 0
+  fi
+
+  ALLOY_STAGING="$(mktemp -d)"
+  tar -xzf "$ALLOY_BUNDLE" -C "$ALLOY_STAGING" || return 1
+  write_alloy_env "${ALLOY_STAGING}/.env" || return 1
+
+  if [[ "$(alloy_checksum "$ALLOY_STAGING")" == "$(alloy_checksum "$ALLOY_DIR")" ]] && container_running "$ALLOY_CONTAINER"; then
+    log "Alloy 설정 변경 없음"
+    return 0
+  fi
+
+  log "Alloy 새 설정 검사"
+  docker rm -f "$ALLOY_CHECK_NAME" > /dev/null 2>&1 || true
+  if ! (cd "$ALLOY_STAGING" && docker compose -p "$ALLOY_CHECK_NAME" run --rm -T --name "$ALLOY_CHECK_NAME" alloy validate /etc/alloy/config.alloy); then
+    log "Alloy 설정 검사 실패. 기존 Alloy를 그대로 둠"
+    return 1
+  fi
+
+  install -d -m 755 "$ALLOY_DIR" "$ALLOY_DATA_DIR" \
+    && install -m 644 "${ALLOY_STAGING}/compose.yml" "${ALLOY_STAGING}/config.alloy" "$ALLOY_DIR/" \
+    && install -m 600 "${ALLOY_STAGING}/.env" "${ALLOY_DIR}/.env" \
+    || return 1
+
+  # config.alloy는 파일 단위 마운트라 컨테이너를 새로 만들어야 반영됨
+  (cd "$ALLOY_DIR" && docker compose up -d --force-recreate) || return 1
+  wait_for_alloy_ready || return 1
+  log "Alloy 실행 완료"
+}
+
 # 배포
 main(){
   log "배포 시작: env=${DEPLOY_ENV}, image=${TAG}, memory=${MEMORY_LIMIT}"
@@ -422,6 +511,10 @@ main(){
   fi
 
   apply_nginx
+
+  if ! apply_alloy; then
+    log "경고: Alloy 반영 실패. 지표 수집만 영향이 있고 앱 배포는 계속 진행"
+  fi
 
   cleanup_images "$previous"
   log "배포 성공: ${TAG}"
