@@ -113,3 +113,18 @@ aws:
 gemini:
   api-key: ${GEMINI_API_KEY}
   model: gemini-3.5-flash-lite
+
+sentry:
+  exception-resolver-order: -2147483647
+  ignored-exceptions-for-type:
+    - jakarta.validation.ConstraintViolationException
+    - org.springframework.dao.DataIntegrityViolationException
+    - org.springframework.validation.BindException
+    - org.springframework.web.bind.MethodArgumentNotValidException
+    - org.springframework.http.converter.HttpMessageNotReadableException
+    - org.springframework.web.bind.MissingServletRequestParameterException
+    - org.springframework.web.HttpMediaTypeNotSupportedException
+    - org.springframework.web.HttpRequestMethodNotSupportedException
+    - org.springframework.beans.TypeMismatchException
+    - org.springframework.web.servlet.resource.NoResourceFoundException
+    - org.springframework.web.method.annotation.HandlerMethodValidationException

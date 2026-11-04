@@ -3,6 +3,7 @@ package com.kiri.server.domain.schedule.dto;
 import com.fasterxml.jackson.annotation.JsonFormat;
 import com.kiri.server.domain.schedule.enums.CalendarMyStatus;
 import com.kiri.server.domain.schedule.enums.ParticipantStatus;
+import com.kiri.server.domain.schedule.enums.ScheduleDetailStatus;
 import com.kiri.server.domain.schedule.enums.ScheduleStatus;
 import com.kiri.server.domain.schedule.enums.UpcomingCardType;
 import lombok.Builder;
@@ -100,6 +101,24 @@ public class ScheduleResDTO {
             Integer dDay,
             UpcomingCardType type,
             String title
+    ) {
+    }
+
+    @Builder
+    public record Detail(
+            @JsonFormat(pattern = "yyyy-MM-dd")
+            LocalDate date,
+            @JsonFormat(pattern = "HH:mm")
+            LocalTime time,
+            ScheduleDetailStatus status,
+            List<ParticipantItem> participants
+    ) {
+    }
+
+    @Builder
+    public record ParticipantItem(
+            String nickname,
+            boolean accepted
     ) {
     }
 }

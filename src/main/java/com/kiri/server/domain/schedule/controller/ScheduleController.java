@@ -11,6 +11,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -39,6 +40,17 @@ public class ScheduleController implements ScheduleControllerDocs {
         return ApiResponse.onSuccess(
                 ScheduleSuccessCode.UPCOMING_SUCCESS,
                 scheduleQueryService.getUpcoming(memberId)
+        );
+    }
+
+    @GetMapping("/{scheduleId}")
+    public ApiResponse<ScheduleResDTO.Detail> getDetail(
+            @AuthenticationPrincipal Long memberId,
+            @PathVariable Long scheduleId
+    ) {
+        return ApiResponse.onSuccess(
+                ScheduleSuccessCode.DETAIL_SUCCESS,
+                scheduleQueryService.getDetail(memberId, scheduleId)
         );
     }
 }
