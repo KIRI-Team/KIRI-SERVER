@@ -12,7 +12,14 @@ springdoc:
     enabled: true
   swagger-ui:
     enabled: true
+  stuctured:
+    format:
+      console: logstash
+    json:
+      add:
+        service: kiri-server
 
 sentry:
   dsn: ${SENTRY_DSN}
   environment: dev
+
