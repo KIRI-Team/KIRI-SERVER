@@ -47,7 +47,7 @@ public class MissionController implements MissionControllerDocs {
     public ApiResponse<MissionResDTO.Recommendation> getRecommendations(
             @AuthenticationPrincipal Long memberId
     ) {
-        BaseSuccessCode code = MissionSuccessCode.RECOMMENDATION_LIST_SUCCESS;
+        BaseSuccessCode code = MissionSuccessCode.RECOMMENDATION_SUCCESS;
         return ApiResponse.onSuccess(code, familyMissionRecommendationService.getRecommendationsByMemberId(memberId));
     }
 }
