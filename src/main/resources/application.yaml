@@ -37,13 +37,17 @@ management:
   endpoints:
     web:
       exposure:
-        include: health, info
+        include: health, info, prometheus
   endpoint:
     health:
       show-details: never
   info:
     git:
       mode: full
+  metrics:
+    distribution:
+      slo:
+        http.server.requests: 100ms, 300ms, 1s, 3s
 
 logging:
   pattern:
