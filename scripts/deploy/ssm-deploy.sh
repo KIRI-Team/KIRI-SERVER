@@ -7,6 +7,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 NGINX_SRC="${REPO_ROOT}/infra/nginx"
+ALLOY_SRC="${REPO_ROOT}/infra/alloy"
 INSTANCE_NAME="kiri-${DEPLOY_ENV}-api"
 WAIT_LIMIT=1200
 
@@ -29,19 +30,22 @@ find_instance(){
 
 send_deploy_command(){
   local instance_id="$1"
-  local script_b64 nginx_64 remote_cmd
+  local script_b64 nginx_64 alloy_64 remote_cmd
 
   script_b64=$(base64 -w0 "${SCRIPT_DIR}/deploy.sh")
   nginx_64=$(tar -czf - -C "$NGINX_SRC" . | base64 -w0)
+  alloy_64=$(tar -czf - -C "$ALLOY_SRC" . | base64 -w0)
 
   remote_cmd=$(cat <<EOF
 script=\$(mktemp /tmp/kiri-deploy.XXXXXX)
 bundle=\$(mktemp /tmp/kiri-nginx.XXXXXX)
+alloy_bundle=\$(mktemp /tmp/kiri-alloy.XXXXXX)
 echo '${script_b64}' | base64 -d > "\$script"
 echo '${nginx_64}' | base64 -d > "\$bundle"
-DEPLOY_ENV='${DEPLOY_ENV}' IMAGE='${IMAGE}' MEMORY_LIMIT='${MEMORY_LIMIT}' APP_JAVA_OPTS='${APP_JAVA_OPTS}' NGINX_BUNDLE="\$bundle" bash "\$script";
+echo '${alloy_64}' | base64 -d > "\$alloy_bundle"
+DEPLOY_ENV='${DEPLOY_ENV}' IMAGE='${IMAGE}' MEMORY_LIMIT='${MEMORY_LIMIT}' APP_JAVA_OPTS='${APP_JAVA_OPTS}' NGINX_BUNDLE="\$bundle" ALLOY_BUNDLE="\$alloy_bundle" bash "\$script";
 rc=\$?
-rm -f "\$script" "\$bundle"
+rm -f "\$script" "\$bundle" "\$alloy_bundle"
 exit \$rc
 EOF
 )

@@ -59,12 +59,21 @@ public class MemberController implements MemberControllerDocs {
     }
 
     @Override
-    @PostMapping("v1/auth/logout")
+    @PostMapping("/v1/auth/logout")
     public ApiResponse<Void> logout(
             @AuthenticationPrincipal Long memberId
     ) {
         memberService.logout(memberId);
         BaseSuccessCode code = AuthSuccessCode.LOGOUT_SUCCESS;
+        return ApiResponse.onSuccess(code);
+    }
+
+    @DeleteMapping("/v1/members/me")
+    public ApiResponse<Void> withdraw(
+            @AuthenticationPrincipal Long memberId
+    ) {
+        memberService.withdraw(memberId);
+        BaseSuccessCode code = MemberSuccessCode.DELETE_SUCCESS;
         return ApiResponse.onSuccess(code);
     }
 }

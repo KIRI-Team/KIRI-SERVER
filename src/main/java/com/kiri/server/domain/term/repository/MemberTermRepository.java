@@ -28,4 +28,6 @@ public interface MemberTermRepository extends JpaRepository<MemberTerm, Long> {
               )
             """)
     boolean areAllRequiredTermsAgreed(@Param("memberId") Long memberId);
+
+    void deleteAllByMemberId(Long memberId);
 }

@@ -97,7 +97,7 @@ infra/
     ├── bootstrap/      # tfstate 저장용 S3 버킷
     ├── global/         # 계정 공통 설정 (Budgets, Cost Anomaly Detection)
     ├── envs/
-    │   ├── shared/     # 환경보다 먼저 만드는 배포 리소스 (GitHub OIDC Provider, 환경별 ECR)
+    │   ├── shared/     # 환경 공용 리소스 (GitHub OIDC Provider, 환경별 ECR, Sentry 알림 Lambda)
     │   ├── dev/        # dev 환경 리소스
     │   └── prod/       # prod 환경 리소스
     └── modules/        # 환경 간 공통 모듈 (envs/{env}/main.tf에서 호출)
@@ -229,6 +229,7 @@ terraform apply -replace=random_password.nginx_basic_auth
 | `/kiri/dev/CLOUDFRONT_KEY_PAIR_ID` | Signed URL `Key-Pair-Id` | Terraform |
 | `/kiri/dev/CLOUDFRONT_PRIVATE_KEY` | Signed URL 서명용 개인키 | 수동 ([Signed URL 키](#signed-url-키) 참고) |
 | `/kiri/dev/JWT_SECRET` | JWT 서명 키 | 수동 |
+| `/kiri/dev/SENTRY_DSN` | Sentry DSN | 수동 |
 
 - EC2의 IAM Role은 `/kiri/dev/*` 경로만 읽을 수 있습니다.
 - 새 값을 추가하는 방법은 [docs/deploy.md](../docs/deploy.md#환경변수-추가)를 참고합니다.
@@ -293,12 +294,26 @@ sudo tail -n 40 /var/log/cloud-init-output.log
 
 ## shared 환경
 
-환경 인프라보다 먼저 있어야 하거나, 환경을 지워도 남아야 하는 배포 리소스입니다. `terraform/envs/dev`, `terraform/envs/prod`보다 **먼저 apply**합니다.
+환경 인프라보다 먼저 있어야 하거나, 환경을 지워도 남아야 하거나, dev와 prod가 함께 쓰는 리소스입니다. `terraform/envs/dev`, `terraform/envs/prod`보다 **먼저 apply**합니다.
 
 | 리소스 | 내용 |
 |---|---|
 | GitHub OIDC Provider | GitHub Actions가 Access Key 없이 AWS에 인증하기 위한 연결. 계정당 1개라 dev, prod의 배포 Role이 함께 사용 |
 | ECR `kiri-server-dev`, `kiri-server-prod` | 앱 이미지 저장소. **환경별로 따로** 있음 (dev 최신 5개, prod 최신 10개 보관). 환경 인프라를 지웠다가 다시 만들어도 이미지가 남도록 여기에 둠 |
+| Lambda `kiri-sentry-alert` | Sentry 알림을 Discord로 전달. dev, prod 공용 1개 (Function URL로 웹훅 수신, Sentry 서명 검증) |
+
+### Sentry 알림 Lambda
+
+비밀 값은 tfstate에 남지 않도록 수동으로 등록합니다. (등록 방법은 [docs/deploy.md](../docs/deploy.md#환경변수-추가)와 같고 경로만 다름)
+
+1. `/kiri/shared/sentry-alert/DISCORD_WEBHOOK_URL` 등록 후 apply
+2. Sentry `Settings → Custom Integrations → Internal Integration` 생성
+   - Webhook URL: `terraform output sentry_alert_function_url`
+   - Alert Rule Action 켜기
+3. 저장 후 나오는 Client Secret을 `/kiri/shared/sentry-alert/SENTRY_CLIENT_SECRET`에 등록
+4. `Alerts → Create Alert`에서 Action을 `Send a notification via <Integration 이름>`으로 지정
+
+로그는 CloudWatch `/aws/lambda/kiri-sentry-alert`(14일 보관)에서 봅니다.
 
 ## 비용 알람 (global)
 

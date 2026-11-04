@@ -30,7 +30,7 @@ public class Notification extends BaseEntity {
     private Member member;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "notification_type", nullable = false)
+    @Column(name = "notification_type", length = 30, nullable = false)
     private NotificationType notificationType;
 
     @Column(name = "title", length = 100, nullable = false)
@@ -43,9 +43,8 @@ public class Notification extends BaseEntity {
     private LocalDateTime sentAt;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "status", nullable = false)
-    @Builder.Default
-    private NotificationStatus status = NotificationStatus.SCHEDULED;
+    @Column(name = "status", length = 20, nullable = false)
+    private NotificationStatus status;
 
     @Column(name = "processing_at")
     private LocalDateTime processingAt;

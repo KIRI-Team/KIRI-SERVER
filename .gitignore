@@ -42,6 +42,7 @@ out/
 
 ### Terraform ###
 **/.terraform/*
+**/.build/
 *.tfstate
 *.tfstate.*
 *.tfvars
@@ -57,3 +58,6 @@ override.tf
 *.b64
 **/keys/*
 !*-public.pem
+
+### macOS ###
+.DS_Store

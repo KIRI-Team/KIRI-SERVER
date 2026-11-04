@@ -5,6 +5,7 @@ import com.kiri.server.domain.mission.enums.Category;
 import com.kiri.server.domain.mission.enums.IndoorOutdoor;
 import com.kiri.server.domain.mission.enums.MissionStatus;
 import com.kiri.server.domain.mission.enums.MissionType;
+import com.kiri.server.domain.mission.enums.WalkingLevel;
 import com.kiri.server.domain.mission.generator.dto.MissionDraft;
 import com.kiri.server.domain.place.entity.Place;
 import com.kiri.server.global.entity.BaseEntity;
@@ -79,11 +80,9 @@ public class Mission extends BaseEntity {
     @Column(name = "price")
     private Integer price;
 
-    @Column(name = "estimated_steps_min")
-    private Integer estimatedStepsMin;
-
-    @Column(name = "estimated_steps_max")
-    private Integer estimatedStepsMax;
+    @Enumerated(EnumType.STRING)
+    @Column(name = "walking_level", length = 20)
+    private WalkingLevel walkingLevel;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "indoor_outdoor", length = 20)
@@ -132,8 +131,7 @@ public class Mission extends BaseEntity {
         this.durationMinMinutes = draft.durationMinMinutes();
         this.durationMaxMinutes = draft.durationMaxMinutes();
         this.price = draft.price();
-        this.estimatedStepsMin = draft.estimatedStepsMin();
-        this.estimatedStepsMax = draft.estimatedStepsMax();
+        this.walkingLevel = draft.walkingLevel();
         this.indoorOutdoor = draft.indoorOutdoor();
         this.startDate = draft.startDate();
         this.endDate = draft.endDate();

@@ -10,12 +10,19 @@ import org.springframework.stereotype.Repository;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface MissionRepository extends JpaRepository<Mission, Long> {
 
     @Query("SELECT m FROM Mission m JOIN FETCH m.place WHERE m.title = :title")
     List<Mission> findAllWithPlaceByTitle(@Param("title") String title);
+
+    @Query("SELECT m FROM Mission m JOIN FETCH m.place WHERE m.id = :id")
+    Optional<Mission> findWithPlaceById(@Param("id") Long id);
+
+    @Query("SELECT m FROM Mission m JOIN FETCH m.place WHERE m.id IN :ids")
+    List<Mission> findAllWithPlaceByIdIn(@Param("ids") List<Long> ids);
 
     @Modifying(flushAutomatically = true, clearAutomatically = true)
     @Query("""
@@ -40,4 +47,17 @@ public interface MissionRepository extends JpaRepository<Mission, Long> {
                               AND r.processStatus = com.kiri.server.domain.external.enums.ProcessStatus.PROCESSED)
             """)
     int publishPending(@Param("today") LocalDate today, @Param("now") LocalDateTime now);
+
+    @Query("""
+    SELECT m
+    FROM Mission m
+    JOIN FETCH m.place
+    WHERE m.status = com.kiri.server.domain.mission.enums.MissionStatus.ACTIVE
+      AND (
+          m.missionType <> com.kiri.server.domain.mission.enums.MissionType.PERIOD
+          OR m.endDate IS NULL
+          OR m.endDate >= :today
+      )
+    """)
+    List<Mission> findAllRecommendableMissions(@Param("today") LocalDate today);
 }

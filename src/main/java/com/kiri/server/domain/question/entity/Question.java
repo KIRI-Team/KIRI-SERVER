@@ -1,13 +1,8 @@
 package com.kiri.server.domain.question.entity;
 
+import com.kiri.server.domain.question.enums.TasteType;
 import com.kiri.server.global.entity.BaseEntity;
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.Table;
-import jakarta.persistence.UniqueConstraint;
+import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -45,4 +40,9 @@ public class Question extends BaseEntity {
     // 고정 노출 일차 (1~7: 가족 생성 후 N일차에 고정 배정, null: 일반 랜덤 질문)
     @Column(name = "fixed_day")
     private Integer fixedDay;
+
+    // 수집 취향 종류
+    @Enumerated(EnumType.STRING)
+    @Column(name = "taste_type", length = 20)
+    private TasteType tasteType;
 }

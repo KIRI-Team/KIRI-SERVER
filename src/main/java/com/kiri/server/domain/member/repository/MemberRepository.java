@@ -35,6 +35,18 @@ public interface MemberRepository extends JpaRepository<Member, Long> {
         where m.id = :id
        """)
     Optional<Member> findByIdForUpdate(@Param("id") Long id);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+        select m
+        from Member m
+        where m.id = :id
+        AND m.deletedAt IS NULL
+    """)
+    Optional<Member> findByIdAndDeletedAtIsNull(@Param("id") Long id);
+
     List<Member> findAllByFamily(Family family);
+    List<Member> findAllByFamilyAndDeletedAtIsNull(Family family);
     boolean existsByNickname(String nickname);
+    Optional<Member> findFirstByFamilyAndDeletedAtIsNullAndIdNotOrderByFamilyJoinedAtAsc(Family family, Long memberId);
 }

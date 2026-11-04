@@ -1,23 +1,26 @@
 package com.kiri.server.domain.question.service;
 
 import com.kiri.server.domain.family.entity.Family;
+import com.kiri.server.domain.family.repository.FamilyRepository;
 import com.kiri.server.domain.member.entity.Member;
 import com.kiri.server.domain.member.enums.FamilyRole;
 import com.kiri.server.domain.member.exception.MemberException;
 import com.kiri.server.domain.member.exception.code.MemberErrorCode;
 import com.kiri.server.domain.member.repository.MemberRepository;
+import com.kiri.server.domain.mission.enums.Category;
+import com.kiri.server.domain.question.dto.PreferenceClassification;
 import com.kiri.server.domain.question.dto.QuestionReqDTO;
 import com.kiri.server.domain.question.dto.QuestionResDTO;
-import com.kiri.server.domain.question.entity.FamilyQuestion;
-import com.kiri.server.domain.question.entity.MemberAnswer;
-import com.kiri.server.domain.question.entity.Poke;
-import com.kiri.server.domain.question.entity.Question;
+import com.kiri.server.domain.question.entity.*;
+import com.kiri.server.domain.question.enums.TasteType;
 import com.kiri.server.domain.question.event.PokeEvent;
 import com.kiri.server.domain.question.exception.QuestionException;
 import com.kiri.server.domain.question.exception.code.QuestionErrorCode;
-import com.kiri.server.domain.question.repository.FamilyQuestionRepository;
-import com.kiri.server.domain.question.repository.MemberAnswerRepository;
-import com.kiri.server.domain.question.repository.PokeRepository;
+import com.kiri.server.domain.question.repository.*;
+import com.kiri.server.domain.question.repository.FamilyQuestionRepository.TasteTypeCount;
+import com.kiri.server.domain.taste.enums.ActivityLevel;
+import com.kiri.server.domain.taste.enums.PriceLevel;
+import com.kiri.server.global.ai.service.AiService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -29,6 +32,7 @@ import org.postgresql.util.PSQLException;
 import org.postgresql.util.ServerErrorMessage;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -69,6 +73,18 @@ class QuestionServiceTest {
     @Mock
     private ApplicationEventPublisher eventPublisher;
 
+    @Mock
+    private FamilyRepository familyRepository;
+
+    @Mock
+    private QuestionRepository questionRepository;
+
+    @Mock
+    private MemberAnswerCategoryRepository memberAnswerCategoryRepository;
+
+    @Mock
+    private AiService aiService;
+
     private QuestionService questionService;
 
     private final Clock clock = Clock.fixed(Instant.parse("2026-10-10T03:00:00Z"), ZoneId.of("Asia/Seoul"));
@@ -88,7 +104,8 @@ class QuestionServiceTest {
     @BeforeEach
     void setUp() {
         questionService = new QuestionService(
-                memberRepository, familyQuestionRepository, memberAnswerRepository, clock, pokeRepository, eventPublisher);
+                memberRepository, familyQuestionRepository, memberAnswerRepository, memberAnswerCategoryRepository, clock, pokeRepository, eventPublisher, familyRepository, questionRepository, aiService
+        );
     }
 
     @Test
@@ -574,5 +591,333 @@ class QuestionServiceTest {
 
         assertThatThrownBy(() -> questionService.poke(MEMBER_ID, RECEIVER_ID))
                 .isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    @Test
+    @DisplayName("배정 대상 가족이 없으면 질문을 배정하지 않는다.")
+    void assign_familyNotFound() {
+        given(familyRepository.findById(1L)).willReturn(Optional.empty());
+
+        questionService.assign(1L, today);
+
+        verify(familyQuestionRepository, never()).save(any(FamilyQuestion.class));
+    }
+
+    @Test
+    @DisplayName("이미 질문이 배정된 날짜면 다시 배정하지 않는다.")
+    void assign_alreadyAssigned() {
+        Family createdFamily = familyCreatedOn(today);
+        given(familyRepository.findById(1L)).willReturn(Optional.of(createdFamily));
+        given(familyQuestionRepository.existsByFamilyAndQuestionDate(createdFamily, today)).willReturn(true);
+
+        questionService.assign(1L, today);
+
+        verify(familyQuestionRepository, never()).save(any(FamilyQuestion.class));
+    }
+
+    @Test
+    @DisplayName("가족 생성일 이전 날짜면 배정하지 않는다.")
+    void assign_beforeCreated() {
+        Family createdFamily = familyCreatedOn(today);
+        given(familyRepository.findById(1L)).willReturn(Optional.of(createdFamily));
+
+        questionService.assign(1L, today.minusDays(1));
+
+        verify(familyQuestionRepository, never()).save(any(FamilyQuestion.class));
+    }
+
+    @Test
+    @DisplayName("가족 생성일(1일차)에는 1일차 고정 질문을 배정한다.")
+    void assign_day1Fixed() {
+        Family createdFamily = familyCreatedOn(today);
+        Question fixed = Question.builder().id(1L).fixedDay(1).build();
+        given(familyRepository.findById(1L)).willReturn(Optional.of(createdFamily));
+        given(questionRepository.findByFixedDayAndIsActiveTrue(1)).willReturn(Optional.of(fixed));
+
+        questionService.assign(1L, today);
+
+        FamilyQuestion saved = captureSavedFamilyQuestion();
+        assertThat(saved.getQuestion()).isEqualTo(fixed);
+        assertThat(saved.getFamily()).isEqualTo(createdFamily);
+        assertThat(saved.getQuestionDate()).isEqualTo(today);
+    }
+
+    @Test
+    @DisplayName("7일차에는 7일차 고정 질문을 배정한다.")
+    void assign_day7Fixed() {
+        Family createdFamily = familyCreatedOn(today.minusDays(6));
+        Question fixed = Question.builder().id(7L).fixedDay(7).build();
+        given(familyRepository.findById(1L)).willReturn(Optional.of(createdFamily));
+        given(questionRepository.findByFixedDayAndIsActiveTrue(7)).willReturn(Optional.of(fixed));
+
+        questionService.assign(1L, today);
+
+        assertThat(captureSavedFamilyQuestion().getQuestion()).isEqualTo(fixed);
+    }
+
+    @Test
+    @DisplayName("8일차에는 고정 질문을 조회하지 않고 질문 풀에서 배정한다.")
+    void assign_day8Pool() {
+        Family createdFamily = familyCreatedOn(today.minusDays(7));
+        Question pool = Question.builder().id(200L).build();
+        given(familyRepository.findById(1L)).willReturn(Optional.of(createdFamily));
+        given(questionRepository.findUnassignedPoolQuestions(createdFamily)).willReturn(List.of(pool));
+
+        questionService.assign(1L, today);
+
+        assertThat(captureSavedFamilyQuestion().getQuestion()).isEqualTo(pool);
+        verify(questionRepository, never()).findByFixedDayAndIsActiveTrue(any());
+    }
+
+    @Test
+    @DisplayName("고정 질문이 없거나 비활성화됐으면 질문 풀에서 대체 배정한다.")
+    void assign_fixedMissingFallbackToPool() {
+        Family createdFamily = familyCreatedOn(today.minusDays(2));
+        Question pool = Question.builder().id(200L).build();
+        given(familyRepository.findById(1L)).willReturn(Optional.of(createdFamily));
+        given(questionRepository.findByFixedDayAndIsActiveTrue(3)).willReturn(Optional.empty());
+        given(questionRepository.findUnassignedPoolQuestions(createdFamily)).willReturn(List.of(pool));
+
+        questionService.assign(1L, today);
+
+        assertThat(captureSavedFamilyQuestion().getQuestion()).isEqualTo(pool);
+    }
+
+    @Test
+    @DisplayName("미사용 질문 중 가족이 가장 적게 받은 취향 종류의 질문을 배정하며, 일반 질문도 하나의 종류로 집계한다.")
+    void assign_leastReceivedTasteType() {
+        Family createdFamily = familyCreatedOn(today.minusDays(10));
+        Question general = Question.builder().id(201L).build();
+        Question category = Question.builder().id(202L).tasteType(TasteType.CATEGORY).build();
+        Question price = Question.builder().id(203L).tasteType(TasteType.PRICE).build();
+        given(familyRepository.findById(1L)).willReturn(Optional.of(createdFamily));
+        given(questionRepository.findUnassignedPoolQuestions(createdFamily)).willReturn(List.of(general, category, price));
+        given(familyQuestionRepository.countAssignedByTasteType(createdFamily)).willReturn(List.of(
+                tasteTypeCount(null, 5L),
+                tasteTypeCount(TasteType.CATEGORY, 2L),
+                tasteTypeCount(TasteType.PRICE, 3L)));
+
+        questionService.assign(1L, today);
+
+        assertThat(captureSavedFamilyQuestion().getQuestion()).isEqualTo(category);
+    }
+
+    @Test
+    @DisplayName("한 번도 받지 않은 취향 종류는 0회로 보고 우선 배정한다.")
+    void assign_neverReceivedTasteType() {
+        Family createdFamily = familyCreatedOn(today.minusDays(10));
+        Question general = Question.builder().id(201L).build();
+        Question steps = Question.builder().id(204L).tasteType(TasteType.STEPS).build();
+        given(familyRepository.findById(1L)).willReturn(Optional.of(createdFamily));
+        given(questionRepository.findUnassignedPoolQuestions(createdFamily)).willReturn(List.of(general, steps));
+        given(familyQuestionRepository.countAssignedByTasteType(createdFamily)).willReturn(List.of(
+                tasteTypeCount(null, 1L)));
+
+        questionService.assign(1L, today);
+
+        assertThat(captureSavedFamilyQuestion().getQuestion()).isEqualTo(steps);
+    }
+
+    @Test
+    @DisplayName("질문 풀을 모두 받았으면 가장 오래전에 받은 질문을 다시 배정한다.")
+    void assign_poolExhaustedReassignOldest() {
+        Family createdFamily = familyCreatedOn(today.minusDays(30));
+        Question oldest = Question.builder().id(201L).build();
+        Question recent = Question.builder().id(202L).build();
+        given(familyRepository.findById(1L)).willReturn(Optional.of(createdFamily));
+        given(questionRepository.findUnassignedPoolQuestions(createdFamily)).willReturn(List.of());
+        given(questionRepository.findAssignedPoolQuestionsOrderByLastAssigned(createdFamily))
+                .willReturn(List.of(oldest, recent));
+
+        questionService.assign(1L, today);
+
+        assertThat(captureSavedFamilyQuestion().getQuestion()).isEqualTo(oldest);
+    }
+
+    @Test
+    @DisplayName("배정 가능한 질문이 하나도 없으면 배정하지 않는다.")
+    void assign_noQuestion() {
+        Family createdFamily = familyCreatedOn(today.minusDays(30));
+        given(familyRepository.findById(1L)).willReturn(Optional.of(createdFamily));
+        given(questionRepository.findUnassignedPoolQuestions(createdFamily)).willReturn(List.of());
+        given(questionRepository.findAssignedPoolQuestionsOrderByLastAssigned(createdFamily)).willReturn(List.of());
+
+        questionService.assign(1L, today);
+
+        verify(familyQuestionRepository, never()).save(any(FamilyQuestion.class));
+    }
+
+    private Family familyCreatedOn(LocalDate createdDate) {
+        Family createdFamily = Family.builder().id(1L).name("행복한 우리집").build();
+        ReflectionTestUtils.setField(createdFamily, "createdAt", createdDate.atTime(9, 0));
+        return createdFamily;
+    }
+
+    private FamilyQuestion captureSavedFamilyQuestion() {
+        ArgumentCaptor<FamilyQuestion> captor = ArgumentCaptor.forClass(FamilyQuestion.class);
+        verify(familyQuestionRepository).save(captor.capture());
+        return captor.getValue();
+    }
+
+    private TasteTypeCount tasteTypeCount(TasteType tasteType, Long assignedCount) {
+        return new TasteTypeCount() {
+            @Override
+            public TasteType getTasteType() {
+                return tasteType;
+            }
+
+            @Override
+            public Long getAssignedCount() {
+                return assignedCount;
+            }
+        };
+    }
+
+    @Test
+    @DisplayName("CATEGORY 답변을 저장하면 AI 분류 결과와 카테고리를 저장한다")
+    void saveAnswerCategory() {
+        Question categoryQuestion = Question.builder()
+                .id(101L)
+                .content("가족과 어떤 활동을 하고 싶나요?")
+                .tasteType(TasteType.CATEGORY)
+                .build();
+
+        FamilyQuestion categoryFamilyQuestion = FamilyQuestion.builder()
+                .id(FAMILY_QUESTION_ID)
+                .family(family)
+                .question(categoryQuestion)
+                .questionDate(today.minusDays(1))
+                .build();
+
+        MemberAnswer answer = MemberAnswer.builder()
+                .content("전시회나 맛집에 가고 싶어요.")
+                .familyQuestion(categoryFamilyQuestion)
+                .member(member)
+                .build();
+
+        ReflectionTestUtils.setField(answer, "id", 500L);
+
+        PreferenceClassification classification = new PreferenceClassification(List.of(Category.EXHIBITION, Category.FOOD_CAFE), null, null, null, null);
+
+        given(aiService.classify(TasteType.CATEGORY, "가족과 어떤 활동을 하고 싶나요?", "전시회나 맛집에 가고 싶어요.")).willReturn(classification);
+
+        questionService.saveAnswer(answer);
+
+        verify(aiService).classify(TasteType.CATEGORY, "가족과 어떤 활동을 하고 싶나요?", "전시회나 맛집에 가고 싶어요.");
+
+        verify(memberAnswerCategoryRepository).deleteAllByMemberAnswerId(500L);
+
+        ArgumentCaptor<List<MemberAnswerCategory>> captor = ArgumentCaptor.forClass(List.class);
+
+        verify(memberAnswerCategoryRepository).saveAll(captor.capture());
+
+        List<MemberAnswerCategory> savedCategories = captor.getValue();
+
+        assertThat(savedCategories).extracting(MemberAnswerCategory::getCategory).containsExactly(Category.EXHIBITION, Category.FOOD_CAFE);
+
+        assertThat(savedCategories).allMatch(category -> category.getMemberAnswer().equals(answer));
+    }
+
+    @Test
+    @DisplayName("PRICE 답변을 저장하면 AI 분류 결과를 답변에 저장한다.")
+    void saveAnswerPrice() {
+        Question priceQuestion = Question.builder()
+                .id(102L)
+                .content("가족과 활동할 때 비용은 어느 정도가 적당한가요?")
+                .tasteType(TasteType.PRICE)
+                .build();
+
+        FamilyQuestion priceFamilyQuestion = FamilyQuestion.builder()
+                .id(FAMILY_QUESTION_ID)
+                .family(family)
+                .question(priceQuestion)
+                .questionDate(today.minusDays(1))
+                .build();
+
+        MemberAnswer answer = MemberAnswer.builder()
+                .content("돈이 많이 들지 않았으면 좋겠어요.")
+                .familyQuestion(priceFamilyQuestion)
+                .member(member)
+                .build();
+
+        PreferenceClassification classification = new PreferenceClassification(List.of(), null, null, PriceLevel.LOW, null);
+
+        given(aiService.classify(TasteType.PRICE, "가족과 활동할 때 비용은 어느 정도가 적당한가요?", "돈이 많이 들지 않았으면 좋겠어요.")).willReturn(classification);
+
+        questionService.saveAnswer(answer);
+
+        assertThat(answer.getIndoorOutdoor()).isNull();
+        assertThat(answer.getDurationLevel()).isNull();
+        assertThat(answer.getPriceLevel()).isEqualTo(PriceLevel.LOW);
+        assertThat(answer.getActivityLevel()).isNull();
+
+        verify(aiService).classify(TasteType.PRICE, "가족과 활동할 때 비용은 어느 정도가 적당한가요?", "돈이 많이 들지 않았으면 좋겠어요.");
+
+        verify(memberAnswerCategoryRepository, never())
+                .deleteAllByMemberAnswerId(any());
+        verify(memberAnswerCategoryRepository, never())
+                .saveAll(any());
+    }
+
+    @Test
+    @DisplayName("일반 질문은 AI 분류를 수행하지 않고 그대로 종료한다.")
+    void saveAnswerGeneralQuestion() {
+        Question generalQuestion = Question.builder()
+                .id(103L)
+                .content("오늘 가장 웃겼던 일은?")
+                .tasteType(null)
+                .build();
+
+        FamilyQuestion generalFamilyQuestion = FamilyQuestion.builder()
+                .id(FAMILY_QUESTION_ID)
+                .family(family)
+                .question(generalQuestion)
+                .questionDate(today.minusDays(1))
+                .build();
+
+        MemberAnswer answer = MemberAnswer.builder()
+                .content("강아지가 산책하다 넘어졌어요.")
+                .familyQuestion(generalFamilyQuestion)
+                .member(member)
+                .build();
+
+        questionService.saveAnswer(answer);
+
+        verify(aiService, never()).classify(any(), any(), any());
+        verify(memberAnswerCategoryRepository, never()).deleteAllByMemberAnswerId(any());
+        verify(memberAnswerCategoryRepository, never()).saveAll(any());
+    }
+
+    @Test
+    @DisplayName("STEPS 답변을 저장하면 AI가 분류한 활동량을 답변에 저장한다.")
+    void saveAnswerSteps() {
+        Question stepsQuestion = Question.builder()
+                .id(104L)
+                .content("얼마나 활동적인 일을 하고 싶나요?")
+                .tasteType(TasteType.STEPS)
+                .build();
+
+        FamilyQuestion stepsFamilyQuestion = FamilyQuestion.builder()
+                .id(FAMILY_QUESTION_ID)
+                .family(family)
+                .question(stepsQuestion)
+                .questionDate(today.minusDays(1))
+                .build();
+
+        MemberAnswer answer = MemberAnswer.builder()
+                .content("많이 움직이는 활동도 괜찮아요.")
+                .familyQuestion(stepsFamilyQuestion)
+                .member(member)
+                .build();
+
+        PreferenceClassification classification = new PreferenceClassification(List.of(), null, null, null, ActivityLevel.ACTIVE);
+
+        given(aiService.classify(TasteType.STEPS, "얼마나 활동적인 일을 하고 싶나요?", "많이 움직이는 활동도 괜찮아요.")).willReturn(classification);
+
+        questionService.saveAnswer(answer);
+
+        assertThat(answer.getActivityLevel()).isEqualTo(ActivityLevel.ACTIVE);
+
+        verify(memberAnswerCategoryRepository, never()).deleteAllByMemberAnswerId(any());
     }
 }

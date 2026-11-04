@@ -28,8 +28,6 @@ import java.time.LocalDate;
 @Table(
         name = "family_question",
         uniqueConstraints = {
-                // 한 가족에게 같은 질문은 한 번만 배정
-                @UniqueConstraint(name = "uk_family_question_question", columnNames = {"family_id", "question_id"}),
                 // 한 가족은 하루에 질문 하나만 배정
                 @UniqueConstraint(name = "uk_family_question_date", columnNames = {"family_id", "question_date"})
         }
