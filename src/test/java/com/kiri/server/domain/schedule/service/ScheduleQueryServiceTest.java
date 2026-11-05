@@ -372,4 +372,22 @@ class ScheduleQueryServiceTest {
 
         assertThat(result.status()).isEqualTo(expected);
     }
+
+    @Test
+    @DisplayName("일정 상세 조회: 연결된 미션의 id를 함께 반환한다.")
+    void getDetail_missionId() {
+        Family family = Family.builder().id(10L).build();
+        given(memberRepository.findById(MEMBER_ID)).willReturn(Optional.of(Member.builder().family(family).build()));
+        Schedule schedule = Schedule.builder().id(118L).family(family)
+                .scheduleDate(LocalDate.of(2026, 11, 3)).scheduleTime(LocalTime.of(14, 50))
+                .status(ScheduleStatus.CONFIRMED)
+                .bucketItem(BucketItem.builder().mission(Mission.builder().id(42L).build()).build())
+                .build();
+        given(scheduleRepository.findById(118L)).willReturn(Optional.of(schedule));
+        given(scheduleParticipantRepository.findAllWithMemberByScheduleId(118L)).willReturn(List.of());
+
+        ScheduleResDTO.Detail result = scheduleQueryService.getDetail(MEMBER_ID, 118L);
+
+        assertThat(result.missionId()).isEqualTo(42L);
+    }
 }
