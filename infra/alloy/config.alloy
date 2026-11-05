@@ -67,7 +67,7 @@ discovery.docker "app" {
 
 	filter {
 		name   = "name"
-		values = ["kiri-server"]
+		values = ["^/kiri-(server|nginx)$"]
 	}
 }
 
@@ -75,14 +75,9 @@ discovery.relabel "app_logs" {
 	targets = []
 
 	rule {
-		target_label = "app"
-		replacement  = "kiri-server"
-	}
-
-	rule {
 		source_labels = ["__meta_docker_container_name"]
 		regex         = "/(.*)"
-		target_label  = "container"
+		target_label  = "app"
 	}
 }
 
