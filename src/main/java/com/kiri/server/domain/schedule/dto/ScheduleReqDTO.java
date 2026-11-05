@@ -1,5 +1,6 @@
 package com.kiri.server.domain.schedule.dto;
 
+import com.kiri.server.domain.schedule.enums.ConditionType;
 import com.kiri.server.domain.schedule.enums.ResponseAction;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -83,6 +84,14 @@ public class ScheduleReqDTO {
             @Schema(description = "응답 종류", example = "ACCEPT")
             @NotNull(message = "action은 필수입니다.")
             ResponseAction action
+    ) {
+    }
+
+    @Builder
+    public record UpdateConditions(
+            @Schema(description = "적용할 컨디션 조건 목록(빈 목록이면 초기화)", example = "[\"REDUCE_STEPS\", \"MORE_REST\"]")
+            @NotNull(message = "conditions는 필수입니다.")
+            List<@NotNull(message = "조건은 null일 수 없습니다.") ConditionType> conditions
     ) {
     }
 }

@@ -21,6 +21,9 @@ public class SourceTextParser {
 
     private static final Pattern AMOUNT = Pattern.compile("(\\d{1,3}(?:,\\d{3})+|\\d+)\\s*원");
     private static final String FREE = "무료";
+    private static final Pattern FEE_LABEL_BOUNDARY = Pattern.compile("[\\n()（）\\[\\]]");
+    private static final Pattern ADULT_FEE = Pattern.compile("성인|어른|대인|일반");
+    private static final Pattern GROUP_FEE = Pattern.compile("(?<!\\d)(?:[2-9]|\\d{2,})\\s*인|가족|단체|패키지");
 
     private static final Pattern TIME_RANGE = Pattern.compile(
             "(\\d{1,2})\\s*(?::|시)\\s*(\\d{2})?\\s*분?\\s*[~\\-–]\\s*(\\d{1,2})\\s*(?::|시)\\s*(\\d{2})?");
@@ -79,22 +82,53 @@ public class SourceTextParser {
         }
     }
 
+    // 1인 기준 요금(원): 성인·일반 요금 우선, 단체·가족 요금 제외, 1인 가격을 알 수 없으면 null
     public static Integer parseFee(String text) {
         if (text == null || text.isBlank()) {
             return null;
         }
+        Integer adultLowest = null;
+        Integer perPersonLowest = null;
+        boolean hasAmount = false;
+        int labelStart = 0;
         Matcher matcher = AMOUNT.matcher(text);
-        Integer lowest = null;
         while (matcher.find()) {
+            hasAmount = true;
             int amount = Integer.parseInt(matcher.group(1).replace(",", ""));
-            if (lowest == null || amount < lowest) {
-                lowest = amount;
+            String label = feeLabel(text.substring(labelStart, matcher.start()));
+            labelStart = matcher.end();
+            if (GROUP_FEE.matcher(label).find()) {
+                continue;
             }
+            if (ADULT_FEE.matcher(label).find()) {
+                adultLowest = min(adultLowest, amount);
+            }
+            perPersonLowest = min(perPersonLowest, amount);
         }
-        if (lowest != null) {
-            return lowest;
+        if (adultLowest != null) {
+            return adultLowest;
+        }
+        if (perPersonLowest != null) {
+            return perPersonLowest;
+        }
+        if (hasAmount) {
+            return null;
         }
         return text.contains(FREE) ? 0 : null;
+    }
+
+    // 직전 금액 뒤 ~ 이번 금액 앞 구간에서 마지막 줄바꿈·괄호 이후만 이번 금액의 대상 표기 ("어른/청소년"처럼 묶인 표기는 유지)
+    private static String feeLabel(String between) {
+        Matcher boundary = FEE_LABEL_BOUNDARY.matcher(between);
+        int labelStart = 0;
+        while (boundary.find()) {
+            labelStart = boundary.end();
+        }
+        return between.substring(labelStart);
+    }
+
+    private static Integer min(Integer current, int candidate) {
+        return current == null || candidate < current ? candidate : current;
     }
 
     public static TimeRange parseTimeRange(String text) {

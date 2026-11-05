@@ -15,6 +15,8 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.List;
+
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/v1/schedules")
@@ -40,6 +42,28 @@ public class ScheduleController implements ScheduleControllerDocs {
         return ApiResponse.onSuccess(
                 ScheduleSuccessCode.UPCOMING_SUCCESS,
                 scheduleQueryService.getUpcoming(memberId)
+        );
+    }
+
+    @GetMapping("/{scheduleId}/conditions")
+    public ApiResponse<ScheduleResDTO.Conditions> getConditions(
+            @AuthenticationPrincipal Long memberId,
+            @PathVariable Long scheduleId
+    ) {
+        return ApiResponse.onSuccess(
+                ScheduleSuccessCode.CONDITION_SUCCESS,
+                scheduleQueryService.getConditions(memberId, scheduleId)
+        );
+    }
+
+    @GetMapping("/{scheduleId}/nearby")
+    public ApiResponse<List<ScheduleResDTO.NearbyItem>> getNearby(
+            @AuthenticationPrincipal Long memberId,
+            @PathVariable Long scheduleId
+    ) {
+        return ApiResponse.onSuccess(
+                ScheduleSuccessCode.NEARBY_SUCCESS,
+                scheduleQueryService.getNearby(memberId, scheduleId)
         );
     }
 

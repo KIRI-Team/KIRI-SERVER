@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.kiri.server.domain.schedule.dto.ScheduleReqDTO;
 import com.kiri.server.domain.schedule.dto.ScheduleResDTO;
+import com.kiri.server.domain.schedule.enums.ConditionType;
 import com.kiri.server.domain.schedule.enums.ScheduleStatus;
 import com.kiri.server.domain.schedule.exception.ScheduleException;
 import com.kiri.server.domain.schedule.exception.code.ScheduleErrorCode;
@@ -17,6 +18,7 @@ import com.kiri.server.global.security.jwt.JwtProvider;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
@@ -34,11 +36,16 @@ import java.time.LocalTime;
 import java.util.List;
 import java.util.Map;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.willThrow;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -319,5 +326,48 @@ class ScheduleCommandControllerTest {
                         .content(body(validUpdateRequest())))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value("SCHEDULE409_4"));
+    }
+
+    @Test
+    @DisplayName("컨디션 적용에 성공하면 SCHEDULE200_7을 반환하고 회원·일정 ID와 조건 목록을 서비스에 넘긴다.")
+    void updateConditions_success() throws Exception {
+        mockMvc.perform(put("/api/v1/schedules/{scheduleId}/conditions", 118L)
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body(Map.of("conditions", List.of("REDUCE_STEPS", "MORE_REST")))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value("SCHEDULE200_7"))
+                .andExpect(jsonPath("$.result").doesNotExist());
+
+        ArgumentCaptor<ScheduleReqDTO.UpdateConditions> captor = ArgumentCaptor.forClass(ScheduleReqDTO.UpdateConditions.class);
+        verify(scheduleCommandService).updateConditions(eq(MEMBER_ID), eq(118L), captor.capture());
+        assertThat(captor.getValue().conditions()).containsExactly(ConditionType.REDUCE_STEPS, ConditionType.MORE_REST);
+    }
+
+    @Test
+    @DisplayName("conditions 필드를 보내지 않으면(null) COMMON400_1로 응답한다.")
+    void updateConditions_missingConditions() throws Exception {
+        mockMvc.perform(put("/api/v1/schedules/{scheduleId}/conditions", 118L)
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("COMMON400_1"));
+
+        verifyNoInteractions(scheduleCommandService);
+    }
+
+    @Test
+    @DisplayName("컨디션을 변경할 수 없는 상태면 SCHEDULE409_5로 응답한다.")
+    void updateConditions_notEditable() throws Exception {
+        willThrow(new ScheduleException(ScheduleErrorCode.CONDITION_NOT_EDITABLE))
+                .given(scheduleCommandService).updateConditions(eq(MEMBER_ID), eq(118L), any());
+
+        mockMvc.perform(put("/api/v1/schedules/{scheduleId}/conditions", 118L)
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body(Map.of("conditions", List.of("MORE_REST")))))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("SCHEDULE409_5"));
     }
 }

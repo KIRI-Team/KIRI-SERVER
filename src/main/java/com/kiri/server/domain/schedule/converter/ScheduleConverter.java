@@ -1,9 +1,13 @@
 package com.kiri.server.domain.schedule.converter;
 
+import com.kiri.server.domain.mission.entity.Mission;
+import com.kiri.server.domain.place.entity.Place;
 import com.kiri.server.domain.schedule.dto.ScheduleResDTO;
 import com.kiri.server.domain.schedule.entity.Schedule;
+import com.kiri.server.domain.schedule.entity.ScheduleCondition;
 import com.kiri.server.domain.schedule.entity.ScheduleParticipant;
 import com.kiri.server.domain.schedule.enums.CalendarMyStatus;
+import com.kiri.server.domain.schedule.enums.ConditionType;
 import com.kiri.server.domain.schedule.enums.ParticipantStatus;
 import com.kiri.server.domain.schedule.enums.ScheduleDetailStatus;
 import com.kiri.server.domain.schedule.enums.UpcomingCardType;
@@ -15,6 +19,13 @@ import java.time.temporal.ChronoUnit;
 import java.util.List;
 
 public class ScheduleConverter {
+
+    public static ScheduleCondition toScheduleCondition(Schedule schedule, ConditionType conditionType) {
+        return ScheduleCondition.builder()
+                .schedule(schedule)
+                .conditionType(conditionType)
+                .build();
+    }
 
     public static ScheduleResDTO.Created toCreated(Schedule schedule, List<Long> participantMemberIds) {
         return ScheduleResDTO.Created.builder()
@@ -89,12 +100,48 @@ public class ScheduleConverter {
                 .build();
     }
 
+    public static ScheduleResDTO.Conditions toConditions(Schedule schedule, List<ConditionType> conditions) {
+        Mission mission = schedule.getBucketItem().getMission();
+        return ScheduleResDTO.Conditions.builder()
+                .missionTitle(mission.getTitle())
+                .walkingLevel(mission.getWalkingLevel())
+                .durationMinMinutes(mission.getDurationMinMinutes())
+                .durationMaxMinutes(mission.getDurationMaxMinutes())
+                .conditions(conditions)
+                .build();
+    }
+
+    public static ScheduleResDTO.NearbyItem toNearbyItem(Mission mission, String description) {
+        Place place = mission.getPlace();
+        return ScheduleResDTO.NearbyItem.builder()
+                .placeName(place.getName())
+                .region(toRegion(place.getAddress()))
+                .description(description)
+                .imageUrl(place.getImageUrl() != null ? place.getImageUrl() : mission.getImageUrl())
+                .price(mission.getPrice())
+                .build();
+    }
+
     public static ScheduleResDTO.UpcomingHome toUpcomingHome(ScheduleResDTO.UpcomingCard responseRequired,
                                                              ScheduleResDTO.UpcomingCard upcoming) {
         return ScheduleResDTO.UpcomingHome.builder()
                 .responseRequired(responseRequired)
                 .upcoming(upcoming)
                 .build();
+    }
+
+    private static String toRegion(String address) {
+        if (address == null || address.isBlank()) {
+            return null;
+        }
+        String[] tokens = address.trim().split("\\s+");
+        String province = tokens[0]
+                .replaceFirst("(특별자치시|특별시|광역시)$", "시")
+                .replaceFirst("특별자치도$", "도");
+        if (tokens.length < 2 || !tokens[1].matches(".+[시군구]$")) {
+            return province;
+        }
+        return province + " " + tokens[1];
     }
 
     public static ScheduleResDTO.Detail toDetail(Schedule schedule, List<ScheduleParticipant> participants,

@@ -2,7 +2,9 @@ package com.kiri.server.domain.schedule.dto;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import com.fasterxml.jackson.annotation.JsonFormat;
+import com.kiri.server.domain.mission.enums.WalkingLevel;
 import com.kiri.server.domain.schedule.enums.CalendarMyStatus;
+import com.kiri.server.domain.schedule.enums.ConditionType;
 import com.kiri.server.domain.schedule.enums.ParticipantStatus;
 import com.kiri.server.domain.schedule.enums.ScheduleDetailStatus;
 import com.kiri.server.domain.schedule.enums.ScheduleStatus;
@@ -102,6 +104,26 @@ public class ScheduleResDTO {
             Integer dDay,
             UpcomingCardType type,
             String title
+    ) {
+    }
+
+    @Builder
+    public record Conditions(
+            String missionTitle,
+            WalkingLevel walkingLevel,
+            Integer durationMinMinutes,
+            Integer durationMaxMinutes,
+            List<ConditionType> conditions
+    ) {
+    }
+
+    @Builder
+    public record NearbyItem(
+            String placeName,
+            String region,
+            String description,
+            String imageUrl,
+            Integer price
     ) {
     }
 
