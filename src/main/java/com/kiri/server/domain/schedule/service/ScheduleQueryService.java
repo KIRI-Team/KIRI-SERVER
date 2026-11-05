@@ -25,12 +25,12 @@ import com.kiri.server.domain.schedule.exception.code.ScheduleErrorCode;
 import com.kiri.server.domain.schedule.repository.ScheduleConditionRepository;
 import com.kiri.server.domain.schedule.repository.ScheduleParticipantRepository;
 import com.kiri.server.domain.schedule.repository.ScheduleRepository;
-import com.kiri.server.domain.taste.dto.TasteProfileDTO;
-import com.kiri.server.domain.taste.service.TasteProfileService;
+import com.kiri.server.domain.taste.service.FamilyTasteScoreService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -39,6 +39,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -62,7 +63,7 @@ public class ScheduleQueryService {
     private final ScheduleConditionRepository scheduleConditionRepository;
     private final MemberRepository memberRepository;
     private final MissionRepository missionRepository;
-    private final TasteProfileService tasteProfileService;
+    private final FamilyTasteScoreService familyTasteScoreService;
     private final Clock clock;
 
     @Transactional(readOnly = true)
@@ -175,7 +176,7 @@ public class ScheduleQueryService {
             return List.of();
         }
 
-        ToDoubleFunction<Mission> tasteScore = participantTasteScore(schedule, family.getId());
+        ToDoubleFunction<Mission> tasteScore = participantTasteScore(schedule, candidates);
         Set<ConditionType> conditions = scheduleConditionRepository.findBySchedule_Id(scheduleId).stream()
                 .map(ScheduleCondition::getConditionType)
                 .collect(Collectors.toCollection(() -> EnumSet.noneOf(ConditionType.class)));
@@ -196,28 +197,24 @@ public class ScheduleQueryService {
         return ids.isEmpty() ? List.of() : missionRepository.findAllWithPlaceByIdIn(ids);
     }
 
-    // 거절하지 않은 일정 참여자가 선호하는 비율(0~1)을 미션 점수로 바꾸는 함수
-    // TODO: 미션 추천 점수 공식이 구현되면 공용 취향 점수 함수로 교체
-    private ToDoubleFunction<Mission> participantTasteScore(Schedule schedule, Long familyId) {
-        Set<Long> participantIds = scheduleParticipantRepository.findBySchedule_Id(schedule.getId()).stream()
+    // 제안자와 수락한 참여자의 취향으로 계산한 미션별 취향 점수
+    private ToDoubleFunction<Mission> participantTasteScore(Schedule schedule, List<Mission> candidates) {
+        Map<Long, BigDecimal> scores = familyTasteScoreService.calculate(
+                tasteMemberIds(schedule), candidates, LocalDate.now(clock));
+        return mission -> scores.getOrDefault(mission.getId(), BigDecimal.ZERO).doubleValue();
+    }
+
+    private Set<Long> tasteMemberIds(Schedule schedule) {
+        Set<Long> memberIds = scheduleParticipantRepository.findBySchedule_Id(schedule.getId()).stream()
                 .filter(participant -> participant.getMember() != null
-                        && participant.getStatus() != ParticipantStatus.DECLINED)
+                        && participant.getStatus() == ParticipantStatus.ACCEPTED
+                        && !Boolean.TRUE.equals(participant.getReconfirmRequired()))
                 .map(participant -> participant.getMember().getId())
-                .collect(Collectors.toSet());
-
-        List<TasteProfileDTO.MemberProfile> profiles = tasteProfileService.getFamilyProfile(familyId).members()
-                .stream()
-                .filter(profile -> participantIds.contains(profile.memberId()))
-                .filter(profile -> profile.isSet() && profile.categories() != null)
-                .toList();
-        if (profiles.isEmpty()) {
-            return mission -> 0;
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+        if (schedule.getProposer() != null) {
+            memberIds.add(schedule.getProposer().getId());
         }
-
-        Map<Category, Long> counts = profiles.stream()
-                .flatMap(profile -> profile.categories().stream())
-                .collect(Collectors.groupingBy(Function.identity(), Collectors.counting()));
-        return mission -> (double) counts.getOrDefault(mission.getCategory(), 0L) / profiles.size();
+        return memberIds;
     }
 
     // 취향 + 컨디션 점수 높은 순 → 같으면 가까운 순으로 정렬, 장소별 첫 미션만 남겨 상위 5개 장소 추천

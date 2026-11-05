@@ -27,8 +27,7 @@ import com.kiri.server.domain.schedule.exception.code.ScheduleErrorCode;
 import com.kiri.server.domain.schedule.repository.ScheduleConditionRepository;
 import com.kiri.server.domain.schedule.repository.ScheduleParticipantRepository;
 import com.kiri.server.domain.schedule.repository.ScheduleRepository;
-import com.kiri.server.domain.taste.dto.TasteProfileDTO;
-import com.kiri.server.domain.taste.service.TasteProfileService;
+import com.kiri.server.domain.taste.service.FamilyTasteScoreService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -45,15 +44,20 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.ZoneId;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.ArgumentMatchers.anyDouble;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 
 @ExtendWith(MockitoExtension.class)
@@ -78,7 +82,7 @@ class ScheduleQueryServiceTest {
     private MissionRepository missionRepository;
 
     @Mock
-    private TasteProfileService tasteProfileService;
+    private FamilyTasteScoreService familyTasteScoreService;
 
     private ScheduleQueryService scheduleQueryService;
 
@@ -86,7 +90,7 @@ class ScheduleQueryServiceTest {
     void setUp() {
         scheduleQueryService = new ScheduleQueryService(
                 scheduleRepository, scheduleParticipantRepository, scheduleConditionRepository, memberRepository,
-                missionRepository, tasteProfileService, CLOCK);
+                missionRepository, familyTasteScoreService, CLOCK);
     }
 
     private ScheduleReqDTO.CalendarCondition condition(int year, int month) {
@@ -423,6 +427,7 @@ class ScheduleQueryServiceTest {
 
     private static final Long SCHEDULE_ID = 118L;
     private static final Long FAMILY_ID = 10L;
+    private static final Long PROPOSER_ID = 1L;
     private static final LocalDate SCHEDULE_DATE = LocalDate.of(2026, 11, 15);
     private static final double BASE_LATITUDE = 37.5100;
     private static final double BASE_LONGITUDE = 126.9960;
@@ -459,30 +464,35 @@ class ScheduleQueryServiceTest {
         return ScheduleParticipant.builder().member(Member.builder().id(memberId).build()).status(status).build();
     }
 
-    private TasteProfileDTO.MemberProfile taste(Long memberId, Category... categories) {
-        return TasteProfileDTO.MemberProfile.builder().memberId(memberId).isSet(true).categories(List.of(categories))
-                .build();
+    // 미션 ID → 취향 점수 (공용 취향 점수 서비스가 돌려줄 값)
+    private Map<Long, BigDecimal> tasteScores(Object... missionAndScore) {
+        Map<Long, BigDecimal> scores = new HashMap<>();
+        for (int i = 0; i < missionAndScore.length; i += 2) {
+            scores.put(((Mission) missionAndScore[i]).getId(), new BigDecimal(missionAndScore[i + 1].toString()));
+        }
+        return scores;
     }
 
     private void stubSchedule() {
         Family family = Family.builder().id(FAMILY_ID).build();
         BucketItem bucketItem = BucketItem.builder().mission(Mission.builder().place(basePlace).build()).build();
         Schedule schedule = Schedule.builder().id(SCHEDULE_ID).family(family).bucketItem(bucketItem)
+                .proposer(Member.builder().id(PROPOSER_ID).build())
                 .scheduleDate(SCHEDULE_DATE).build();
         given(memberRepository.findById(MEMBER_ID)).willReturn(Optional.of(Member.builder().family(family).build()));
         given(scheduleRepository.findWithMissionByIdAndFamilyId(SCHEDULE_ID, FAMILY_ID)).willReturn(Optional.of(schedule));
     }
 
     private void stubNearby(List<Mission> missions, List<ScheduleParticipant> participants,
-                            List<TasteProfileDTO.MemberProfile> profiles, List<ConditionType> conditions) {
+                            Map<Long, BigDecimal> tasteScores, List<ConditionType> conditions) {
         stubSchedule();
         List<Long> ids = missions.stream().map(Mission::getId).toList();
         given(missionRepository.findNearbyIds(anyDouble(), anyDouble(), anyDouble(), anyDouble(), anyDouble(),
                 anyDouble(), anyDouble(), eq(basePlace.getId()), eq(SCHEDULE_DATE))).willReturn(ids);
         given(missionRepository.findAllWithPlaceByIdIn(ids)).willReturn(missions);
         given(scheduleParticipantRepository.findBySchedule_Id(SCHEDULE_ID)).willReturn(participants);
-        given(tasteProfileService.getFamilyProfile(FAMILY_ID))
-                .willReturn(TasteProfileDTO.FamilyProfile.builder().familyId(FAMILY_ID).members(profiles).build());
+        given(familyTasteScoreService.calculate(anyCollection(), eq(missions), any(LocalDate.class)))
+                .willReturn(tasteScores);
         Schedule schedule = Schedule.builder().id(SCHEDULE_ID).build();
         given(scheduleConditionRepository.findBySchedule_Id(SCHEDULE_ID)).willReturn(conditions.stream()
                 .map(type -> ScheduleCondition.builder().schedule(schedule).conditionType(type).build())
@@ -531,19 +541,15 @@ class ScheduleQueryServiceTest {
         List<ScheduleResDTO.NearbyItem> result = scheduleQueryService.getNearby(MEMBER_ID, SCHEDULE_ID);
 
         assertThat(result).isEmpty();
-        verifyNoInteractions(tasteProfileService);
+        verifyNoInteractions(familyTasteScoreService);
     }
 
     @Test
-    @DisplayName("거절하지 않은 참여자가 선호하는 카테고리의 장소를 더 가까운 장소보다 먼저 추천한다.")
+    @DisplayName("참여자 취향 점수가 높은 장소를 더 가까운 장소보다 먼저 추천한다.")
     void getNearby_sortsByParticipantTaste() {
         Mission cafe = mission(place(2L, "근처 카페", 0.5, null), Category.FOOD_CAFE, IndoorOutdoor.INDOOR, 5000);
         Mission exhibition = mission(place(3L, "먼 미술관", 2.0, null), Category.EXHIBITION, IndoorOutdoor.INDOOR, 5000);
-        stubNearby(List.of(cafe, exhibition),
-                List.of(nearbyParticipant(1L, ParticipantStatus.ACCEPTED),
-                        nearbyParticipant(2L, ParticipantStatus.DECLINED)),
-                List.of(taste(1L, Category.EXHIBITION), taste(2L, Category.FOOD_CAFE)),
-                List.of());
+        stubNearby(List.of(cafe, exhibition), List.of(), tasteScores(exhibition, "0.8", cafe, "0.2"), List.of());
 
         List<ScheduleResDTO.NearbyItem> result = scheduleQueryService.getNearby(MEMBER_ID, SCHEDULE_ID);
 
@@ -551,11 +557,32 @@ class ScheduleQueryServiceTest {
     }
 
     @Test
+    @DisplayName("취향 점수는 제안자와 수락한 참여자 기준으로 계산하고, 거절·미응답·재확인 필요 참여자는 제외한다.")
+    void getNearby_tasteFromProposerAndAccepted() {
+        Mission park = mission(place(2L, "공원", 1.0, null), Category.OUTDOOR, IndoorOutdoor.OUTDOOR, 0);
+        ScheduleParticipant reconfirm = ScheduleParticipant.builder().member(Member.builder().id(5L).build())
+                .status(ParticipantStatus.ACCEPTED).reconfirmRequired(true).build();
+        stubNearby(List.of(park), List.of(
+                        nearbyParticipant(PROPOSER_ID, ParticipantStatus.ACCEPTED),
+                        nearbyParticipant(2L, ParticipantStatus.ACCEPTED),
+                        nearbyParticipant(3L, ParticipantStatus.DECLINED),
+                        nearbyParticipant(4L, ParticipantStatus.PENDING),
+                        reconfirm),
+                Map.of(), List.of());
+
+        scheduleQueryService.getNearby(MEMBER_ID, SCHEDULE_ID);
+
+        verify(familyTasteScoreService).calculate(
+                argThat(ids -> ids.size() == 2 && ids.containsAll(List.of(PROPOSER_ID, 2L))),
+                eq(List.of(park)), eq(LocalDate.now(CLOCK)));
+    }
+
+    @Test
     @DisplayName("점수가 같으면 가까운 장소를 먼저 추천한다.")
     void getNearby_tieBreaksByDistance() {
         Mission far = mission(place(2L, "먼 공원", 2.0, null), Category.OUTDOOR, IndoorOutdoor.OUTDOOR, 0);
         Mission near = mission(place(3L, "가까운 공원", 0.5, null), Category.OUTDOOR, IndoorOutdoor.OUTDOOR, 0);
-        stubNearby(List.of(far, near), List.of(), List.of(), List.of());
+        stubNearby(List.of(far, near), List.of(), Map.of(), List.of());
 
         List<ScheduleResDTO.NearbyItem> result = scheduleQueryService.getNearby(MEMBER_ID, SCHEDULE_ID);
 
@@ -568,10 +595,7 @@ class ScheduleQueryServiceTest {
         Place sevitseom = place(2L, "세빛섬", 1.0, null);
         Mission night = mission(sevitseom, Category.OUTDOOR, IndoorOutdoor.OUTDOOR, 0);
         Mission cafe = mission(sevitseom, Category.FOOD_CAFE, IndoorOutdoor.INDOOR, 15000);
-        stubNearby(List.of(night, cafe),
-                List.of(nearbyParticipant(1L, ParticipantStatus.ACCEPTED)),
-                List.of(taste(1L, Category.FOOD_CAFE)),
-                List.of());
+        stubNearby(List.of(night, cafe), List.of(), tasteScores(night, "0.2", cafe, "0.9"), List.of());
 
         List<ScheduleResDTO.NearbyItem> result = scheduleQueryService.getNearby(MEMBER_ID, SCHEDULE_ID);
 
@@ -591,7 +615,7 @@ class ScheduleQueryServiceTest {
                 mission(place(5L, "4번", 2.0, null), Category.OUTDOOR, IndoorOutdoor.OUTDOOR, 0),
                 mission(place(6L, "5번", 2.5, null), Category.OUTDOOR, IndoorOutdoor.OUTDOOR, 0),
                 mission(place(7L, "6번", 3.0, null), Category.OUTDOOR, IndoorOutdoor.OUTDOOR, 0));
-        stubNearby(candidates, List.of(), List.of(), List.of());
+        stubNearby(candidates, List.of(), Map.of(), List.of());
 
         List<ScheduleResDTO.NearbyItem> result = scheduleQueryService.getNearby(MEMBER_ID, SCHEDULE_ID);
 
@@ -606,7 +630,7 @@ class ScheduleQueryServiceTest {
                 Category.OUTDOOR, IndoorOutdoor.OUTDOOR, 0);
         Mission withoutPlaceImage = mission(place(3L, "반포 한강공원", 2.0, null),
                 Category.OUTDOOR, IndoorOutdoor.OUTDOOR, 0);
-        stubNearby(List.of(withPlaceImage, withoutPlaceImage), List.of(), List.of(), List.of());
+        stubNearby(List.of(withPlaceImage, withoutPlaceImage), List.of(), Map.of(), List.of());
 
         List<ScheduleResDTO.NearbyItem> result = scheduleQueryService.getNearby(MEMBER_ID, SCHEDULE_ID);
 
@@ -620,13 +644,7 @@ class ScheduleQueryServiceTest {
     void getNearby_reduceSteps() {
         Mission far = mission(place(2L, "먼 미술관", 4.0, null), Category.EXHIBITION, IndoorOutdoor.INDOOR, 5000);
         Mission near = mission(place(3L, "가까운 공원", 0.5, null), Category.OUTDOOR, IndoorOutdoor.OUTDOOR, 5000);
-        List<ScheduleParticipant> participants = List.of(
-                nearbyParticipant(1L, ParticipantStatus.ACCEPTED),
-                nearbyParticipant(2L, ParticipantStatus.ACCEPTED),
-                nearbyParticipant(3L, ParticipantStatus.ACCEPTED));
-        List<TasteProfileDTO.MemberProfile> profiles = List.of(
-                taste(1L, Category.EXHIBITION), taste(2L, Category.POPUP), taste(3L, Category.POPUP));
-        stubNearby(List.of(far, near), participants, profiles, List.of(ConditionType.REDUCE_STEPS));
+        stubNearby(List.of(far, near), List.of(), tasteScores(far, "0.3"), List.of(ConditionType.REDUCE_STEPS));
 
         List<ScheduleResDTO.NearbyItem> result = scheduleQueryService.getNearby(MEMBER_ID, SCHEDULE_ID);
 
@@ -638,7 +656,7 @@ class ScheduleQueryServiceTest {
     void getNearby_moreRest() {
         Mission outdoor = mission(place(2L, "가까운 공원", 0.5, null), Category.OUTDOOR, IndoorOutdoor.OUTDOOR, 0);
         Mission indoor = mission(place(3L, "먼 전시관", 2.0, null), Category.EXHIBITION, IndoorOutdoor.INDOOR, 0);
-        stubNearby(List.of(outdoor, indoor), List.of(), List.of(), List.of(ConditionType.MORE_REST));
+        stubNearby(List.of(outdoor, indoor), List.of(), Map.of(), List.of(ConditionType.MORE_REST));
 
         List<ScheduleResDTO.NearbyItem> result = scheduleQueryService.getNearby(MEMBER_ID, SCHEDULE_ID);
 
@@ -652,7 +670,7 @@ class ScheduleQueryServiceTest {
         Mission paid = mission(place(3L, "유료", 1.0, null), Category.OUTDOOR, IndoorOutdoor.OUTDOOR, 20000);
         Mission free = mission(place(4L, "무료", 2.0, null), Category.OUTDOOR, IndoorOutdoor.OUTDOOR, 0);
         Mission cheap = mission(place(5L, "저가", 3.0, null), Category.OUTDOOR, IndoorOutdoor.OUTDOOR, 10000);
-        stubNearby(List.of(unknown, paid, free, cheap), List.of(), List.of(), List.of(ConditionType.LOWER_BUDGET));
+        stubNearby(List.of(unknown, paid, free, cheap), List.of(), Map.of(), List.of(ConditionType.LOWER_BUDGET));
 
         List<ScheduleResDTO.NearbyItem> result = scheduleQueryService.getNearby(MEMBER_ID, SCHEDULE_ID);
 
