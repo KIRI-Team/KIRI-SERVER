@@ -580,6 +580,26 @@ class ScheduleQueryServiceTest {
     }
 
     @Test
+    @DisplayName("장소로 묶은 뒤 상위 5개 장소만 추천한다.")
+    void getNearby_limitsToTopFive() {
+        Place nearest = place(2L, "1번", 0.5, null);
+        List<Mission> candidates = List.of(
+                mission(nearest, Category.OUTDOOR, IndoorOutdoor.OUTDOOR, 0),
+                mission(nearest, Category.FOOD_CAFE, IndoorOutdoor.INDOOR, 0),
+                mission(place(3L, "2번", 1.0, null), Category.OUTDOOR, IndoorOutdoor.OUTDOOR, 0),
+                mission(place(4L, "3번", 1.5, null), Category.OUTDOOR, IndoorOutdoor.OUTDOOR, 0),
+                mission(place(5L, "4번", 2.0, null), Category.OUTDOOR, IndoorOutdoor.OUTDOOR, 0),
+                mission(place(6L, "5번", 2.5, null), Category.OUTDOOR, IndoorOutdoor.OUTDOOR, 0),
+                mission(place(7L, "6번", 3.0, null), Category.OUTDOOR, IndoorOutdoor.OUTDOOR, 0));
+        stubNearby(candidates, List.of(), List.of(), List.of());
+
+        List<ScheduleResDTO.NearbyItem> result = scheduleQueryService.getNearby(MEMBER_ID, SCHEDULE_ID);
+
+        // 1번 장소의 미션 2개가 자리 2개를 차지하지 않아 5번까지 들어오고, 6번은 빠진다
+        assertThat(placeNames(result)).containsExactly("1번", "2번", "3번", "4번", "5번");
+    }
+
+    @Test
     @DisplayName("카드의 지역은 시·구까지 축약하고, 장소 이미지가 없으면 대표 미션 이미지를 쓴다.")
     void getNearby_mapsCard() {
         Mission withPlaceImage = mission(place(2L, "세빛섬", 1.0, "https://place/sevitseom"),

@@ -52,6 +52,7 @@ public class ScheduleQueryService {
 
     private static final int UPCOMING_DAYS = 7;
     private static final double NEARBY_DISTANCE_KM = 5.0;
+    private static final int NEARBY_LIMIT = 5;
     private static final double KM_PER_DEGREE = 111.0;
     private static final double EARTH_RADIUS_KM = 6371.0;
     private static final int LOW_PRICE = 10_000;
@@ -219,7 +220,7 @@ public class ScheduleQueryService {
         return mission -> (double) counts.getOrDefault(mission.getCategory(), 0L) / profiles.size();
     }
 
-    // 취향 + 컨디션 점수 높은 순 → 같으면 가까운 순으로 정렬, 장소별 첫 미션만 남겨 장소 추천
+    // 취향 + 컨디션 점수 높은 순 → 같으면 가까운 순으로 정렬, 장소별 첫 미션만 남겨 상위 5개 장소 추천
     private List<ScheduleResDTO.NearbyItem> recommendPlaces(List<Mission> candidates, Place base,
                                                             ToDoubleFunction<Mission> tasteScore,
                                                             Set<ConditionType> conditions) {
@@ -239,8 +240,8 @@ public class ScheduleQueryService {
                 .sorted(order)
                 .forEach(mission -> representatives.putIfAbsent(mission.getPlace().getId(), mission));
 
-        // TODO: 추천 개수(상위 N개) 제한이 정해지면 limit 추가
         return representatives.values().stream()
+                .limit(NEARBY_LIMIT)
                 .map(ScheduleConverter::toNearbyItem)
                 .toList();
     }
