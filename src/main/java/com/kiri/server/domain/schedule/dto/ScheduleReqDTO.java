@@ -34,6 +34,7 @@ public class ScheduleReqDTO {
     }
 
     @Builder
+    @Schema(name = "ScheduleCreateRequest", description = "일정 생성 요청")
     public record Create(
             @Schema(description = "일정 날짜(yyyy-MM-dd)", example = "2026-11-15")
             @NotNull(message = "scheduleDate는 필수입니다.")
