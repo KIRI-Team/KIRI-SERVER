@@ -4,6 +4,8 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.slf4j.MDC;
 import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
@@ -19,6 +21,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 public class RequestLoggingFilterTest {
 
     private static final String TRACE_ID_HEADER = "X-Trace-Id";
+    private static final String REQUEST_ID_HEADER = "X-Request-Id";
 
     private final RequestLoggingFilter filter = new RequestLoggingFilter();
 
@@ -117,6 +120,49 @@ public class RequestLoggingFilterTest {
         });
 
         assertThat(response.getHeader(TRACE_ID_HEADER)).isNotBlank();
+    }
+
+    @Test
+    @DisplayName("nginx가 넘긴 X-Request-Id가 32자리 hex면 traceId로 그대로 사용한다.")
+    void doFilter_reusesNginxRequestId() throws Exception {
+        String requestId = "0123456789abcdef0123456789abcdef";
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/test");
+        request.addHeader(REQUEST_ID_HEADER, requestId);
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        AtomicReference<String> traceIdInChain = new AtomicReference<>();
+
+        filter.doFilter(request, response, (req, res) -> traceIdInChain.set(MDC.get(RequestLoggingFilter.TRACE_ID)));
+
+        assertThat(traceIdInChain.get()).isEqualTo(requestId);
+        assertThat(response.getHeader(TRACE_ID_HEADER)).isEqualTo(requestId);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"hack\"injected", "0123456789ABCDEF0123456789ABCDEF", "0123456789abcdef", "0123456789abcdef0123456789abcdef0"})
+    @DisplayName("X-Request-Id 형식이 맞지 않으면 무시하고 traceId를 새로 발급한다.")
+    void doFilter_ignoresInvalidRequestId(String invalidRequestId) throws Exception {
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/test");
+        request.addHeader(REQUEST_ID_HEADER, invalidRequestId);
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        filter.doFilter(request, response, (req, res) -> {
+        });
+
+        assertThat(response.getHeader(TRACE_ID_HEADER))
+                .isNotEqualTo(invalidRequestId)
+                .matches("^[0-9a-f]{32}$");
+    }
+
+    @Test
+    @DisplayName("X-Request-Id가 없으면 nginx와 같은 32자리 hex traceId를 발급한다.")
+    void doFilter_generatesTraceIdWithoutRequestId() throws Exception {
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/test");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        filter.doFilter(request, response, (req, res) -> {
+        });
+
+        assertThat(response.getHeader(TRACE_ID_HEADER)).matches("^[0-9a-f]{32}$");
     }
 
 }
