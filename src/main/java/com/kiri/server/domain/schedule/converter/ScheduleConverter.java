@@ -111,12 +111,12 @@ public class ScheduleConverter {
                 .build();
     }
 
-    public static ScheduleResDTO.NearbyItem toNearbyItem(Mission mission) {
+    public static ScheduleResDTO.NearbyItem toNearbyItem(Mission mission, String description) {
         Place place = mission.getPlace();
         return ScheduleResDTO.NearbyItem.builder()
                 .placeName(place.getName())
                 .region(toRegion(place.getAddress()))
-                .description(mission.getRecommendationReason())
+                .description(description)
                 .imageUrl(place.getImageUrl() != null ? place.getImageUrl() : mission.getImageUrl())
                 .build();
     }

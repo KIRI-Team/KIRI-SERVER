@@ -26,6 +26,7 @@ import com.kiri.server.domain.schedule.repository.ScheduleConditionRepository;
 import com.kiri.server.domain.schedule.repository.ScheduleParticipantRepository;
 import com.kiri.server.domain.schedule.repository.ScheduleRepository;
 import com.kiri.server.domain.taste.service.FamilyTasteScoreService;
+import com.kiri.server.domain.taste.service.TasteProfileService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -54,6 +55,10 @@ public class ScheduleQueryService {
     private static final int UPCOMING_DAYS = 7;
     private static final double NEARBY_DISTANCE_KM = 5.0;
     private static final int NEARBY_LIMIT = 5;
+    private static final double NEAR_DISTANCE_KM = 1.0;
+    private static final String TASTE_REASON = "우리 가족이 좋아하는 활동이에요";
+    private static final String REST_REASON = "잠깐 쉬어가기 좋은 곳이에요";
+    private static final String NEAR_REASON = "일정 장소에서 가까운 곳이에요";
     private static final double KM_PER_DEGREE = 111.0;
     private static final double EARTH_RADIUS_KM = 6371.0;
     private static final int LOW_PRICE = 10_000;
@@ -64,6 +69,7 @@ public class ScheduleQueryService {
     private final MemberRepository memberRepository;
     private final MissionRepository missionRepository;
     private final FamilyTasteScoreService familyTasteScoreService;
+    private final TasteProfileService tasteProfileService;
     private final Clock clock;
 
     @Transactional(readOnly = true)
@@ -176,11 +182,13 @@ public class ScheduleQueryService {
             return List.of();
         }
 
-        ToDoubleFunction<Mission> tasteScore = participantTasteScore(schedule, candidates);
+        Set<Long> tasteMemberIds = tasteMemberIds(schedule);
+        ToDoubleFunction<Mission> tasteScore = participantTasteScore(tasteMemberIds, candidates);
+        Set<Category> likedCategories = likedCategories(family.getId(), tasteMemberIds);
         Set<ConditionType> conditions = scheduleConditionRepository.findBySchedule_Id(scheduleId).stream()
                 .map(ScheduleCondition::getConditionType)
                 .collect(Collectors.toCollection(() -> EnumSet.noneOf(ConditionType.class)));
-        return recommendPlaces(candidates, base, tasteScore, conditions);
+        return recommendPlaces(candidates, base, tasteScore, likedCategories, conditions);
     }
 
     // 반경 내에서 일정 날짜에 운영 중인 활성 미션 (메인 미션 장소 제외)
@@ -198,10 +206,22 @@ public class ScheduleQueryService {
     }
 
     // 제안자와 수락한 참여자의 취향으로 계산한 미션별 취향 점수
-    private ToDoubleFunction<Mission> participantTasteScore(Schedule schedule, List<Mission> candidates) {
+    private ToDoubleFunction<Mission> participantTasteScore(Set<Long> tasteMemberIds, List<Mission> candidates) {
         Map<Long, BigDecimal> scores = familyTasteScoreService.calculate(
-                tasteMemberIds(schedule), candidates, LocalDate.now(clock));
+                tasteMemberIds, candidates, LocalDate.now(clock));
         return mission -> scores.getOrDefault(mission.getId(), BigDecimal.ZERO).doubleValue();
+    }
+
+    // 제안자·수락자가 취향 테스트에서 직접 고른 카테고리 (카드 문구의 "가족이 좋아하는 활동" 근거)
+    private Set<Category> likedCategories(Long familyId, Set<Long> tasteMemberIds) {
+        if (tasteMemberIds.isEmpty()) {
+            return Set.of();
+        }
+        return tasteProfileService.getFamilyProfile(familyId).members().stream()
+                .filter(profile -> tasteMemberIds.contains(profile.memberId()))
+                .filter(profile -> profile.isSet() && profile.categories() != null)
+                .flatMap(profile -> profile.categories().stream())
+                .collect(Collectors.toCollection(() -> EnumSet.noneOf(Category.class)));
     }
 
     private Set<Long> tasteMemberIds(Schedule schedule) {
@@ -220,6 +240,7 @@ public class ScheduleQueryService {
     // 취향 + 컨디션 점수 높은 순 → 같으면 가까운 순으로 정렬, 장소별 첫 미션만 남겨 상위 5개 장소 추천
     private List<ScheduleResDTO.NearbyItem> recommendPlaces(List<Mission> candidates, Place base,
                                                             ToDoubleFunction<Mission> tasteScore,
+                                                            Set<Category> likedCategories,
                                                             Set<ConditionType> conditions) {
         Map<Long, Double> distances = candidates.stream()
                 .map(Mission::getPlace)
@@ -239,8 +260,25 @@ public class ScheduleQueryService {
 
         return representatives.values().stream()
                 .limit(NEARBY_LIMIT)
-                .map(ScheduleConverter::toNearbyItem)
+                .map(mission -> ScheduleConverter.toNearbyItem(mission, nearbyReason(mission,
+                        distance.applyAsDouble(mission), likedCategories, conditions)))
                 .toList();
+    }
+
+    // 실제로 확인된 근거 (취향 일치 → 휴식 조건 → 가까운 거리)
+    // 근거가 없으면 미션 소개 문구
+    private String nearbyReason(Mission mission, double distanceKm, Set<Category> likedCategories,
+                                Set<ConditionType> conditions) {
+        if (likedCategories.contains(mission.getCategory())) {
+            return TASTE_REASON;
+        }
+        if (conditions.contains(ConditionType.MORE_REST) && restScore(mission) == 1) {
+            return REST_REASON;
+        }
+        if (distanceKm <= NEAR_DISTANCE_KM) {
+            return NEAR_REASON;
+        }
+        return mission.getDescription();
     }
 
     // 조건마다 0~1 가산점을 더한다
