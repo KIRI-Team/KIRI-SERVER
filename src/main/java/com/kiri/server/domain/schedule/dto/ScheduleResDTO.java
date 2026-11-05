@@ -1,5 +1,6 @@
 package com.kiri.server.domain.schedule.dto;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import com.fasterxml.jackson.annotation.JsonFormat;
 import com.kiri.server.domain.schedule.enums.CalendarMyStatus;
 import com.kiri.server.domain.schedule.enums.ParticipantStatus;
@@ -105,6 +106,7 @@ public class ScheduleResDTO {
     }
 
     @Builder
+    @Schema(name = "ScheduleDetailResponse", description = "일정 상세 조회 응답")
     public record Detail(
             @JsonFormat(pattern = "yyyy-MM-dd")
             LocalDate date,

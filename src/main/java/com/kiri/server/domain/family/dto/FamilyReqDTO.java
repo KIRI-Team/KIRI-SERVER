@@ -1,5 +1,6 @@
 package com.kiri.server.domain.family.dto;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
@@ -7,6 +8,7 @@ import jakarta.validation.constraints.Size;
 public class FamilyReqDTO {
 
     // 가족 공간 생성
+    @Schema(name = "FamilyCreateRequest", description = "가족 공간 생성 요청")
     public record Create(
             @NotBlank(message = "가족 이름은 필수입니다.")
             @Size(min = 2, max = 15, message = "가족 이름은 2~15자여야 합니다.")
