@@ -76,6 +76,9 @@ dependencies {
 
     // Sentry
     implementation 'io.sentry:sentry-spring-boot-4:8.56.0'
+
+    // AOP
+    implementation 'org.springframework.boot:spring-boot-starter-aspectj'
 }
 
 tasks.named('test') {
