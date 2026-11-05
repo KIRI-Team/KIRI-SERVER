@@ -13,6 +13,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
 import java.util.UUID;
+import java.util.regex.Pattern;
 
 @Slf4j
 @Component
@@ -22,10 +23,13 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
 
     public static final String TRACE_ID = "traceId";
     private static final String TRACE_ID_HEADER = "X-Trace-Id";
+    private static final String REQUEST_ID_HEADER = "X-Request-Id";
+
+    private static final Pattern REQUEST_ID_PATTERN = Pattern.compile("^[0-9a-f]{32}$");
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain) throws ServletException, IOException {
-        String traceId = UUID.randomUUID().toString().replace("-", "").substring(0, 16);
+        String traceId = resolveTraceId(request);
         long startTime = System.currentTimeMillis();
 
         MDC.put(TRACE_ID, traceId);
@@ -53,5 +57,13 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
     protected boolean shouldNotFilter(HttpServletRequest request) {
         String uri = request.getRequestURI().substring(request.getContextPath().length());
         return uri.startsWith("/actuator") || uri.startsWith("/swagger-ui") || uri.startsWith("/v3/api-docs");
+    }
+
+    private String resolveTraceId(HttpServletRequest request) {
+        String requestId = request.getHeader(REQUEST_ID_HEADER);
+        if(requestId != null && REQUEST_ID_PATTERN.matcher(requestId).matches()) {
+            return requestId;
+        }
+        return UUID.randomUUID().toString().replace("-", "");
     }
 }
