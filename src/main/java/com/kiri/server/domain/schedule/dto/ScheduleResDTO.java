@@ -1,6 +1,7 @@
 package com.kiri.server.domain.schedule.dto;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
+import com.kiri.server.domain.mission.enums.WalkingLevel;
 import com.kiri.server.domain.schedule.enums.CalendarMyStatus;
 import com.kiri.server.domain.schedule.enums.ConditionType;
 import com.kiri.server.domain.schedule.enums.ParticipantStatus;
@@ -108,8 +109,7 @@ public class ScheduleResDTO {
     @Builder
     public record Conditions(
             String missionTitle,
-            Integer estimatedStepsMin,
-            Integer estimatedStepsMax,
+            WalkingLevel walkingLevel,
             Integer durationMinMinutes,
             Integer durationMaxMinutes,
             List<ConditionType> conditions

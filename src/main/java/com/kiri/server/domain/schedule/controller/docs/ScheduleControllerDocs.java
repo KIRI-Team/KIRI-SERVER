@@ -228,7 +228,8 @@ public interface ScheduleControllerDocs {
                     컨디션 조정 화면에 필요한 일정의 미션 정보와 현재 적용된 컨디션 조건을 조회합니다.
 
                     ## 응답 규칙
-                    - missionTitle, estimatedSteps*, duration*: 일정에 연결된 미션의 값 (범위는 min~max로 표시)
+                    - missionTitle, walkingLevel, duration*: 일정에 연결된 미션의 값 (소요 시간은 min~max로 표시)
+                    - walkingLevel은 예상 걷기량으로 LOW(적음)·MEDIUM(보통)·HIGH(많음)이며, 판단할 정보가 없으면 null입니다.
                     - conditions: 현재 일정에 적용된 조건 목록. 적용한 조건이 없으면 빈 배열입니다.
                       (REDUCE_STEPS 걸음 수 낮추기 / MORE_REST 휴식 시간 늘리기 / LOWER_BUDGET 예산 낮추기 / AVOID_CROWD 사람 많은 곳 피하기)
                     - 같은 가족의 일정만 조회할 수 있으며, 다른 가족의 일정은 존재하지 않는 일정과 같이 404로 응답합니다.
@@ -252,8 +253,7 @@ public interface ScheduleControllerDocs {
                                                       "message": "컨디션 커스텀 조회 성공",
                                                       "result": {
                                                         "missionTitle": "한강 뚜벅뚜벅 축제 가보기",
-                                                        "estimatedStepsMin": 5000,
-                                                        "estimatedStepsMax": 12000,
+                                                        "walkingLevel": "MEDIUM",
                                                         "durationMinMinutes": 60,
                                                         "durationMaxMinutes": 180,
                                                         "conditions": ["REDUCE_STEPS", "MORE_REST"]
@@ -270,8 +270,7 @@ public interface ScheduleControllerDocs {
                                                       "message": "컨디션 커스텀 조회 성공",
                                                       "result": {
                                                         "missionTitle": "한강 뚜벅뚜벅 축제 가보기",
-                                                        "estimatedStepsMin": 5000,
-                                                        "estimatedStepsMax": 12000,
+                                                        "walkingLevel": "MEDIUM",
                                                         "durationMinMinutes": 60,
                                                         "durationMaxMinutes": 180,
                                                         "conditions": []

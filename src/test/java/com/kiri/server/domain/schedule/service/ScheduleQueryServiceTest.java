@@ -8,6 +8,7 @@ import com.kiri.server.domain.member.repository.MemberRepository;
 import com.kiri.server.domain.mission.entity.Mission;
 import com.kiri.server.domain.mission.enums.Category;
 import com.kiri.server.domain.mission.enums.IndoorOutdoor;
+import com.kiri.server.domain.mission.enums.WalkingLevel;
 import com.kiri.server.domain.mission.repository.MissionRepository;
 import com.kiri.server.domain.place.entity.Place;
 import com.kiri.server.domain.schedule.dto.ScheduleReqDTO;
@@ -274,8 +275,7 @@ class ScheduleQueryServiceTest {
     private Schedule conditionSchedule(Long id, Family family) {
         Mission mission = Mission.builder()
                 .title("한강 뚜벅뚜벅 축제 가보기")
-                .estimatedStepsMin(5000)
-                .estimatedStepsMax(12000)
+                .walkingLevel(WalkingLevel.MEDIUM)
                 .durationMinMinutes(60)
                 .durationMaxMinutes(180)
                 .build();
@@ -399,8 +399,7 @@ class ScheduleQueryServiceTest {
         ScheduleResDTO.Conditions result = scheduleQueryService.getConditions(MEMBER_ID, 118L);
 
         assertThat(result.missionTitle()).isEqualTo("한강 뚜벅뚜벅 축제 가보기");
-        assertThat(result.estimatedStepsMin()).isEqualTo(5000);
-        assertThat(result.estimatedStepsMax()).isEqualTo(12000);
+        assertThat(result.walkingLevel()).isEqualTo(WalkingLevel.MEDIUM);
         assertThat(result.durationMinMinutes()).isEqualTo(60);
         assertThat(result.durationMaxMinutes()).isEqualTo(180);
         assertThat(result.conditions()).containsExactly(ConditionType.REDUCE_STEPS, ConditionType.LOWER_BUDGET);

@@ -1,5 +1,6 @@
 package com.kiri.server.domain.schedule.controller;
 
+import com.kiri.server.domain.mission.enums.WalkingLevel;
 import com.kiri.server.domain.schedule.dto.ScheduleReqDTO;
 import com.kiri.server.domain.schedule.dto.ScheduleResDTO;
 import com.kiri.server.domain.schedule.enums.CalendarMyStatus;
@@ -228,8 +229,7 @@ class ScheduleControllerTest {
     void getConditions_success() throws Exception {
         given(scheduleQueryService.getConditions(MEMBER_ID, 118L)).willReturn(ScheduleResDTO.Conditions.builder()
                 .missionTitle("한강 뚜벅뚜벅 축제 가보기")
-                .estimatedStepsMin(5000)
-                .estimatedStepsMax(12000)
+                .walkingLevel(WalkingLevel.MEDIUM)
                 .durationMinMinutes(60)
                 .durationMaxMinutes(180)
                 .conditions(List.of(ConditionType.REDUCE_STEPS, ConditionType.MORE_REST))
@@ -240,8 +240,7 @@ class ScheduleControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value("SCHEDULE200_6"))
                 .andExpect(jsonPath("$.result.missionTitle").value("한강 뚜벅뚜벅 축제 가보기"))
-                .andExpect(jsonPath("$.result.estimatedStepsMin").value(5000))
-                .andExpect(jsonPath("$.result.estimatedStepsMax").value(12000))
+                .andExpect(jsonPath("$.result.walkingLevel").value("MEDIUM"))
                 .andExpect(jsonPath("$.result.durationMinMinutes").value(60))
                 .andExpect(jsonPath("$.result.durationMaxMinutes").value(180))
                 .andExpect(jsonPath("$.result.conditions[0]").value("REDUCE_STEPS"))

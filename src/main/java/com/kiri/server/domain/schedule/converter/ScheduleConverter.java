@@ -104,8 +104,7 @@ public class ScheduleConverter {
         Mission mission = schedule.getBucketItem().getMission();
         return ScheduleResDTO.Conditions.builder()
                 .missionTitle(mission.getTitle())
-                .estimatedStepsMin(mission.getEstimatedStepsMin())
-                .estimatedStepsMax(mission.getEstimatedStepsMax())
+                .walkingLevel(mission.getWalkingLevel())
                 .durationMinMinutes(mission.getDurationMinMinutes())
                 .durationMaxMinutes(mission.getDurationMaxMinutes())
                 .conditions(conditions)
