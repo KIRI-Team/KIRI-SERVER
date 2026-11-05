@@ -54,3 +54,5 @@ jobs:
           S3_IMAGE_BUCKET: test-bucket
           CDN_BASE_URL: https://test.cloudfront.net
           CLOUDFRONT_KEY_PAIR_ID: KTESTKEYPAIRID
+          FIREBASE_SERVICE_ACCOUNT_B64: test-firebase-service-account
+          GEMINI_API_KEY: test-gemini-api-key

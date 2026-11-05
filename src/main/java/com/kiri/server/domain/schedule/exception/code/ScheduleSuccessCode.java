@@ -14,6 +14,9 @@ public enum ScheduleSuccessCode implements BaseSuccessCode {
     CANCEL_SUCCESS(HttpStatus.OK, "SCHEDULE200_3", "일정 취소 성공"),
     UPDATE_SUCCESS(HttpStatus.OK, "SCHEDULE200_4", "일정 수정 성공"),
     UPCOMING_SUCCESS(HttpStatus.OK, "SCHEDULE200_5", "다가오는 일정 조회 성공"),
+    CONDITION_SUCCESS(HttpStatus.OK, "SCHEDULE200_6", "컨디션 커스텀 조회 성공"),
+    CONDITION_UPDATE_SUCCESS(HttpStatus.OK, "SCHEDULE200_7", "컨디션 커스텀 적용 성공"),
+    NEARBY_SUCCESS(HttpStatus.OK, "SCHEDULE200_8", "근처 놀거리 추천 조회 성공"),
     DETAIL_SUCCESS(HttpStatus.OK, "SCHEDULE200_9", "일정 상세 조회 성공"),
     CREATE_SUCCESS(HttpStatus.CREATED, "SCHEDULE201_1", "일정 생성 성공");
 

@@ -45,6 +45,8 @@ management:
     git:
       mode: full
   metrics:
+    tags:
+      application: kiri-server
     distribution:
       slo:
         http.server.requests: 100ms, 300ms, 1s, 3s
@@ -113,6 +115,10 @@ aws:
     key-pair-id: ${CLOUDFRONT_KEY_PAIR_ID}
     private-key: ${CLOUDFRONT_PRIVATE_KEY}
     signed-url-expiration: 2h
+
+gemini:
+  api-key: ${GEMINI_API_KEY}
+  model: gemini-3.5-flash-lite
 
 sentry:
   exception-resolver-order: -2147483647

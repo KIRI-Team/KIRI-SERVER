@@ -1,11 +1,13 @@
 package com.kiri.server.domain.review.dto;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.*;
 
 import java.util.List;
 
 public class ReviewReqDTO {
 
+    @Schema(name = "ReviewCreateRequest", description = "리뷰 작성 요청")
     public record Create(
             @NotBlank(message = "리뷰 내용을 입력해주세요.")
             @Size(max = 500, message = "리뷰 내용은 500자 이내로 입력해주세요.")

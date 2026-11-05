@@ -6,19 +6,30 @@ import com.kiri.server.domain.member.entity.Member;
 import com.kiri.server.domain.member.exception.MemberException;
 import com.kiri.server.domain.member.repository.MemberRepository;
 import com.kiri.server.domain.mission.entity.Mission;
+import com.kiri.server.domain.mission.enums.Category;
+import com.kiri.server.domain.mission.enums.IndoorOutdoor;
+import com.kiri.server.domain.mission.enums.WalkingLevel;
+import com.kiri.server.domain.mission.repository.MissionRepository;
+import com.kiri.server.domain.place.entity.Place;
 import com.kiri.server.domain.schedule.dto.ScheduleReqDTO;
 import com.kiri.server.domain.schedule.dto.ScheduleResDTO;
 import com.kiri.server.domain.schedule.entity.Schedule;
+import com.kiri.server.domain.schedule.entity.ScheduleCondition;
 import com.kiri.server.domain.schedule.entity.ScheduleParticipant;
 import com.kiri.server.domain.schedule.enums.CalendarMyStatus;
+import com.kiri.server.domain.schedule.enums.ConditionType;
 import com.kiri.server.domain.schedule.enums.ParticipantStatus;
 import com.kiri.server.domain.schedule.enums.ScheduleDetailStatus;
 import com.kiri.server.domain.schedule.enums.ScheduleStatus;
 import com.kiri.server.domain.schedule.enums.UpcomingCardType;
 import com.kiri.server.domain.schedule.exception.ScheduleException;
 import com.kiri.server.domain.schedule.exception.code.ScheduleErrorCode;
+import com.kiri.server.domain.schedule.repository.ScheduleConditionRepository;
 import com.kiri.server.domain.schedule.repository.ScheduleParticipantRepository;
 import com.kiri.server.domain.schedule.repository.ScheduleRepository;
+import com.kiri.server.domain.taste.dto.TasteProfileDTO;
+import com.kiri.server.domain.taste.service.FamilyTasteScoreService;
+import com.kiri.server.domain.taste.service.TasteProfileService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -28,20 +39,27 @@ import org.junit.jupiter.params.provider.CsvSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.ZoneId;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyCollection;
+import static org.mockito.ArgumentMatchers.anyDouble;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 
 @ExtendWith(MockitoExtension.class)
@@ -57,14 +75,27 @@ class ScheduleQueryServiceTest {
     private ScheduleParticipantRepository scheduleParticipantRepository;
 
     @Mock
+    private ScheduleConditionRepository scheduleConditionRepository;
+
+    @Mock
     private MemberRepository memberRepository;
+
+    @Mock
+    private MissionRepository missionRepository;
+
+    @Mock
+    private FamilyTasteScoreService familyTasteScoreService;
+
+    @Mock
+    private TasteProfileService tasteProfileService;
 
     private ScheduleQueryService scheduleQueryService;
 
     @BeforeEach
     void setUp() {
         scheduleQueryService = new ScheduleQueryService(
-                scheduleRepository, scheduleParticipantRepository, memberRepository, CLOCK);
+                scheduleRepository, scheduleParticipantRepository, scheduleConditionRepository, memberRepository,
+                missionRepository, familyTasteScoreService, tasteProfileService, CLOCK);
     }
 
     private ScheduleReqDTO.CalendarCondition condition(int year, int month) {
@@ -250,6 +281,459 @@ class ScheduleQueryServiceTest {
         verifyNoInteractions(scheduleParticipantRepository);
     }
 
+    private Schedule conditionSchedule(Long id, Family family) {
+        Mission mission = Mission.builder()
+                .title("한강 뚜벅뚜벅 축제 가보기")
+                .walkingLevel(WalkingLevel.MEDIUM)
+                .durationMinMinutes(60)
+                .durationMaxMinutes(180)
+                .build();
+        BucketItem bucketItem = BucketItem.builder().mission(mission).build();
+        return Schedule.builder().id(id).family(family).bucketItem(bucketItem).status(ScheduleStatus.CONFIRMED)
+                .scheduleDate(LocalDate.of(2026, 11, 1)).build();
+    }
+
+    private void stubFinalParticipant(Long scheduleId, boolean finalParticipant) {
+        given(scheduleParticipantRepository.existsBySchedule_IdAndMember_IdAndStatusAndReconfirmRequiredFalse(
+                scheduleId, MEMBER_ID, ParticipantStatus.ACCEPTED)).willReturn(finalParticipant);
+    }
+
+    private ScheduleCondition condition(Schedule schedule, ConditionType type) {
+        return ScheduleCondition.builder().schedule(schedule).conditionType(type).build();
+    }
+
+    @Test
+    @DisplayName("컨디션 조회: 회원이 없으면 MEMBER404_1로 예외를 던진다.")
+    void getConditions_memberNotFound() {
+        given(memberRepository.findById(MEMBER_ID)).willReturn(Optional.empty());
+
+        assertThatThrownBy(() -> scheduleQueryService.getConditions(MEMBER_ID, 118L))
+                .isInstanceOf(MemberException.class);
+
+        verifyNoInteractions(scheduleRepository, scheduleConditionRepository);
+    }
+
+    @Test
+    @DisplayName("컨디션 조회: 가족공간이 없으면 SCHEDULE403_1로 예외를 던진다.")
+    void getConditions_noFamily() {
+        given(memberRepository.findById(MEMBER_ID)).willReturn(Optional.of(Member.builder().build()));
+
+        assertThatThrownBy(() -> scheduleQueryService.getConditions(MEMBER_ID, 118L))
+                .isInstanceOf(ScheduleException.class)
+                .extracting(e -> ((ScheduleException) e).getErrorCode())
+                .isEqualTo(ScheduleErrorCode.FAMILY_REQUIRED);
+
+        verifyNoInteractions(scheduleRepository, scheduleConditionRepository);
+    }
+
+    @Test
+    @DisplayName("컨디션 조회: 없거나 다른 가족의 일정이면 SCHEDULE404_2로 예외를 던지고 조건은 조회하지 않는다.")
+    void getConditions_scheduleNotFound() {
+        Family family = Family.builder().id(10L).build();
+        given(memberRepository.findById(MEMBER_ID)).willReturn(Optional.of(Member.builder().family(family).build()));
+        given(scheduleRepository.findWithMissionByIdAndFamilyId(118L, 10L)).willReturn(Optional.empty());
+
+        assertThatThrownBy(() -> scheduleQueryService.getConditions(MEMBER_ID, 118L))
+                .isInstanceOf(ScheduleException.class)
+                .extracting(e -> ((ScheduleException) e).getErrorCode())
+                .isEqualTo(ScheduleErrorCode.SCHEDULE_NOT_FOUND);
+
+        verifyNoInteractions(scheduleConditionRepository);
+    }
+
+    @Test
+    @DisplayName("컨디션 조회: 최종 참여자가 아니면 SCHEDULE403_5로 예외를 던지고 조건은 조회하지 않는다.")
+    void getConditions_notFinalParticipant() {
+        Family family = Family.builder().id(10L).build();
+        given(memberRepository.findById(MEMBER_ID)).willReturn(Optional.of(Member.builder().family(family).build()));
+        given(scheduleRepository.findWithMissionByIdAndFamilyId(118L, 10L))
+                .willReturn(Optional.of(conditionSchedule(118L, family)));
+        stubFinalParticipant(118L, false);
+
+        assertThatThrownBy(() -> scheduleQueryService.getConditions(MEMBER_ID, 118L))
+                .isInstanceOf(ScheduleException.class)
+                .extracting(e -> ((ScheduleException) e).getErrorCode())
+                .isEqualTo(ScheduleErrorCode.NOT_FINAL_PARTICIPANT);
+
+        verifyNoInteractions(scheduleConditionRepository);
+    }
+
+    @Test
+    @DisplayName("컨디션 조회: 확정되지 않은 일정이면 SCHEDULE409_6으로 예외를 던지고 조건은 조회하지 않는다.")
+    void getConditions_notConfirmed() {
+        Family family = Family.builder().id(10L).build();
+        given(memberRepository.findById(MEMBER_ID)).willReturn(Optional.of(Member.builder().family(family).build()));
+        Schedule schedule = Schedule.builder().id(118L).family(family).status(ScheduleStatus.PENDING_RESPONSE).build();
+        given(scheduleRepository.findWithMissionByIdAndFamilyId(118L, 10L)).willReturn(Optional.of(schedule));
+        stubFinalParticipant(118L, true);
+
+        assertThatThrownBy(() -> scheduleQueryService.getConditions(MEMBER_ID, 118L))
+                .isInstanceOf(ScheduleException.class)
+                .extracting(e -> ((ScheduleException) e).getErrorCode())
+                .isEqualTo(ScheduleErrorCode.CONDITION_NOT_VIEWABLE);
+
+        verifyNoInteractions(scheduleConditionRepository);
+    }
+
+    @Test
+    @DisplayName("컨디션 조회: 일정 당일이 아니면 SCHEDULE409_6으로 예외를 던지고 조건은 조회하지 않는다.")
+    void getConditions_notToday() {
+        Family family = Family.builder().id(10L).build();
+        given(memberRepository.findById(MEMBER_ID)).willReturn(Optional.of(Member.builder().family(family).build()));
+        Schedule schedule = Schedule.builder().id(118L).family(family).status(ScheduleStatus.CONFIRMED)
+                .scheduleDate(LocalDate.of(2026, 11, 2)).build();
+        given(scheduleRepository.findWithMissionByIdAndFamilyId(118L, 10L)).willReturn(Optional.of(schedule));
+        stubFinalParticipant(118L, true);
+
+        assertThatThrownBy(() -> scheduleQueryService.getConditions(MEMBER_ID, 118L))
+                .isInstanceOf(ScheduleException.class)
+                .extracting(e -> ((ScheduleException) e).getErrorCode())
+                .isEqualTo(ScheduleErrorCode.CONDITION_NOT_VIEWABLE);
+
+        verifyNoInteractions(scheduleConditionRepository);
+    }
+
+    @Test
+    @DisplayName("컨디션 조회: 미션 정보와 적용된 조건을 enum 순서로 정렬해 반환한다.")
+    void getConditions_success() {
+        Family family = Family.builder().id(10L).build();
+        given(memberRepository.findById(MEMBER_ID)).willReturn(Optional.of(Member.builder().family(family).build()));
+        Schedule schedule = conditionSchedule(118L, family);
+        given(scheduleRepository.findWithMissionByIdAndFamilyId(118L, 10L)).willReturn(Optional.of(schedule));
+        stubFinalParticipant(118L, true);
+        given(scheduleConditionRepository.findBySchedule_Id(118L)).willReturn(List.of(
+                condition(schedule, ConditionType.LOWER_BUDGET),
+                condition(schedule, ConditionType.REDUCE_STEPS)));
+
+        ScheduleResDTO.Conditions result = scheduleQueryService.getConditions(MEMBER_ID, 118L);
+
+        assertThat(result.missionTitle()).isEqualTo("한강 뚜벅뚜벅 축제 가보기");
+        assertThat(result.walkingLevel()).isEqualTo(WalkingLevel.MEDIUM);
+        assertThat(result.durationMinMinutes()).isEqualTo(60);
+        assertThat(result.durationMaxMinutes()).isEqualTo(180);
+        assertThat(result.conditions()).containsExactly(ConditionType.REDUCE_STEPS, ConditionType.LOWER_BUDGET);
+    }
+
+    @Test
+    @DisplayName("컨디션 조회: 적용한 조건이 없으면 빈 목록을 반환한다.")
+    void getConditions_noConditions() {
+        Family family = Family.builder().id(10L).build();
+        given(memberRepository.findById(MEMBER_ID)).willReturn(Optional.of(Member.builder().family(family).build()));
+        given(scheduleRepository.findWithMissionByIdAndFamilyId(118L, 10L))
+                .willReturn(Optional.of(conditionSchedule(118L, family)));
+        stubFinalParticipant(118L, true);
+        given(scheduleConditionRepository.findBySchedule_Id(118L)).willReturn(List.of());
+
+        ScheduleResDTO.Conditions result = scheduleQueryService.getConditions(MEMBER_ID, 118L);
+
+        assertThat(result.missionTitle()).isEqualTo("한강 뚜벅뚜벅 축제 가보기");
+        assertThat(result.conditions()).isEmpty();
+    }
+
+    private static final Long SCHEDULE_ID = 118L;
+    private static final Long FAMILY_ID = 10L;
+    private static final Long PROPOSER_ID = 1L;
+    private static final LocalDate SCHEDULE_DATE = LocalDate.of(2026, 11, 15);
+    private static final double BASE_LATITUDE = 37.5100;
+    private static final double BASE_LONGITUDE = 126.9960;
+    // 위도 0.009도 ≈ 1km
+    private static final double LATITUDE_PER_KM = 0.009;
+
+    private static final String TASTE_REASON = "우리 가족이 좋아하는 활동이에요";
+    private static final String REST_REASON = "잠깐 쉬어가기 좋은 곳이에요";
+    private static final String NEAR_REASON = "일정 장소에서 가까운 곳이에요";
+
+    private final Place basePlace = place(1L, "여의도 한강공원", 0, null);
+    private long nextMissionId = 100L;
+    private List<TasteProfileDTO.MemberProfile> familyProfiles = List.of();
+
+    private Place place(Long id, String name, double kmNorth, String imageUrl) {
+        return Place.builder()
+                .id(id)
+                .name(name)
+                .address("서울특별시 서초구 올림픽대로 2085-14")
+                .latitude(BigDecimal.valueOf(BASE_LATITUDE + kmNorth * LATITUDE_PER_KM))
+                .longitude(BigDecimal.valueOf(BASE_LONGITUDE))
+                .imageUrl(imageUrl)
+                .build();
+    }
+
+    private Mission mission(Place place, Category category, IndoorOutdoor indoorOutdoor, Integer price) {
+        return Mission.builder()
+                .id(nextMissionId++)
+                .place(place)
+                .category(category)
+                .indoorOutdoor(indoorOutdoor)
+                .price(price)
+                .description(place.getName() + " " + category)
+                .imageUrl("https://mission/" + place.getName())
+                .build();
+    }
+
+    private ScheduleParticipant nearbyParticipant(Long memberId, ParticipantStatus status) {
+        return ScheduleParticipant.builder().member(Member.builder().id(memberId).build()).status(status).build();
+    }
+
+    private TasteProfileDTO.MemberProfile taste(Long memberId, Category... categories) {
+        return TasteProfileDTO.MemberProfile.builder().memberId(memberId).isSet(true).categories(List.of(categories))
+                .build();
+    }
+
+    // 미션 ID → 취향 점수 (공용 취향 점수 서비스가 돌려줄 값)
+    private Map<Long, BigDecimal> tasteScores(Object... missionAndScore) {
+        Map<Long, BigDecimal> scores = new HashMap<>();
+        for (int i = 0; i < missionAndScore.length; i += 2) {
+            scores.put(((Mission) missionAndScore[i]).getId(), new BigDecimal(missionAndScore[i + 1].toString()));
+        }
+        return scores;
+    }
+
+    private void stubSchedule() {
+        Family family = Family.builder().id(FAMILY_ID).build();
+        BucketItem bucketItem = BucketItem.builder().mission(Mission.builder().place(basePlace).build()).build();
+        Schedule schedule = Schedule.builder().id(SCHEDULE_ID).family(family).bucketItem(bucketItem)
+                .proposer(Member.builder().id(PROPOSER_ID).build())
+                .scheduleDate(SCHEDULE_DATE).build();
+        given(memberRepository.findById(MEMBER_ID)).willReturn(Optional.of(Member.builder().family(family).build()));
+        given(scheduleRepository.findWithMissionByIdAndFamilyId(SCHEDULE_ID, FAMILY_ID)).willReturn(Optional.of(schedule));
+    }
+
+    private void stubNearby(List<Mission> missions, List<ScheduleParticipant> participants,
+                            Map<Long, BigDecimal> tasteScores, List<ConditionType> conditions) {
+        stubSchedule();
+        List<Long> ids = missions.stream().map(Mission::getId).toList();
+        given(missionRepository.findNearbyIds(anyDouble(), anyDouble(), anyDouble(), anyDouble(), anyDouble(),
+                anyDouble(), anyDouble(), eq(basePlace.getId()), eq(SCHEDULE_DATE))).willReturn(ids);
+        given(missionRepository.findAllWithPlaceByIdIn(ids)).willReturn(missions);
+        given(scheduleParticipantRepository.findBySchedule_Id(SCHEDULE_ID)).willReturn(participants);
+        given(familyTasteScoreService.calculate(anyCollection(), eq(missions), any(LocalDate.class)))
+                .willReturn(tasteScores);
+        given(tasteProfileService.getFamilyProfile(FAMILY_ID)).willReturn(
+                TasteProfileDTO.FamilyProfile.builder().familyId(FAMILY_ID).members(familyProfiles).build());
+        Schedule schedule = Schedule.builder().id(SCHEDULE_ID).build();
+        given(scheduleConditionRepository.findBySchedule_Id(SCHEDULE_ID)).willReturn(conditions.stream()
+                .map(type -> ScheduleCondition.builder().schedule(schedule).conditionType(type).build())
+                .toList());
+    }
+
+    private List<String> placeNames(List<ScheduleResDTO.NearbyItem> items) {
+        return items.stream().map(ScheduleResDTO.NearbyItem::placeName).toList();
+    }
+
+    @Test
+    @DisplayName("가족공간이 없으면 근처 놀거리를 조회하지 않고 SCHEDULE403_1로 예외를 던진다.")
+    void getNearby_noFamily() {
+        given(memberRepository.findById(MEMBER_ID)).willReturn(Optional.of(Member.builder().build()));
+
+        assertThatThrownBy(() -> scheduleQueryService.getNearby(MEMBER_ID, SCHEDULE_ID))
+                .isInstanceOf(ScheduleException.class)
+                .extracting(e -> ((ScheduleException) e).getErrorCode())
+                .isEqualTo(ScheduleErrorCode.FAMILY_REQUIRED);
+
+        verifyNoInteractions(scheduleRepository, missionRepository);
+    }
+
+    @Test
+    @DisplayName("없거나 다른 가족의 일정이면 근처 놀거리를 조회하지 않고 SCHEDULE404_2로 예외를 던진다.")
+    void getNearby_scheduleNotFound() {
+        Family family = Family.builder().id(FAMILY_ID).build();
+        given(memberRepository.findById(MEMBER_ID)).willReturn(Optional.of(Member.builder().family(family).build()));
+        given(scheduleRepository.findWithMissionByIdAndFamilyId(SCHEDULE_ID, FAMILY_ID)).willReturn(Optional.empty());
+
+        assertThatThrownBy(() -> scheduleQueryService.getNearby(MEMBER_ID, SCHEDULE_ID))
+                .isInstanceOf(ScheduleException.class)
+                .extracting(e -> ((ScheduleException) e).getErrorCode())
+                .isEqualTo(ScheduleErrorCode.SCHEDULE_NOT_FOUND);
+
+        verifyNoInteractions(missionRepository);
+    }
+
+    @Test
+    @DisplayName("일정 날짜와 메인 장소를 기준으로 조회한 후보가 없으면 빈 목록을 반환하고 취향은 조회하지 않는다.")
+    void getNearby_noCandidates() {
+        stubSchedule();
+        given(missionRepository.findNearbyIds(anyDouble(), anyDouble(), anyDouble(), anyDouble(), anyDouble(),
+                anyDouble(), anyDouble(), eq(basePlace.getId()), eq(SCHEDULE_DATE))).willReturn(List.of());
+
+        List<ScheduleResDTO.NearbyItem> result = scheduleQueryService.getNearby(MEMBER_ID, SCHEDULE_ID);
+
+        assertThat(result).isEmpty();
+        verifyNoInteractions(familyTasteScoreService, tasteProfileService);
+    }
+
+    @Test
+    @DisplayName("참여자 취향 점수가 높은 장소를 더 가까운 장소보다 먼저 추천한다.")
+    void getNearby_sortsByParticipantTaste() {
+        Mission cafe = mission(place(2L, "근처 카페", 0.5, null), Category.FOOD_CAFE, IndoorOutdoor.INDOOR, 5000);
+        Mission exhibition = mission(place(3L, "먼 미술관", 2.0, null), Category.EXHIBITION, IndoorOutdoor.INDOOR, 5000);
+        stubNearby(List.of(cafe, exhibition), List.of(), tasteScores(exhibition, "0.8", cafe, "0.2"), List.of());
+
+        List<ScheduleResDTO.NearbyItem> result = scheduleQueryService.getNearby(MEMBER_ID, SCHEDULE_ID);
+
+        assertThat(placeNames(result)).containsExactly("먼 미술관", "근처 카페");
+    }
+
+    @Test
+    @DisplayName("취향 점수는 제안자와 수락한 참여자 기준으로 계산하고, 거절·미응답·재확인 필요 참여자는 제외한다.")
+    void getNearby_tasteFromProposerAndAccepted() {
+        Mission park = mission(place(2L, "공원", 1.0, null), Category.OUTDOOR, IndoorOutdoor.OUTDOOR, 0);
+        ScheduleParticipant reconfirm = ScheduleParticipant.builder().member(Member.builder().id(5L).build())
+                .status(ParticipantStatus.ACCEPTED).reconfirmRequired(true).build();
+        stubNearby(List.of(park), List.of(
+                        nearbyParticipant(PROPOSER_ID, ParticipantStatus.ACCEPTED),
+                        nearbyParticipant(2L, ParticipantStatus.ACCEPTED),
+                        nearbyParticipant(3L, ParticipantStatus.DECLINED),
+                        nearbyParticipant(4L, ParticipantStatus.PENDING),
+                        reconfirm),
+                Map.of(), List.of());
+
+        scheduleQueryService.getNearby(MEMBER_ID, SCHEDULE_ID);
+
+        verify(familyTasteScoreService).calculate(
+                argThat(ids -> ids.size() == 2 && ids.containsAll(List.of(PROPOSER_ID, 2L))),
+                eq(List.of(park)), eq(LocalDate.now(CLOCK)));
+    }
+
+    @Test
+    @DisplayName("점수가 같으면 가까운 장소를 먼저 추천한다.")
+    void getNearby_tieBreaksByDistance() {
+        Mission far = mission(place(2L, "먼 공원", 2.0, null), Category.OUTDOOR, IndoorOutdoor.OUTDOOR, 0);
+        Mission near = mission(place(3L, "가까운 공원", 0.5, null), Category.OUTDOOR, IndoorOutdoor.OUTDOOR, 0);
+        stubNearby(List.of(far, near), List.of(), Map.of(), List.of());
+
+        List<ScheduleResDTO.NearbyItem> result = scheduleQueryService.getNearby(MEMBER_ID, SCHEDULE_ID);
+
+        assertThat(placeNames(result)).containsExactly("가까운 공원", "먼 공원");
+    }
+
+    @Test
+    @DisplayName("같은 장소의 미션은 하나로 묶고 점수가 가장 높은 미션을 대표로 카드를 만든다.")
+    void getNearby_dedupsByPlace() {
+        Place sevitseom = place(2L, "세빛섬", 2.0, null);
+        Mission night = mission(sevitseom, Category.OUTDOOR, IndoorOutdoor.OUTDOOR, 0);
+        Mission cafe = mission(sevitseom, Category.FOOD_CAFE, IndoorOutdoor.INDOOR, 15000);
+        stubNearby(List.of(night, cafe), List.of(), tasteScores(night, "0.2", cafe, "0.9"), List.of());
+
+        List<ScheduleResDTO.NearbyItem> result = scheduleQueryService.getNearby(MEMBER_ID, SCHEDULE_ID);
+
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).description()).isEqualTo("세빛섬 FOOD_CAFE");
+    }
+
+    @Test
+    @DisplayName("제안자·수락자가 고른 취향 카테고리면 취향 문구를 가장 먼저 쓰고, 거절자의 취향은 근거로 쓰지 않는다.")
+    void getNearby_reasonFromTaste() {
+        Mission exhibition = mission(place(2L, "미술관", 0.5, null), Category.EXHIBITION, IndoorOutdoor.INDOOR, 0);
+        Mission park = mission(place(3L, "공원", 3.0, null), Category.OUTDOOR, IndoorOutdoor.OUTDOOR, 0);
+        familyProfiles = List.of(taste(PROPOSER_ID, Category.EXHIBITION), taste(3L, Category.OUTDOOR));
+        stubNearby(List.of(exhibition, park), List.of(nearbyParticipant(3L, ParticipantStatus.DECLINED)),
+                Map.of(), List.of(ConditionType.MORE_REST));
+
+        List<ScheduleResDTO.NearbyItem> result = scheduleQueryService.getNearby(MEMBER_ID, SCHEDULE_ID);
+
+        assertThat(result).extracting(ScheduleResDTO.NearbyItem::description)
+                .containsExactly(TASTE_REASON, "공원 OUTDOOR");
+    }
+
+    @Test
+    @DisplayName("휴식 조건이 있으면 FOOD_CAFE·실내 장소에 휴식 문구를, 1km 이내면 거리 문구를 쓴다.")
+    void getNearby_reasonFromRestAndDistance() {
+        Mission cafe = mission(place(2L, "카페", 3.0, null), Category.FOOD_CAFE, IndoorOutdoor.INDOOR, 0);
+        Mission park = mission(place(3L, "공원", 0.5, null), Category.OUTDOOR, IndoorOutdoor.OUTDOOR, 0);
+        stubNearby(List.of(cafe, park), List.of(), Map.of(), List.of(ConditionType.MORE_REST));
+
+        List<ScheduleResDTO.NearbyItem> result = scheduleQueryService.getNearby(MEMBER_ID, SCHEDULE_ID);
+
+        assertThat(result).extracting(ScheduleResDTO.NearbyItem::description)
+                .containsExactly(REST_REASON, NEAR_REASON);
+    }
+
+    @Test
+    @DisplayName("확인된 근거가 없으면 미션 소개 문구를 쓴다.")
+    void getNearby_reasonFallback() {
+        Mission exhibition = mission(place(2L, "전시관", 2.0, null), Category.EXHIBITION, IndoorOutdoor.INDOOR, 0);
+        stubNearby(List.of(exhibition), List.of(), Map.of(), List.of());
+
+        List<ScheduleResDTO.NearbyItem> result = scheduleQueryService.getNearby(MEMBER_ID, SCHEDULE_ID);
+
+        assertThat(result).extracting(ScheduleResDTO.NearbyItem::description).containsExactly("전시관 EXHIBITION");
+    }
+
+    @Test
+    @DisplayName("장소로 묶은 뒤 상위 5개 장소만 추천한다.")
+    void getNearby_limitsToTopFive() {
+        Place nearest = place(2L, "1번", 0.5, null);
+        List<Mission> candidates = List.of(
+                mission(nearest, Category.OUTDOOR, IndoorOutdoor.OUTDOOR, 0),
+                mission(nearest, Category.FOOD_CAFE, IndoorOutdoor.INDOOR, 0),
+                mission(place(3L, "2번", 1.0, null), Category.OUTDOOR, IndoorOutdoor.OUTDOOR, 0),
+                mission(place(4L, "3번", 1.5, null), Category.OUTDOOR, IndoorOutdoor.OUTDOOR, 0),
+                mission(place(5L, "4번", 2.0, null), Category.OUTDOOR, IndoorOutdoor.OUTDOOR, 0),
+                mission(place(6L, "5번", 2.5, null), Category.OUTDOOR, IndoorOutdoor.OUTDOOR, 0),
+                mission(place(7L, "6번", 3.0, null), Category.OUTDOOR, IndoorOutdoor.OUTDOOR, 0));
+        stubNearby(candidates, List.of(), Map.of(), List.of());
+
+        List<ScheduleResDTO.NearbyItem> result = scheduleQueryService.getNearby(MEMBER_ID, SCHEDULE_ID);
+
+        // 1번 장소의 미션 2개가 자리 2개를 차지하지 않아 5번까지 들어오고, 6번은 빠진다
+        assertThat(placeNames(result)).containsExactly("1번", "2번", "3번", "4번", "5번");
+    }
+
+    @Test
+    @DisplayName("카드의 지역은 시·구까지 축약하고, 장소 이미지가 없으면 대표 미션 이미지를 쓴다.")
+    void getNearby_mapsCard() {
+        Mission withPlaceImage = mission(place(2L, "세빛섬", 1.0, "https://place/sevitseom"),
+                Category.OUTDOOR, IndoorOutdoor.OUTDOOR, 0);
+        Mission withoutPlaceImage = mission(place(3L, "반포 한강공원", 2.0, null),
+                Category.OUTDOOR, IndoorOutdoor.OUTDOOR, 0);
+        stubNearby(List.of(withPlaceImage, withoutPlaceImage), List.of(), Map.of(), List.of());
+
+        List<ScheduleResDTO.NearbyItem> result = scheduleQueryService.getNearby(MEMBER_ID, SCHEDULE_ID);
+
+        assertThat(result).extracting(ScheduleResDTO.NearbyItem::region).containsOnly("서울시 서초구");
+        assertThat(result).extracting(ScheduleResDTO.NearbyItem::imageUrl)
+                .containsExactly("https://place/sevitseom", "https://mission/반포 한강공원");
+    }
+
+    @Test
+    @DisplayName("걸음 수 낮추기를 적용하면 취향이 맞는 먼 장소보다 가까운 장소를 먼저 추천한다.")
+    void getNearby_reduceSteps() {
+        Mission far = mission(place(2L, "먼 미술관", 4.0, null), Category.EXHIBITION, IndoorOutdoor.INDOOR, 5000);
+        Mission near = mission(place(3L, "가까운 공원", 0.5, null), Category.OUTDOOR, IndoorOutdoor.OUTDOOR, 5000);
+        stubNearby(List.of(far, near), List.of(), tasteScores(far, "0.3"), List.of(ConditionType.REDUCE_STEPS));
+
+        List<ScheduleResDTO.NearbyItem> result = scheduleQueryService.getNearby(MEMBER_ID, SCHEDULE_ID);
+
+        assertThat(placeNames(result)).containsExactly("가까운 공원", "먼 미술관");
+    }
+
+    @Test
+    @DisplayName("휴식 시간 늘리기를 적용하면 FOOD_CAFE·실내 장소를 가까운 야외 장소보다 먼저 추천한다.")
+    void getNearby_moreRest() {
+        Mission outdoor = mission(place(2L, "가까운 공원", 0.5, null), Category.OUTDOOR, IndoorOutdoor.OUTDOOR, 0);
+        Mission indoor = mission(place(3L, "먼 전시관", 2.0, null), Category.EXHIBITION, IndoorOutdoor.INDOOR, 0);
+        stubNearby(List.of(outdoor, indoor), List.of(), Map.of(), List.of(ConditionType.MORE_REST));
+
+        List<ScheduleResDTO.NearbyItem> result = scheduleQueryService.getNearby(MEMBER_ID, SCHEDULE_ID);
+
+        assertThat(placeNames(result)).containsExactly("먼 전시관", "가까운 공원");
+    }
+
+    @Test
+    @DisplayName("예산 낮추기를 적용하면 무료 → 1만 원 이하 → 그 외 순으로 추천한다.")
+    void getNearby_lowerBudget() {
+        Mission unknown = mission(place(2L, "요금 모름", 0.5, null), Category.OUTDOOR, IndoorOutdoor.OUTDOOR, null);
+        Mission paid = mission(place(3L, "유료", 1.0, null), Category.OUTDOOR, IndoorOutdoor.OUTDOOR, 20000);
+        Mission free = mission(place(4L, "무료", 2.0, null), Category.OUTDOOR, IndoorOutdoor.OUTDOOR, 0);
+        Mission cheap = mission(place(5L, "저가", 3.0, null), Category.OUTDOOR, IndoorOutdoor.OUTDOOR, 10000);
+        stubNearby(List.of(unknown, paid, free, cheap), List.of(), Map.of(), List.of(ConditionType.LOWER_BUDGET));
+
+        List<ScheduleResDTO.NearbyItem> result = scheduleQueryService.getNearby(MEMBER_ID, SCHEDULE_ID);
+
+        assertThat(placeNames(result)).containsExactly("무료", "저가", "요금 모름", "유료");
+        assertThat(result).extracting(ScheduleResDTO.NearbyItem::price).containsExactly(0, 10000, null, 20000);
+    }
+
     @Test
     @DisplayName("일정 상세 조회: 회원이 없으면 MEMBER404_1로 예외를 던진다.")
     void getDetail_memberNotFound() {
@@ -371,5 +855,23 @@ class ScheduleQueryServiceTest {
         ScheduleResDTO.Detail result = scheduleQueryService.getDetail(MEMBER_ID, 118L);
 
         assertThat(result.status()).isEqualTo(expected);
+    }
+
+    @Test
+    @DisplayName("일정 상세 조회: 연결된 미션의 id를 함께 반환한다.")
+    void getDetail_missionId() {
+        Family family = Family.builder().id(10L).build();
+        given(memberRepository.findById(MEMBER_ID)).willReturn(Optional.of(Member.builder().family(family).build()));
+        Schedule schedule = Schedule.builder().id(118L).family(family)
+                .scheduleDate(LocalDate.of(2026, 11, 3)).scheduleTime(LocalTime.of(14, 50))
+                .status(ScheduleStatus.CONFIRMED)
+                .bucketItem(BucketItem.builder().mission(Mission.builder().id(42L).build()).build())
+                .build();
+        given(scheduleRepository.findById(118L)).willReturn(Optional.of(schedule));
+        given(scheduleParticipantRepository.findAllWithMemberByScheduleId(118L)).willReturn(List.of());
+
+        ScheduleResDTO.Detail result = scheduleQueryService.getDetail(MEMBER_ID, 118L);
+
+        assertThat(result.missionId()).isEqualTo(42L);
     }
 }

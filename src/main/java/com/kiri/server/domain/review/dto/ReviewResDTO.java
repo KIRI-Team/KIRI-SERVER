@@ -1,5 +1,6 @@
 package com.kiri.server.domain.review.dto;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import com.kiri.server.domain.member.enums.FamilyRole;
 import lombok.Builder;
 
@@ -9,6 +10,7 @@ import java.util.List;
 public class ReviewResDTO {
 
     @Builder
+    @Schema(name = "ReviewCreateResponse", description = "리뷰 작성 응답")
     public record Create(
             Long reviewId,
             Long scheduleId

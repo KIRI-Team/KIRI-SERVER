@@ -7,21 +7,20 @@ import com.kiri.server.domain.member.enums.FamilyRole;
 import com.kiri.server.domain.member.exception.MemberException;
 import com.kiri.server.domain.member.exception.code.MemberErrorCode;
 import com.kiri.server.domain.member.repository.MemberRepository;
+import com.kiri.server.domain.mission.enums.Category;
+import com.kiri.server.domain.question.dto.PreferenceClassification;
 import com.kiri.server.domain.question.dto.QuestionReqDTO;
 import com.kiri.server.domain.question.dto.QuestionResDTO;
-import com.kiri.server.domain.question.entity.FamilyQuestion;
-import com.kiri.server.domain.question.entity.MemberAnswer;
-import com.kiri.server.domain.question.entity.Poke;
-import com.kiri.server.domain.question.entity.Question;
+import com.kiri.server.domain.question.entity.*;
 import com.kiri.server.domain.question.enums.TasteType;
 import com.kiri.server.domain.question.event.PokeEvent;
 import com.kiri.server.domain.question.exception.QuestionException;
 import com.kiri.server.domain.question.exception.code.QuestionErrorCode;
-import com.kiri.server.domain.question.repository.FamilyQuestionRepository;
+import com.kiri.server.domain.question.repository.*;
 import com.kiri.server.domain.question.repository.FamilyQuestionRepository.TasteTypeCount;
-import com.kiri.server.domain.question.repository.MemberAnswerRepository;
-import com.kiri.server.domain.question.repository.PokeRepository;
-import com.kiri.server.domain.question.repository.QuestionRepository;
+import com.kiri.server.domain.taste.enums.ActivityLevel;
+import com.kiri.server.domain.taste.enums.PriceLevel;
+import com.kiri.server.global.ai.service.AiService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -80,6 +79,12 @@ class QuestionServiceTest {
     @Mock
     private QuestionRepository questionRepository;
 
+    @Mock
+    private MemberAnswerCategoryRepository memberAnswerCategoryRepository;
+
+    @Mock
+    private AiService aiService;
+
     private QuestionService questionService;
 
     private final Clock clock = Clock.fixed(Instant.parse("2026-10-10T03:00:00Z"), ZoneId.of("Asia/Seoul"));
@@ -99,8 +104,8 @@ class QuestionServiceTest {
     @BeforeEach
     void setUp() {
         questionService = new QuestionService(
-                memberRepository, familyQuestionRepository, memberAnswerRepository, clock, pokeRepository, eventPublisher,
-                familyRepository, questionRepository);
+                memberRepository, familyQuestionRepository, memberAnswerRepository, memberAnswerCategoryRepository, clock, pokeRepository, eventPublisher, familyRepository, questionRepository, aiService
+        );
     }
 
     @Test
@@ -766,5 +771,153 @@ class QuestionServiceTest {
                 return assignedCount;
             }
         };
+    }
+
+    @Test
+    @DisplayName("CATEGORY 답변을 저장하면 AI 분류 결과와 카테고리를 저장한다")
+    void saveAnswerCategory() {
+        Question categoryQuestion = Question.builder()
+                .id(101L)
+                .content("가족과 어떤 활동을 하고 싶나요?")
+                .tasteType(TasteType.CATEGORY)
+                .build();
+
+        FamilyQuestion categoryFamilyQuestion = FamilyQuestion.builder()
+                .id(FAMILY_QUESTION_ID)
+                .family(family)
+                .question(categoryQuestion)
+                .questionDate(today.minusDays(1))
+                .build();
+
+        MemberAnswer answer = MemberAnswer.builder()
+                .content("전시회나 맛집에 가고 싶어요.")
+                .familyQuestion(categoryFamilyQuestion)
+                .member(member)
+                .build();
+
+        ReflectionTestUtils.setField(answer, "id", 500L);
+
+        PreferenceClassification classification = new PreferenceClassification(List.of(Category.EXHIBITION, Category.FOOD_CAFE), null, null, null, null);
+
+        given(aiService.classify(TasteType.CATEGORY, "가족과 어떤 활동을 하고 싶나요?", "전시회나 맛집에 가고 싶어요.")).willReturn(classification);
+
+        questionService.saveAnswer(answer);
+
+        verify(aiService).classify(TasteType.CATEGORY, "가족과 어떤 활동을 하고 싶나요?", "전시회나 맛집에 가고 싶어요.");
+
+        verify(memberAnswerCategoryRepository).deleteAllByMemberAnswerId(500L);
+
+        ArgumentCaptor<List<MemberAnswerCategory>> captor = ArgumentCaptor.forClass(List.class);
+
+        verify(memberAnswerCategoryRepository).saveAll(captor.capture());
+
+        List<MemberAnswerCategory> savedCategories = captor.getValue();
+
+        assertThat(savedCategories).extracting(MemberAnswerCategory::getCategory).containsExactly(Category.EXHIBITION, Category.FOOD_CAFE);
+
+        assertThat(savedCategories).allMatch(category -> category.getMemberAnswer().equals(answer));
+    }
+
+    @Test
+    @DisplayName("PRICE 답변을 저장하면 AI 분류 결과를 답변에 저장한다.")
+    void saveAnswerPrice() {
+        Question priceQuestion = Question.builder()
+                .id(102L)
+                .content("가족과 활동할 때 비용은 어느 정도가 적당한가요?")
+                .tasteType(TasteType.PRICE)
+                .build();
+
+        FamilyQuestion priceFamilyQuestion = FamilyQuestion.builder()
+                .id(FAMILY_QUESTION_ID)
+                .family(family)
+                .question(priceQuestion)
+                .questionDate(today.minusDays(1))
+                .build();
+
+        MemberAnswer answer = MemberAnswer.builder()
+                .content("돈이 많이 들지 않았으면 좋겠어요.")
+                .familyQuestion(priceFamilyQuestion)
+                .member(member)
+                .build();
+
+        PreferenceClassification classification = new PreferenceClassification(List.of(), null, null, PriceLevel.LOW, null);
+
+        given(aiService.classify(TasteType.PRICE, "가족과 활동할 때 비용은 어느 정도가 적당한가요?", "돈이 많이 들지 않았으면 좋겠어요.")).willReturn(classification);
+
+        questionService.saveAnswer(answer);
+
+        assertThat(answer.getIndoorOutdoor()).isNull();
+        assertThat(answer.getDurationLevel()).isNull();
+        assertThat(answer.getPriceLevel()).isEqualTo(PriceLevel.LOW);
+        assertThat(answer.getActivityLevel()).isNull();
+
+        verify(aiService).classify(TasteType.PRICE, "가족과 활동할 때 비용은 어느 정도가 적당한가요?", "돈이 많이 들지 않았으면 좋겠어요.");
+
+        verify(memberAnswerCategoryRepository, never())
+                .deleteAllByMemberAnswerId(any());
+        verify(memberAnswerCategoryRepository, never())
+                .saveAll(any());
+    }
+
+    @Test
+    @DisplayName("일반 질문은 AI 분류를 수행하지 않고 그대로 종료한다.")
+    void saveAnswerGeneralQuestion() {
+        Question generalQuestion = Question.builder()
+                .id(103L)
+                .content("오늘 가장 웃겼던 일은?")
+                .tasteType(null)
+                .build();
+
+        FamilyQuestion generalFamilyQuestion = FamilyQuestion.builder()
+                .id(FAMILY_QUESTION_ID)
+                .family(family)
+                .question(generalQuestion)
+                .questionDate(today.minusDays(1))
+                .build();
+
+        MemberAnswer answer = MemberAnswer.builder()
+                .content("강아지가 산책하다 넘어졌어요.")
+                .familyQuestion(generalFamilyQuestion)
+                .member(member)
+                .build();
+
+        questionService.saveAnswer(answer);
+
+        verify(aiService, never()).classify(any(), any(), any());
+        verify(memberAnswerCategoryRepository, never()).deleteAllByMemberAnswerId(any());
+        verify(memberAnswerCategoryRepository, never()).saveAll(any());
+    }
+
+    @Test
+    @DisplayName("STEPS 답변을 저장하면 AI가 분류한 활동량을 답변에 저장한다.")
+    void saveAnswerSteps() {
+        Question stepsQuestion = Question.builder()
+                .id(104L)
+                .content("얼마나 활동적인 일을 하고 싶나요?")
+                .tasteType(TasteType.STEPS)
+                .build();
+
+        FamilyQuestion stepsFamilyQuestion = FamilyQuestion.builder()
+                .id(FAMILY_QUESTION_ID)
+                .family(family)
+                .question(stepsQuestion)
+                .questionDate(today.minusDays(1))
+                .build();
+
+        MemberAnswer answer = MemberAnswer.builder()
+                .content("많이 움직이는 활동도 괜찮아요.")
+                .familyQuestion(stepsFamilyQuestion)
+                .member(member)
+                .build();
+
+        PreferenceClassification classification = new PreferenceClassification(List.of(), null, null, null, ActivityLevel.ACTIVE);
+
+        given(aiService.classify(TasteType.STEPS, "얼마나 활동적인 일을 하고 싶나요?", "많이 움직이는 활동도 괜찮아요.")).willReturn(classification);
+
+        questionService.saveAnswer(answer);
+
+        assertThat(answer.getActivityLevel()).isEqualTo(ActivityLevel.ACTIVE);
+
+        verify(memberAnswerCategoryRepository, never()).deleteAllByMemberAnswerId(any());
     }
 }
