@@ -626,16 +626,17 @@ class ScheduleQueryServiceTest {
     }
 
     @Test
-    @DisplayName("예산 낮추기를 적용하면 무료 → 유료 순으로 추천하고 요금 정보가 없는 장소는 맨 뒤로 보낸다.")
+    @DisplayName("예산 낮추기를 적용하면 무료 → 1만 원 이하 → 그 외 순으로 추천한다.")
     void getNearby_lowerBudget() {
         Mission unknown = mission(place(2L, "요금 모름", 0.5, null), Category.OUTDOOR, IndoorOutdoor.OUTDOOR, null);
         Mission paid = mission(place(3L, "유료", 1.0, null), Category.OUTDOOR, IndoorOutdoor.OUTDOOR, 20000);
         Mission free = mission(place(4L, "무료", 2.0, null), Category.OUTDOOR, IndoorOutdoor.OUTDOOR, 0);
-        stubNearby(List.of(unknown, paid, free), List.of(), List.of(), List.of(ConditionType.LOWER_BUDGET));
+        Mission cheap = mission(place(5L, "저가", 3.0, null), Category.OUTDOOR, IndoorOutdoor.OUTDOOR, 10000);
+        stubNearby(List.of(unknown, paid, free, cheap), List.of(), List.of(), List.of(ConditionType.LOWER_BUDGET));
 
         List<ScheduleResDTO.NearbyItem> result = scheduleQueryService.getNearby(MEMBER_ID, SCHEDULE_ID);
 
-        assertThat(placeNames(result)).containsExactly("무료", "유료", "요금 모름");
+        assertThat(placeNames(result)).containsExactly("무료", "저가", "요금 모름", "유료");
     }
 
     @Test

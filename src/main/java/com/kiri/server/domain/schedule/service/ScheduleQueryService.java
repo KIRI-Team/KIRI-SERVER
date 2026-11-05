@@ -54,7 +54,6 @@ public class ScheduleQueryService {
     private static final double NEARBY_DISTANCE_KM = 5.0;
     private static final double KM_PER_DEGREE = 111.0;
     private static final double EARTH_RADIUS_KM = 6371.0;
-    // TODO: 취향 테스트 PriceLevel.LOW 기준이 정해지면 교체
     private static final int LOW_PRICE = 10_000;
 
     private final ScheduleRepository scheduleRepository;
@@ -246,7 +245,7 @@ public class ScheduleQueryService {
                 .toList();
     }
 
-    // 조건마다 0~1 가산점(예산은 요금 정보가 없으면 감점)을 더한다
+    // 조건마다 0~1 가산점을 더한다
     private double conditionScore(Mission mission, double distanceKm, Set<ConditionType> conditions) {
         double score = 0;
         if (conditions.contains(ConditionType.REDUCE_STEPS)) {
@@ -269,9 +268,10 @@ public class ScheduleQueryService {
         return mission.getIndoorOutdoor() == IndoorOutdoor.BOTH ? 0.5 : 0;
     }
 
+    // 1인 기준 무료 1점 / 1만 원 이하 0.5점 / 초과 0점 / 정보 없음 0점
     private double budgetScore(Integer price) {
         if (price == null) {
-            return -1;
+            return 0;
         }
         if (price == 0) {
             return 1;
