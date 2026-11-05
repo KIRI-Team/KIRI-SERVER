@@ -33,9 +33,20 @@ class SourceTextParserTest {
     }
 
     @Test
-    @DisplayName("금액이 여러 개면 가장 낮은 금액을 쓴다.")
-    void parseFee_lowestAmount() {
-        assertThat(SourceTextParser.parseFee("어른 3,000원, 어린이 1,500원")).isEqualTo(1500);
+    @DisplayName("성인 요금이 있으면 그중 최저가, 없으면 최저가를 쓰고 단체 요금은 뺀다.")
+    void parseFee_perPerson() {
+        assertThat(SourceTextParser.parseFee("어른 3,000원, 어린이 1,500원")).isEqualTo(3000);
+        assertThat(SourceTextParser.parseFee("R석 50,000원 / S석 30,000원")).isEqualTo(30000);
+        assertThat(SourceTextParser.parseFee("4인 가족권 20,000원 / 1인 8,000원")).isEqualTo(8000);
+        assertThat(SourceTextParser.parseFee("어른 1,000원(단체 800원) 청소년 500원")).isEqualTo(1000);
+        assertThat(SourceTextParser.parseFee("1인 15,000원 (4인 이상 단체 10% 할인)")).isEqualTo(15000);
+        assertThat(SourceTextParser.parseFee("성인 10,000원 (10인 이상 단체 20% 할인)\n성인 야간 8,000원")).isEqualTo(8000);
+    }
+
+    @Test
+    @DisplayName("단체·가족 요금만 있으면 1인 가격을 알 수 없어 null이다.")
+    void parseFee_groupOnly() {
+        assertThat(SourceTextParser.parseFee("4인 가족 패키지 40,000원")).isNull();
     }
 
     @Test
