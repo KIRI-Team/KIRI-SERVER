@@ -108,6 +108,7 @@ public class ScheduleResDTO {
     @Builder
     @Schema(name = "ScheduleDetailResponse", description = "일정 상세 조회 응답")
     public record Detail(
+            Long missionId,
             @JsonFormat(pattern = "yyyy-MM-dd")
             LocalDate date,
             @JsonFormat(pattern = "HH:mm")

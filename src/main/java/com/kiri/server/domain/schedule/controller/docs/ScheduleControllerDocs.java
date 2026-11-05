@@ -253,6 +253,7 @@ public interface ScheduleControllerDocs {
                                       "code": "SCHEDULE200_9",
                                       "message": "일정 상세 조회 성공",
                                       "result": {
+                                        "missionId": 42,
                                         "date": "2026-11-17",
                                         "time": "14:50",
                                         "status": "CONFIRMED",

@@ -100,11 +100,19 @@ public class ScheduleConverter {
     public static ScheduleResDTO.Detail toDetail(Schedule schedule, List<ScheduleParticipant> participants,
                                                  LocalDate today) {
         return ScheduleResDTO.Detail.builder()
+                .missionId(resolveMissionId(schedule))
                 .date(schedule.getScheduleDate())
                 .time(schedule.getScheduleTime())
                 .status(toDetailStatus(schedule, today))
                 .participants(participants.stream().map(ScheduleConverter::toParticipantItem).toList())
                 .build();
+    }
+
+    private static Long resolveMissionId(Schedule schedule) {
+        if (schedule.getBucketItem() == null || schedule.getBucketItem().getMission() == null) {
+            return null;
+        }
+        return schedule.getBucketItem().getMission().getId();
     }
 
     private static ScheduleResDTO.ParticipantItem toParticipantItem(ScheduleParticipant participant) {
