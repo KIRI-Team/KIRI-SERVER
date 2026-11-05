@@ -121,7 +121,8 @@ public class ScheduleResDTO {
             String placeName,
             String region,
             String description,
-            String imageUrl
+            String imageUrl,
+            Integer price
     ) {
     }
 

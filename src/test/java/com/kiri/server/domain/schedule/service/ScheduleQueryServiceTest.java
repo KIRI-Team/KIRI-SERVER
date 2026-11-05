@@ -731,6 +731,7 @@ class ScheduleQueryServiceTest {
         List<ScheduleResDTO.NearbyItem> result = scheduleQueryService.getNearby(MEMBER_ID, SCHEDULE_ID);
 
         assertThat(placeNames(result)).containsExactly("무료", "저가", "요금 모름", "유료");
+        assertThat(result).extracting(ScheduleResDTO.NearbyItem::price).containsExactly(0, 10000, null, 20000);
     }
 
     @Test

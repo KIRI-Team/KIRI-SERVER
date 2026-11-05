@@ -446,6 +446,7 @@ public interface ScheduleControllerDocs {
                       3. 일정 장소에서 1km 이내 → "일정 장소에서 가까운 곳이에요"
                       근거가 없으면 미션 소개 문구를 반환합니다.
                     - imageUrl: 장소 이미지가 없으면 미션 이미지, 둘 다 없으면 null입니다.
+                    - price: 1인 기준 요금(원). 무료면 0, 1인 기준 가격을 확인할 수 없으면 null이며 "정보 확인 필요"로 표시합니다.
                     - 추천할 장소가 없으면 빈 배열입니다.
                     - 같은 가족의 일정만 조회할 수 있으며, 다른 가족의 일정은 존재하지 않는 일정과 같이 404로 응답합니다.
                     """
@@ -469,7 +470,8 @@ public interface ScheduleControllerDocs {
                                                           "placeName": "세빛섬",
                                                           "region": "서울시 서초구",
                                                           "description": "일정 장소에서 가까운 곳이에요",
-                                                          "imageUrl": "https://tong.visitkorea.or.kr/cms/resource/00/1234500_image2_1.jpg"
+                                                          "imageUrl": "https://tong.visitkorea.or.kr/cms/resource/00/1234500_image2_1.jpg",
+                                                          "price": 0
                                                         }
                                                       ]
                                                     }

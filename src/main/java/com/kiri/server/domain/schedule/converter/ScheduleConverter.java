@@ -118,6 +118,7 @@ public class ScheduleConverter {
                 .region(toRegion(place.getAddress()))
                 .description(description)
                 .imageUrl(place.getImageUrl() != null ? place.getImageUrl() : mission.getImageUrl())
+                .price(mission.getPrice())
                 .build();
     }
 
