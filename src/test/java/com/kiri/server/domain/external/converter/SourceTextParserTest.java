@@ -41,6 +41,7 @@ class SourceTextParserTest {
         assertThat(SourceTextParser.parseFee("어른 1,000원(단체 800원) 청소년 500원")).isEqualTo(1000);
         assertThat(SourceTextParser.parseFee("1인 15,000원 (4인 이상 단체 10% 할인)")).isEqualTo(15000);
         assertThat(SourceTextParser.parseFee("성인 10,000원 (10인 이상 단체 20% 할인)\n성인 야간 8,000원")).isEqualTo(8000);
+        assertThat(SourceTextParser.parseFee("어른/청소년 3,000원 / 어린이 1,000원")).isEqualTo(3000);
     }
 
     @Test

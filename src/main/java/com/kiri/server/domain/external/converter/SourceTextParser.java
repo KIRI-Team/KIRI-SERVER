@@ -21,7 +21,7 @@ public class SourceTextParser {
 
     private static final Pattern AMOUNT = Pattern.compile("(\\d{1,3}(?:,\\d{3})+|\\d+)\\s*원");
     private static final String FREE = "무료";
-    private static final Pattern FEE_LABEL_BOUNDARY = Pattern.compile("[\\n,/·ㆍ()（）\\[\\]]");
+    private static final Pattern FEE_LABEL_BOUNDARY = Pattern.compile("[\\n()（）\\[\\]]");
     private static final Pattern ADULT_FEE = Pattern.compile("성인|어른|대인|일반");
     private static final Pattern GROUP_FEE = Pattern.compile("(?<!\\d)(?:[2-9]|\\d{2,})\\s*인|가족|단체|패키지");
 
@@ -117,7 +117,7 @@ public class SourceTextParser {
         return text.contains(FREE) ? 0 : null;
     }
 
-    // 직전 금액 뒤 ~ 이번 금액 앞 구간에서 마지막 구분자(줄바꿈·쉼표·괄호 등) 이후만 이번 금액의 대상 표기
+    // 직전 금액 뒤 ~ 이번 금액 앞 구간에서 마지막 줄바꿈·괄호 이후만 이번 금액의 대상 표기 ("어른/청소년"처럼 묶인 표기는 유지)
     private static String feeLabel(String between) {
         Matcher boundary = FEE_LABEL_BOUNDARY.matcher(between);
         int labelStart = 0;
