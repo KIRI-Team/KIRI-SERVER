@@ -18,6 +18,7 @@ import com.kiri.server.domain.schedule.entity.ScheduleParticipant;
 import com.kiri.server.domain.schedule.enums.CalendarMyStatus;
 import com.kiri.server.domain.schedule.enums.ConditionType;
 import com.kiri.server.domain.schedule.enums.ParticipantStatus;
+import com.kiri.server.domain.schedule.enums.ScheduleDetailStatus;
 import com.kiri.server.domain.schedule.enums.ScheduleStatus;
 import com.kiri.server.domain.schedule.enums.UpcomingCardType;
 import com.kiri.server.domain.schedule.exception.ScheduleException;
@@ -31,6 +32,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -38,6 +41,7 @@ import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.ZoneId;
 import java.util.List;
@@ -633,5 +637,128 @@ class ScheduleQueryServiceTest {
         List<ScheduleResDTO.NearbyItem> result = scheduleQueryService.getNearby(MEMBER_ID, SCHEDULE_ID);
 
         assertThat(placeNames(result)).containsExactly("무료", "유료", "요금 모름");
+    }
+
+    @Test
+    @DisplayName("일정 상세 조회: 회원이 없으면 MEMBER404_1로 예외를 던진다.")
+    void getDetail_memberNotFound() {
+        given(memberRepository.findById(MEMBER_ID)).willReturn(Optional.empty());
+
+        assertThatThrownBy(() -> scheduleQueryService.getDetail(MEMBER_ID, 118L))
+                .isInstanceOf(MemberException.class);
+
+        verifyNoInteractions(scheduleRepository, scheduleParticipantRepository);
+    }
+
+    @Test
+    @DisplayName("일정 상세 조회: 가족공간이 없으면 SCHEDULE403_1로 예외를 던진다.")
+    void getDetail_noFamily() {
+        given(memberRepository.findById(MEMBER_ID)).willReturn(Optional.of(Member.builder().build()));
+
+        assertThatThrownBy(() -> scheduleQueryService.getDetail(MEMBER_ID, 118L))
+                .isInstanceOf(ScheduleException.class)
+                .extracting(e -> ((ScheduleException) e).getErrorCode())
+                .isEqualTo(ScheduleErrorCode.FAMILY_REQUIRED);
+
+        verifyNoInteractions(scheduleRepository, scheduleParticipantRepository);
+    }
+
+    @Test
+    @DisplayName("일정 상세 조회: 일정이 없으면 SCHEDULE404_2로 예외를 던진다.")
+    void getDetail_scheduleNotFound() {
+        Family family = Family.builder().id(10L).build();
+        given(memberRepository.findById(MEMBER_ID)).willReturn(Optional.of(Member.builder().family(family).build()));
+        given(scheduleRepository.findById(118L)).willReturn(Optional.empty());
+
+        assertThatThrownBy(() -> scheduleQueryService.getDetail(MEMBER_ID, 118L))
+                .isInstanceOf(ScheduleException.class)
+                .extracting(e -> ((ScheduleException) e).getErrorCode())
+                .isEqualTo(ScheduleErrorCode.SCHEDULE_NOT_FOUND);
+
+        verifyNoInteractions(scheduleParticipantRepository);
+    }
+
+    @Test
+    @DisplayName("일정 상세 조회: 다른 가족의 일정이면 SCHEDULE404_2로 예외를 던진다.")
+    void getDetail_otherFamily() {
+        Family family = Family.builder().id(10L).build();
+        given(memberRepository.findById(MEMBER_ID)).willReturn(Optional.of(Member.builder().family(family).build()));
+        given(scheduleRepository.findById(118L)).willReturn(Optional.of(
+                schedule(118L, LocalDate.of(2026, 11, 3), ScheduleStatus.CONFIRMED, Family.builder().id(20L).build())));
+
+        assertThatThrownBy(() -> scheduleQueryService.getDetail(MEMBER_ID, 118L))
+                .isInstanceOf(ScheduleException.class)
+                .extracting(e -> ((ScheduleException) e).getErrorCode())
+                .isEqualTo(ScheduleErrorCode.SCHEDULE_NOT_FOUND);
+
+        verifyNoInteractions(scheduleParticipantRepository);
+    }
+
+    @Test
+    @DisplayName("일정 상세 조회: 취소된 일정이면 SCHEDULE409_7로 예외를 던진다.")
+    void getDetail_cancelled() {
+        Family family = Family.builder().id(10L).build();
+        given(memberRepository.findById(MEMBER_ID)).willReturn(Optional.of(Member.builder().family(family).build()));
+        given(scheduleRepository.findById(118L)).willReturn(Optional.of(
+                schedule(118L, LocalDate.of(2026, 11, 3), ScheduleStatus.CANCELLED, family)));
+
+        assertThatThrownBy(() -> scheduleQueryService.getDetail(MEMBER_ID, 118L))
+                .isInstanceOf(ScheduleException.class)
+                .extracting(e -> ((ScheduleException) e).getErrorCode())
+                .isEqualTo(ScheduleErrorCode.SCHEDULE_CANCELLED);
+
+        verifyNoInteractions(scheduleParticipantRepository);
+    }
+
+    @Test
+    @DisplayName("일정 상세 조회: 날짜·시간과 참여자별 닉네임·수락 여부를 조회 순서대로 반환하고, 탈퇴한 참여자는 '탈퇴한 사용자'로 표시한다.")
+    void getDetail_participants() {
+        Family family = Family.builder().id(10L).build();
+        given(memberRepository.findById(MEMBER_ID)).willReturn(Optional.of(Member.builder().family(family).build()));
+        Schedule schedule = Schedule.builder().id(118L).family(family)
+                .scheduleDate(LocalDate.of(2026, 11, 3)).scheduleTime(LocalTime.of(14, 50))
+                .status(ScheduleStatus.CONFIRMED).build();
+        given(scheduleRepository.findById(118L)).willReturn(Optional.of(schedule));
+        Member withdrawn = Member.builder().deletedAt(LocalDateTime.of(2026, 10, 30, 12, 0)).build();
+        given(scheduleParticipantRepository.findAllWithMemberByScheduleId(118L)).willReturn(List.of(
+                ScheduleParticipant.builder().schedule(schedule).member(Member.builder().nickname("엄마").build())
+                        .status(ParticipantStatus.ACCEPTED).build(),
+                ScheduleParticipant.builder().schedule(schedule).member(Member.builder().nickname("첫째").build())
+                        .status(ParticipantStatus.PENDING).build(),
+                ScheduleParticipant.builder().schedule(schedule).member(Member.builder().nickname("둘째").build())
+                        .status(ParticipantStatus.DECLINED).build(),
+                ScheduleParticipant.builder().schedule(schedule).member(withdrawn)
+                        .status(ParticipantStatus.ACCEPTED).build(),
+                ScheduleParticipant.builder().schedule(schedule).member(null)
+                        .status(ParticipantStatus.ACCEPTED).build()));
+
+        ScheduleResDTO.Detail result = scheduleQueryService.getDetail(MEMBER_ID, 118L);
+
+        assertThat(result.date()).isEqualTo(LocalDate.of(2026, 11, 3));
+        assertThat(result.time()).isEqualTo(LocalTime.of(14, 50));
+        assertThat(result.participants()).extracting(ScheduleResDTO.ParticipantItem::nickname)
+                .containsExactly("엄마", "첫째", "둘째", "탈퇴한 사용자", "탈퇴한 사용자");
+        assertThat(result.participants()).extracting(ScheduleResDTO.ParticipantItem::accepted)
+                .containsExactly(true, false, false, true, true);
+    }
+
+    @ParameterizedTest(name = "{0}, {1} → {2}")
+    @CsvSource({
+            "PENDING_RESPONSE, 2026-11-03, SCHEDULED",
+            "NOT_CONFIRMED, 2026-11-03, SCHEDULED",
+            "CONFIRMED, 2026-11-03, CONFIRMED",
+            "CONFIRMED, 2026-11-01, TODAY",
+            "COMPLETED, 2026-11-01, COMPLETED"
+    })
+    @DisplayName("일정 상세 조회: 일정 상태와 날짜로 화면 표시용 상태를 계산한다.")
+    void getDetail_status(ScheduleStatus status, LocalDate date, ScheduleDetailStatus expected) {
+        Family family = Family.builder().id(10L).build();
+        given(memberRepository.findById(MEMBER_ID)).willReturn(Optional.of(Member.builder().family(family).build()));
+        given(scheduleRepository.findById(118L)).willReturn(Optional.of(schedule(118L, date, status, family)));
+        given(scheduleParticipantRepository.findAllWithMemberByScheduleId(118L)).willReturn(List.of());
+
+        ScheduleResDTO.Detail result = scheduleQueryService.getDetail(MEMBER_ID, 118L);
+
+        assertThat(result.status()).isEqualTo(expected);
     }
 }

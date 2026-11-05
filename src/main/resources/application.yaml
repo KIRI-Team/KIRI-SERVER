@@ -37,13 +37,19 @@ management:
   endpoints:
     web:
       exposure:
-        include: health, info
+        include: health, info, prometheus
   endpoint:
     health:
       show-details: never
   info:
     git:
       mode: full
+  metrics:
+    tags:
+      application: kiri-server
+    distribution:
+      slo:
+        http.server.requests: 100ms, 300ms, 1s, 3s
 
 logging:
   pattern:
@@ -109,3 +115,22 @@ aws:
     key-pair-id: ${CLOUDFRONT_KEY_PAIR_ID}
     private-key: ${CLOUDFRONT_PRIVATE_KEY}
     signed-url-expiration: 2h
+
+gemini:
+  api-key: ${GEMINI_API_KEY}
+  model: gemini-3.5-flash-lite
+
+sentry:
+  exception-resolver-order: -2147483647
+  ignored-exceptions-for-type:
+    - jakarta.validation.ConstraintViolationException
+    - org.springframework.dao.DataIntegrityViolationException
+    - org.springframework.validation.BindException
+    - org.springframework.web.bind.MethodArgumentNotValidException
+    - org.springframework.http.converter.HttpMessageNotReadableException
+    - org.springframework.web.bind.MissingServletRequestParameterException
+    - org.springframework.web.HttpMediaTypeNotSupportedException
+    - org.springframework.web.HttpRequestMethodNotSupportedException
+    - org.springframework.beans.TypeMismatchException
+    - org.springframework.web.servlet.resource.NoResourceFoundException
+    - org.springframework.web.method.annotation.HandlerMethodValidationException

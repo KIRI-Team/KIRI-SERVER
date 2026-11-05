@@ -7,8 +7,10 @@ import com.kiri.server.domain.mission.enums.Category;
 import com.kiri.server.domain.mission.enums.IndoorOutdoor;
 import com.kiri.server.domain.mission.enums.MissionStatus;
 import com.kiri.server.domain.mission.enums.MissionType;
+import com.kiri.server.domain.mission.enums.WalkingLevel;
 import com.kiri.server.domain.mission.exception.MissionException;
 import com.kiri.server.domain.mission.exception.code.MissionErrorCode;
+import com.kiri.server.domain.mission.service.FamilyMissionRecommendationService;
 import com.kiri.server.domain.mission.service.MissionQueryService;
 import com.kiri.server.global.config.SecurityConfig;
 import com.kiri.server.global.security.handler.CustomAccessDeniedHandler;
@@ -26,6 +28,7 @@ import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.List;
@@ -56,6 +59,9 @@ class MissionControllerTest {
 
     @MockitoBean
     private MissionQueryService missionQueryService;
+
+    @MockitoBean
+    private FamilyMissionRecommendationService familyMissionRecommendationService;
 
     private String bearerToken;
 
@@ -192,6 +198,7 @@ class MissionControllerTest {
                 .openingTime(LocalTime.of(10, 0))
                 .closingTime(LocalTime.of(18, 0))
                 .price(0)
+                .walkingLevel(WalkingLevel.MEDIUM)
                 .place(MissionResDTO.PlaceInfo.builder()
                         .placeId(52L).name("국립현대미술관 서울").latitude(37.5786).longitude(126.98).build())
                 .prepareItems(List.of())
@@ -208,6 +215,7 @@ class MissionControllerTest {
                 .andExpect(jsonPath("$.result.openingTime").value("10:00"))
                 .andExpect(jsonPath("$.result.closingTime").value("18:00"))
                 .andExpect(jsonPath("$.result.place.name").value("국립현대미술관 서울"))
+                .andExpect(jsonPath("$.result.walkingLevel").value("MEDIUM"))
                 .andExpect(jsonPath("$.result.steps[0].title").value("상설 전시 관람하기"))
                 .andExpect(jsonPath("$.result.bucketSaved").value(false))
                 .andExpect(jsonPath("$.result.bucketState").value("NONE"));
@@ -230,5 +238,48 @@ class MissionControllerTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("COMMON400_1"));
         verifyNoInteractions(missionQueryService);
+    }
+
+    @Test
+    @DisplayName("추천 미션 조회에 성공하면 MISSION200_3과 추천 미션을 반환한다.")
+    void getRecommendationsSuccess() throws Exception {
+        MissionResDTO.Recommendation recommendation =
+                MissionResDTO.Recommendation.builder()
+                        .missionId(130L)
+                        .score(new BigDecimal("0.9"))
+                        .build();
+
+        given(familyMissionRecommendationService.getRecommendationsByMemberId(MEMBER_ID)).willReturn(recommendation);
+
+        mockMvc.perform(get("/api/v1/missions/recommendations")
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.result.missionId").value(130))
+                .andExpect(jsonPath("$.result.score").value(0.9));
+
+        verify(familyMissionRecommendationService).getRecommendationsByMemberId(MEMBER_ID);
+    }
+
+    @Test
+    @DisplayName("저장된 추천 미션이 없으면 result에 null을 반환한다.")
+    void getRecommendationsEmpty() throws Exception {
+        given(familyMissionRecommendationService.getRecommendationsByMemberId(MEMBER_ID)).willReturn(null);
+
+        mockMvc.perform(get("/api/v1/missions/recommendations")
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.result").value(org.hamcrest.Matchers.nullValue()));
+
+        verify(familyMissionRecommendationService).getRecommendationsByMemberId(MEMBER_ID);
+    }
+
+    @Test
+    @DisplayName("토큰 없이 추천 미션을 조회하면 COMMON401_1로 응답한다.")
+    void getRecommendationsNoToken() throws Exception {
+        mockMvc.perform(get("/api/v1/missions/recommendations"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("COMMON401_1"));
+
+        verifyNoInteractions(familyMissionRecommendationService);
     }
 }

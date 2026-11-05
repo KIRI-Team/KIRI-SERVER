@@ -591,4 +591,180 @@ public interface ScheduleControllerDocs {
             @Parameter(hidden = true) Long memberId,
             @Parameter(description = "일정 ID", example = "118") Long scheduleId
     );
+
+    @Operation(
+            summary = "일정 상세 조회 API",
+            description = """
+                    # 일정 화면 헤더 조회
+
+                    ## 요청 형식
+                    - 헤더: Authorization: Bearer {JWT 토큰}
+                    - Path: scheduleId
+
+                    일정 화면 헤더의 날짜, 시작 시간, 일정 상태와 참여자별 수락 여부를 조회합니다.
+                    인원 확인과 참여 상태 확인 모두 이 API로 처리합니다.
+                    미션 정보(제목, 장소, 걸음 수, 활동 시간)는 미션 상세 조회 API를 사용합니다.
+
+                    ## 응답 규칙
+                    - date: yyyy-MM-dd, time: HH:mm
+                    - status: 화면 표시용 일정 상태
+                      - SCHEDULED: 약속 예정 (응답 대기 / 미확정)
+                      - CONFIRMED: 약속 확정 (확정, 일정 당일이 아님)
+                      - TODAY: 약속 당일이에요! (확정, 일정 날짜가 오늘)
+                      - COMPLETED: 약속 완료
+                    - participants: 제안자가 맨 앞이며, 이후 초대 순서입니다.
+                      - nickname: 탈퇴한 회원은 "탈퇴한 사용자"로 표시합니다.
+                      - accepted: 수락했으면 true, 응답 대기·거절이면 false
+                    - 같은 가족의 일정이면 초대받지 않은 구성원도 조회할 수 있으며, 다른 가족의 일정은 존재하지 않는 일정과 같이 404로 응답합니다.
+                    - 취소된 일정은 조회할 수 없습니다. (409)
+                    """
+    )
+    @ApiResponses(value = {
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200",
+                    description = "조회 성공",
+                    content = @Content(
+                            mediaType = "application/json",
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "isSuccess": true,
+                                      "code": "SCHEDULE200_9",
+                                      "message": "일정 상세 조회 성공",
+                                      "result": {
+                                        "date": "2026-11-17",
+                                        "time": "14:50",
+                                        "status": "CONFIRMED",
+                                        "participants": [
+                                          { "nickname": "엄마", "accepted": true },
+                                          { "nickname": "아빠", "accepted": true },
+                                          { "nickname": "첫째", "accepted": false }
+                                        ]
+                                      }
+                                    }
+                                    """)
+                    )
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "400",
+                    description = "scheduleId 형식 오류(COMMON400_1)",
+                    content = @Content(
+                            mediaType = "application/json",
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "isSuccess": false,
+                                      "code": "COMMON400_1",
+                                      "message": "잘못된 요청입니다.",
+                                      "result": null
+                                    }
+                                    """)
+                    )
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "401",
+                    description = "인증 실패 - 토큰 미삽입(COMMON401_1) / 유효하지 않은 토큰(AUTH401_1) / 토큰 만료(AUTH401_2)",
+                    content = @Content(
+                            mediaType = "application/json",
+                            examples = {
+                                    @ExampleObject(
+                                            name = "토큰 미삽입",
+                                            value = """
+                                                    {
+                                                      "isSuccess": false,
+                                                      "code": "COMMON401_1",
+                                                      "message": "인증이 필요합니다.",
+                                                      "result": null
+                                                    }
+                                                    """
+                                    ),
+                                    @ExampleObject(
+                                            name = "유효하지 않은 토큰",
+                                            value = """
+                                                    {
+                                                      "isSuccess": false,
+                                                      "code": "AUTH401_1",
+                                                      "message": "유효하지 않은 토큰입니다.",
+                                                      "result": null
+                                                    }
+                                                    """
+                                    ),
+                                    @ExampleObject(
+                                            name = "토큰 만료",
+                                            value = """
+                                                    {
+                                                      "isSuccess": false,
+                                                      "code": "AUTH401_2",
+                                                      "message": "토큰이 만료되었습니다.",
+                                                      "result": null
+                                                    }
+                                                    """
+                                    )
+                            }
+                    )
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "403",
+                    description = "가족공간이 없는 회원(SCHEDULE403_1)",
+                    content = @Content(
+                            mediaType = "application/json",
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "isSuccess": false,
+                                      "code": "SCHEDULE403_1",
+                                      "message": "가족 공간이 없습니다.",
+                                      "result": null
+                                    }
+                                    """)
+                    )
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "404",
+                    description = "토큰의 회원이 없음(MEMBER404_1) / 없거나 다른 가족의 일정(SCHEDULE404_2)",
+                    content = @Content(
+                            mediaType = "application/json",
+                            examples = {
+                                    @ExampleObject(
+                                            name = "회원 없음",
+                                            value = """
+                                                    {
+                                                      "isSuccess": false,
+                                                      "code": "MEMBER404_1",
+                                                      "message": "존재하지 않는 회원입니다.",
+                                                      "result": null
+                                                    }
+                                                    """
+                                    ),
+                                    @ExampleObject(
+                                            name = "일정 없음",
+                                            value = """
+                                                    {
+                                                      "isSuccess": false,
+                                                      "code": "SCHEDULE404_2",
+                                                      "message": "존재하지 않는 일정입니다.",
+                                                      "result": null
+                                                    }
+                                                    """
+                                    )
+                            }
+                    )
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "409",
+                    description = "취소된 일정(SCHEDULE409_7)",
+                    content = @Content(
+                            mediaType = "application/json",
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "isSuccess": false,
+                                      "code": "SCHEDULE409_7",
+                                      "message": "취소된 일정입니다.",
+                                      "result": null
+                                    }
+                                    """)
+                    )
+            )
+    })
+    ApiResponse<ScheduleResDTO.Detail> getDetail(
+            @Parameter(hidden = true) Long memberId,
+            @Parameter(description = "일정 ID", example = "118") Long scheduleId
+    );
 }

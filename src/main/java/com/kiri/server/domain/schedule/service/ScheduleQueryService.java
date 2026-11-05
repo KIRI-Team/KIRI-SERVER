@@ -305,4 +305,24 @@ public class ScheduleQueryService {
         return scheduleParticipantRepository.findBySchedule_IdInAndMember_Id(ids, memberId).stream()
                 .collect(Collectors.toMap(participant -> participant.getSchedule().getId(), Function.identity()));
     }
+
+    @Transactional(readOnly = true)
+    public ScheduleResDTO.Detail getDetail(Long memberId, Long scheduleId) {
+        Member member = memberRepository.findById(memberId)
+                .orElseThrow(() -> new MemberException(MemberErrorCode.NOT_FOUND));
+        Family family = member.getFamily();
+        if (family == null) {
+            throw new ScheduleException(ScheduleErrorCode.FAMILY_REQUIRED);
+        }
+
+        Schedule schedule = scheduleRepository.findById(scheduleId)
+                .filter(found -> found.getFamily().getId().equals(family.getId()))
+                .orElseThrow(() -> new ScheduleException(ScheduleErrorCode.SCHEDULE_NOT_FOUND));
+        if (schedule.getStatus() == ScheduleStatus.CANCELLED) {
+            throw new ScheduleException(ScheduleErrorCode.SCHEDULE_CANCELLED);
+        }
+        List<ScheduleParticipant> participants = scheduleParticipantRepository.findAllWithMemberByScheduleId(scheduleId);
+
+        return ScheduleConverter.toDetail(schedule, participants, LocalDate.now(clock));
+    }
 }

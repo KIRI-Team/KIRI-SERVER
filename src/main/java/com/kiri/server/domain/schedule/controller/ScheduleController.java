@@ -66,4 +66,15 @@ public class ScheduleController implements ScheduleControllerDocs {
                 scheduleQueryService.getNearby(memberId, scheduleId)
         );
     }
+
+    @GetMapping("/{scheduleId}")
+    public ApiResponse<ScheduleResDTO.Detail> getDetail(
+            @AuthenticationPrincipal Long memberId,
+            @PathVariable Long scheduleId
+    ) {
+        return ApiResponse.onSuccess(
+                ScheduleSuccessCode.DETAIL_SUCCESS,
+                scheduleQueryService.getDetail(memberId, scheduleId)
+        );
+    }
 }

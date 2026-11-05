@@ -6,20 +6,21 @@ import com.kiri.server.domain.member.entity.Member;
 import com.kiri.server.domain.member.exception.MemberException;
 import com.kiri.server.domain.member.exception.code.MemberErrorCode;
 import com.kiri.server.domain.member.repository.MemberRepository;
+import com.kiri.server.domain.question.converter.MemberAnswerConverter;
 import com.kiri.server.domain.question.converter.QuestionConverter;
+import com.kiri.server.domain.question.dto.PreferenceClassification;
 import com.kiri.server.domain.question.dto.QuestionReqDTO;
 import com.kiri.server.domain.question.dto.QuestionResDTO;
 import com.kiri.server.domain.question.entity.FamilyQuestion;
 import com.kiri.server.domain.question.entity.MemberAnswer;
+import com.kiri.server.domain.question.entity.MemberAnswerCategory;
 import com.kiri.server.domain.question.entity.Question;
 import com.kiri.server.domain.question.enums.TasteType;
 import com.kiri.server.domain.question.event.PokeEvent;
 import com.kiri.server.domain.question.exception.QuestionException;
 import com.kiri.server.domain.question.exception.code.QuestionErrorCode;
-import com.kiri.server.domain.question.repository.FamilyQuestionRepository;
-import com.kiri.server.domain.question.repository.MemberAnswerRepository;
-import com.kiri.server.domain.question.repository.PokeRepository;
-import com.kiri.server.domain.question.repository.QuestionRepository;
+import com.kiri.server.domain.question.repository.*;
+import com.kiri.server.global.ai.service.AiService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.postgresql.util.PSQLException;
@@ -53,11 +54,13 @@ public class QuestionService {
     private final MemberRepository memberRepository;
     private final FamilyQuestionRepository familyQuestionRepository;
     private final MemberAnswerRepository memberAnswerRepository;
+    private final MemberAnswerCategoryRepository memberAnswerCategoryRepository;
     private final Clock clock;
     private final PokeRepository pokeRepository;
     private final ApplicationEventPublisher eventPublisher;
     private final FamilyRepository familyRepository;
     private final QuestionRepository questionRepository;
+    private final AiService aiService;
 
     @Transactional(readOnly = true)
     public QuestionResDTO.TodayQuestion getTodayQuestion(Long memberId) {
@@ -243,6 +246,32 @@ public class QuestionService {
         }
 
         familyQuestionRepository.save(QuestionConverter.toFamilyQuestion(family, question.get(), date));
+    }
+
+    @Transactional
+    public void saveAnswer(MemberAnswer answer) {
+        TasteType tasteType = answer.getFamilyQuestion().getQuestion().getTasteType();
+
+        if (tasteType == null) {
+            return;
+        }
+
+        String question = answer.getFamilyQuestion().getQuestion().getContent();
+
+        PreferenceClassification classification = aiService.classify(tasteType, question, answer.getContent());
+
+        answer.updateClassification(classification.indoorOutdoor(), classification.durationLevel(), classification.priceLevel(), classification.activityLevel());
+
+        if (tasteType == TasteType.CATEGORY) {
+            memberAnswerCategoryRepository.deleteAllByMemberAnswerId(answer.getId());
+
+            List<MemberAnswerCategory> categories =
+                    classification.categories().stream()
+                            .map(category -> MemberAnswerConverter.toMemberAnswerCategory(answer, category))
+                            .toList();
+
+            memberAnswerCategoryRepository.saveAll(categories);
+        }
     }
 
     // 1~7일차 고정 질문

@@ -9,6 +9,7 @@ import com.kiri.server.domain.mission.enums.MissionStatus;
 import com.kiri.server.domain.mission.generator.dto.MissionDraft;
 import com.kiri.server.domain.place.entity.Place;
 
+import java.math.BigDecimal;
 import java.time.LocalTime;
 import java.util.Comparator;
 import java.util.List;
@@ -43,8 +44,7 @@ public class MissionConverter {
                 .durationMinMinutes(draft.durationMinMinutes())
                 .durationMaxMinutes(draft.durationMaxMinutes())
                 .price(draft.price())
-                .estimatedStepsMin(draft.estimatedStepsMin())
-                .estimatedStepsMax(draft.estimatedStepsMax())
+                .walkingLevel(draft.walkingLevel())
                 .indoorOutdoor(draft.indoorOutdoor())
                 .startDate(draft.startDate())
                 .endDate(draft.endDate())
@@ -114,8 +114,7 @@ public class MissionConverter {
                 .price(mission.getPrice())
                 .durationMinMinutes(mission.getDurationMinMinutes())
                 .durationMaxMinutes(mission.getDurationMaxMinutes())
-                .estimatedStepsMin(mission.getEstimatedStepsMin())
-                .estimatedStepsMax(mission.getEstimatedStepsMax())
+                .walkingLevel(mission.getWalkingLevel())
                 .sourceUrl(sourceUrl)
                 .place(toPlaceInfo(place))
                 .prepareItems(toChecklist(items, ItemType.PREPARE))
@@ -124,6 +123,18 @@ public class MissionConverter {
                 .bucketState(bucketState)
                 .averageRating(null)
                 .reviewCount(0)
+                .build();
+    }
+
+    public static MissionResDTO.Recommendation toRecommendation(Mission mission, BigDecimal score) {
+        return MissionResDTO.Recommendation.builder()
+                .missionId(mission.getId())
+                .title(mission.getTitle())
+                .description(mission.getDescription())
+                .category(mission.getCategory())
+                .imageUrl(mission.getImageUrl())
+                .recommendationReason(mission.getRecommendationReason())
+                .score(score)
                 .build();
     }
 

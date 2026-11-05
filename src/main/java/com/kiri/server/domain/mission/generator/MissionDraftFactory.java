@@ -6,6 +6,7 @@ import com.kiri.server.domain.external.dto.NormalizedContent;
 import com.kiri.server.domain.external.enums.ReviewReason;
 import com.kiri.server.domain.mission.enums.Category;
 import com.kiri.server.domain.mission.enums.MissionType;
+import com.kiri.server.domain.mission.enums.WalkingLevel;
 import com.kiri.server.domain.mission.generator.ActivityEstimator.Estimate;
 import com.kiri.server.domain.mission.generator.CategoryClassifier.Classification;
 import com.kiri.server.domain.mission.generator.dto.DraftResult;
@@ -92,6 +93,7 @@ public class MissionDraftFactory {
     private MissionDraft toDraft(NormalizedContent content, Classification classification, MissionType missionType) {
         Category category = classification.category();
         Estimate estimate = ActivityEstimator.estimate(category, content.durationText());
+        WalkingLevel walkingLevel = WalkingLevelClassifier.classify(category, content);
         TimeRange hours = SourceTextParser.parseTimeRange(content.usageTimeText());
         boolean period = missionType == MissionType.PERIOD;
 
@@ -123,8 +125,7 @@ public class MissionDraftFactory {
                 .price(SourceTextParser.parseFee(content.feeText()))
                 .durationMinMinutes(estimate.durationMinMinutes())
                 .durationMaxMinutes(estimate.durationMaxMinutes())
-                .estimatedStepsMin(estimate.stepsMin())
-                .estimatedStepsMax(estimate.stepsMax())
+                .walkingLevel(walkingLevel)
                 .imageUrl(content.imageUrl())
                 .imageSource(imageSource(content))
                 .place(place)

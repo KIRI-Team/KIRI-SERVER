@@ -6,8 +6,10 @@ import com.kiri.server.domain.mission.enums.Category;
 import com.kiri.server.domain.mission.enums.IndoorOutdoor;
 import com.kiri.server.domain.mission.enums.MissionStatus;
 import com.kiri.server.domain.mission.enums.MissionType;
+import com.kiri.server.domain.mission.enums.WalkingLevel;
 import lombok.Builder;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.List;
@@ -58,8 +60,7 @@ public class MissionResDTO {
             Integer price,
             Integer durationMinMinutes,
             Integer durationMaxMinutes,
-            Integer estimatedStepsMin,
-            Integer estimatedStepsMax,
+            WalkingLevel walkingLevel,
             String sourceUrl,
             PlaceInfo place,
             List<ChecklistItem> prepareItems,
@@ -87,4 +88,15 @@ public class MissionResDTO {
             String description
     ) {
     }
+
+    @Builder
+    public record Recommendation(
+            Long missionId,
+            String title,
+            String description,
+            Category category,
+            String imageUrl,
+            String recommendationReason,
+            BigDecimal score
+    ) {}
 }
