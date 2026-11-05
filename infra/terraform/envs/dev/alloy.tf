@@ -3,6 +3,8 @@ locals {
     "GRAFANA_PROM_URL",
     "GRAFANA_PROM_USER",
     "GRAFANA_CLOUD_TOKEN",
+    "GRAFANA_LOKI_URL",
+    "GRAFANA_LOKI_USER",
   ]
 }
 
