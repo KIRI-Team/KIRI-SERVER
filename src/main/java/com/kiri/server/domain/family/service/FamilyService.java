@@ -200,7 +200,7 @@ public class FamilyService {
 
     @Transactional(readOnly = true)
     public FamilyResDTO.Id getFamilyId(Long memberId) {
-        Family family = familyRepository.findByMembersId(memberId)
+        Family family = familyRepository.findByMemberId(memberId)
                 .orElseThrow(() -> new FamilyException(FamilyErrorCode.NOT_FOUND));
 
         return FamilyConverter.toId(family);

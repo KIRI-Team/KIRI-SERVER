@@ -683,14 +683,14 @@ class FamilyServiceTest {
 
         Family family = mock(Family.class);
 
-        when(familyRepository.findByMembersId(memberId)).thenReturn(Optional.of(family));
+        when(familyRepository.findByMemberId(memberId)).thenReturn(Optional.of(family));
         when(family.getId()).thenReturn(familyId);
 
         FamilyResDTO.Id result = familyService.getFamilyId(memberId);
 
         assertThat(result.familyId()).isEqualTo(familyId);
 
-        verify(familyRepository).findByMembersId(memberId);
+        verify(familyRepository).findByMemberId(memberId);
     }
 
     @Test
@@ -698,13 +698,13 @@ class FamilyServiceTest {
     void getFamilyIdFailNotJoinedFamily() {
         Long memberId = 1L;
 
-        when(familyRepository.findByMembersId(memberId)).thenReturn(Optional.empty());
+        when(familyRepository.findByMemberId(memberId)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> familyService.getFamilyId(memberId))
                 .isInstanceOf(FamilyException.class)
                 .hasMessage(FamilyErrorCode.NOT_FOUND.getMessage());
 
-        verify(familyRepository).findByMembersId(memberId);
+        verify(familyRepository).findByMemberId(memberId);
     }
 
     private FamilyReqDTO.UpdateAddress createAddressRequest() {

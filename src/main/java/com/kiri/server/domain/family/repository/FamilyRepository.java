@@ -4,6 +4,7 @@ import com.kiri.server.domain.family.entity.Family;
 import com.kiri.server.domain.member.entity.Member;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import java.util.List;
 
@@ -19,5 +20,11 @@ public interface FamilyRepository extends JpaRepository<Family, Long> {
 
     boolean existsByInviteCode(String code);
 
-    Optional<Family> findByMembersId(Long memberId);
+    @Query("""
+        SELECT m.family
+        FROM Member m
+        WHERE m.id = :memberId
+        AND m.family IS NOT NULL
+        """)
+    Optional<Family> findByMemberId(@Param("memberId") Long memberId);
 }
