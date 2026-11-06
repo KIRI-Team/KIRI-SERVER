@@ -41,4 +41,9 @@ public class FamilyResDTO {
             BigDecimal latitude,
             BigDecimal longitude
     ) {}
+
+    @Builder
+    public record Id(
+            Long familyId
+    ) {}
 }

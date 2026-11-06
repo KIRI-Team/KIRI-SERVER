@@ -675,6 +675,38 @@ class FamilyServiceTest {
                 .isEqualTo(FamilyErrorCode.FORBIDDEN);
     }
 
+    @Test
+    @DisplayName("가족 ID 조회 성공")
+    void getFamilyIdSuccess() {
+        Long memberId = 1L;
+        Long familyId = 10L;
+
+        Family family = mock(Family.class);
+
+        when(familyRepository.findByMemberId(memberId)).thenReturn(Optional.of(family));
+        when(family.getId()).thenReturn(familyId);
+
+        FamilyResDTO.Id result = familyService.getFamilyId(memberId);
+
+        assertThat(result.familyId()).isEqualTo(familyId);
+
+        verify(familyRepository).findByMemberId(memberId);
+    }
+
+    @Test
+    @DisplayName("가족에 소속되지 않은 사용자가 가족 ID 조회 시 예외 발생")
+    void getFamilyIdFailNotJoinedFamily() {
+        Long memberId = 1L;
+
+        when(familyRepository.findByMemberId(memberId)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> familyService.getFamilyId(memberId))
+                .isInstanceOf(FamilyException.class)
+                .hasMessage(FamilyErrorCode.NOT_FOUND.getMessage());
+
+        verify(familyRepository).findByMemberId(memberId);
+    }
+
     private FamilyReqDTO.UpdateAddress createAddressRequest() {
         return new FamilyReqDTO.UpdateAddress(
                 "12345",

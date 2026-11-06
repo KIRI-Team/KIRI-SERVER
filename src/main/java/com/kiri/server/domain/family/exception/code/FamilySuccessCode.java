@@ -14,6 +14,7 @@ public enum FamilySuccessCode implements BaseSuccessCode {
     INVITE_FOUND(HttpStatus.OK, "FAMILY200_3", "가족 초대 정보를 조회했습니다."),
     NAME_UPDATED(HttpStatus.OK, "FAMILY200_4", "가족명이 변경되었습니다."),
     ADDRESS_UPDATED(HttpStatus.OK, "FAMILY200_5", "가족 주소가 저장되었습니다."),
+    FAMILY_ID_SUCCESS(HttpStatus.OK, "FAMILY200_6", "가족 ID 조회에 성공했습니다."),
     FAMILY_CREATED(HttpStatus.CREATED, "FAMILY201_1", "가족 공간이 생성되었습니다.");
 
     private final HttpStatus httpStatus;
