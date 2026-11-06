@@ -15,34 +15,34 @@ public class NotificationTransactionService {
 
     private final NotificationRepository notificationRepository;
 
-    @Transactional
-    public List<Notification> claimNotifications() {
-
-        LocalDateTime now = LocalDateTime.now();
-        LocalDateTime timeOut = now.minusMinutes(10);
-
-        List<Notification> notifications = notificationRepository.findTargetsForUpdate(NotificationStatus.SCHEDULED, NotificationStatus.PROCESSING, now, timeOut);
-
-        notifications.forEach(Notification::startProcessing);
-        return notifications;
-    }
-
-    @Transactional
-    public void completeSend(Long notificationId, UUID leaseId){
-        Notification notification = notificationRepository.findById(notificationId).orElseThrow();
-        notification.send(leaseId);
-    }
-
-
-    @Transactional
-    public void failSend(Long notificationId, UUID leaseId){
-        Notification notification = notificationRepository.findById(notificationId).orElseThrow();
-        notification.fail(leaseId);
-    }
-
-    @Transactional
-    public void expireSend(Long notificationId, UUID leaseId) {
-        Notification notification = notificationRepository.findById(notificationId).orElseThrow();
-        notification.expireWithLease(leaseId);
-    }
+//    @Transactional
+//    public List<Notification> claimNotifications() {
+//
+//        LocalDateTime now = LocalDateTime.now();
+//        LocalDateTime timeOut = now.minusMinutes(10);
+//
+//        List<Notification> notifications = notificationRepository.findTargetsForUpdate(NotificationStatus.SCHEDULED, NotificationStatus.PROCESSING, now, timeOut);
+//
+//        notifications.forEach(Notification::startProcessing);
+//        return notifications;
+//    }
+//
+//    @Transactional
+//    public void completeSend(Long notificationId, UUID leaseId){
+//        Notification notification = notificationRepository.findById(notificationId).orElseThrow();
+//        notification.send(leaseId);
+//    }
+//
+//
+//    @Transactional
+//    public void failSend(Long notificationId, UUID leaseId){
+//        Notification notification = notificationRepository.findById(notificationId).orElseThrow();
+//        notification.fail(leaseId);
+//    }
+//
+//    @Transactional
+//    public void expireSend(Long notificationId, UUID leaseId) {
+//        Notification notification = notificationRepository.findById(notificationId).orElseThrow();
+//        notification.expireWithLease(leaseId);
+//    }
 }
