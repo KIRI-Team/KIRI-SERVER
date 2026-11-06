@@ -3,6 +3,8 @@ package com.kiri.server.domain.family.controller;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.kiri.server.domain.family.dto.FamilyReqDTO;
 import com.kiri.server.domain.family.dto.FamilyResDTO;
+import com.kiri.server.domain.family.exception.FamilyException;
+import com.kiri.server.domain.family.exception.code.FamilyErrorCode;
 import com.kiri.server.domain.family.exception.code.FamilySuccessCode;
 import com.kiri.server.domain.family.service.FamilyService;
 import org.junit.jupiter.api.DisplayName;
@@ -28,10 +30,9 @@ import java.util.stream.Stream;
 
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.BDDMockito.given;
-import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.*;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
@@ -260,5 +261,51 @@ class FamilyControllerTest {
                 .andExpect(status().isBadRequest());
 
         verifyNoInteractions(familyService);
+    }
+
+    @Test
+    @DisplayName("가족 ID 조회 성공")
+    void getFamilyIdSuccess() throws Exception {
+        Long memberId = 1L;
+        Long familyId = 10L;
+
+        when(familyService.getFamilyId(memberId)).thenReturn(new FamilyResDTO.Id(familyId));
+
+        var authentication = new UsernamePasswordAuthenticationToken(memberId, null, List.of(new SimpleGrantedAuthority("ROLE_USER")));
+
+        mockMvc.perform(get("/api/v1/families/me/id")
+                        .with(authentication(authentication)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.isSuccess").value(true))
+                .andExpect(jsonPath("$.result.familyId").value(familyId));
+
+        verify(familyService).getFamilyId(memberId);
+    }
+
+    @Test
+    @DisplayName("인증되지 않은 사용자가 가족 ID 조회 시 401 예외 발생")
+    void getFamilyIdFailUnauthorized() throws Exception {
+        mockMvc.perform(get("/api/v1/families/me/id"))
+                .andExpect(status().isUnauthorized());
+
+        verify(familyService, never()).getFamilyId(any());
+    }
+
+    @Test
+    @DisplayName("가족에 소속되지 않은 사용자가 가족 ID 조회 시 예외 발생")
+    void getFamilyIdFailNotJoinedFamily() throws Exception {
+        Long memberId = 1L;
+
+        var authentication = new UsernamePasswordAuthenticationToken(memberId, null, List.of(new SimpleGrantedAuthority("ROLE_USER")));
+
+        when(familyService.getFamilyId(memberId)).thenThrow(new FamilyException(FamilyErrorCode.NOT_FOUND));
+
+        mockMvc.perform(get("/api/v1/families/me/id")
+                        .with(authentication(authentication)))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.isSuccess").value(false))
+                .andExpect(jsonPath("$.message").value("존재하지 않는 가족입니다."));
+
+        verify(familyService).getFamilyId(memberId);
     }
 }
