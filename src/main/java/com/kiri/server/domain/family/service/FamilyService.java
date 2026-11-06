@@ -197,4 +197,12 @@ public class FamilyService {
     private String normalizeFamilyName(String name) {
         return name.trim().replaceAll("\\s+", " ");
     }
+
+    @Transactional(readOnly = true)
+    public FamilyResDTO.Id getFamilyId(Long memberId) {
+        Family family = familyRepository.findByMembersId(memberId)
+                .orElseThrow(() -> new FamilyException(FamilyErrorCode.NOT_FOUND));
+
+        return FamilyConverter.toId(family);
+    }
 }

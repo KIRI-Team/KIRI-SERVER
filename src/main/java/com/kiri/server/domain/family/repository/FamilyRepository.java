@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.Query;
 import java.util.List;
 
 import java.util.List;
+import java.util.Optional;
 
 public interface FamilyRepository extends JpaRepository<Family, Long> {
 
@@ -17,4 +18,6 @@ public interface FamilyRepository extends JpaRepository<Family, Long> {
     boolean existsByName(String name);
 
     boolean existsByInviteCode(String code);
+
+    Optional<Family> findByMembersId(Long memberId);
 }

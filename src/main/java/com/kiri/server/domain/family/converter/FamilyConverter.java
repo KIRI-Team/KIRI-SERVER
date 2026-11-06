@@ -54,4 +54,8 @@ public class FamilyConverter {
                 .longitude(family.getLongitude())
                 .build();
     }
+
+    public static FamilyResDTO.Id toId(Family family) {
+        return new FamilyResDTO.Id(family.getId());
+    }
 }

@@ -1134,4 +1134,135 @@ public interface FamilyControllerDocs {
             ),
     })
     ApiResponse<FamilyResDTO.UpdateAddress> updateFamilyAddress(@Parameter(hidden = true) @AuthenticationPrincipal Long memberId, @PathVariable Long familyId, @Valid @RequestBody FamilyReqDTO.UpdateAddress dto);
+
+    // 가족 ID 조회
+    @Operation(
+            summary = "가족 ID 조회 API",
+            description = """
+                    # 가족 ID 조회
+                    인증된 사용자가 소속된 가족의 ID를 조회합니다.
+                    
+                    ## 요청 형식
+                    - **Header**
+                        - Authorization: Bearer {Access_Token}
+                        - Content-Type: application/json
+                    
+                    ## 동작 방식
+                    1. Access Token을 통해 인증된 사용자를 확인합니다.
+                    2. 요청한 familyId에 해당하는 가족 공간이 존재하는지 확인합니다.
+                    3. 소속된 가족 공간이 존재하지 않으면 예외를 발생시킵니다.
+                    4. 조회된 가족 공간의 ID를 응답 DTO로 변환합니다.
+                    5. 가족 ID를 반환합니다.
+                    """
+    )
+    @ApiResponses(value = {
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200",
+                    description = "성공 예시",
+                    content = @Content(
+                            mediaType = "application/json",
+                            examples = @ExampleObject(value = """
+                                    {
+                                        "isSuccess": true,
+                                        "code": "FAMILY200_6",
+                                        "message": "가족 ID 조회에 성공했습니다.",
+                                        "result": {
+                                          "familyId": 1
+                                        }
+                                      }
+                                    """
+                            )
+                    )
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "401",
+                    description = "인증 실패 (Authorization 헤더 누락, 유효하지 않은 토큰, 만료된 토큰)",
+                    content = @Content(
+                            mediaType = "application/json",
+                            examples = {
+                                    @ExampleObject(
+                                            name = "Authorization 헤더 없음",
+                                            value = """
+                                                        {
+                                                            "isSuccess": false,
+                                                            "code": "COMMON401_1",
+                                                            "message": "인증이 필요합니다.",
+                                                            "result": null
+                                                        }
+                                                    """
+                                    ),
+                                    @ExampleObject(
+                                            name = "위조·형식 오류·refresh 토큰 사용",
+                                            value = """
+                                                        {
+                                                            "isSuccess": false,
+                                                            "code": "AUTH401_1",
+                                                            "message": "유효하지 않은 토큰입니다.",
+                                                            "result": null
+                                                        }
+                                                    """
+                                    ),
+                                    @ExampleObject(
+                                            name = "accessToken 만료",
+                                            value = """
+                                                        {
+                                                            "isSuccess": false,
+                                                            "code": "AUTH401_2",
+                                                            "message": "토큰이 만료되었습니다",
+                                                            "result": null
+                                                        }
+                                                    """
+                                    )
+                            }
+                    )
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "404",
+                    description = "사용자나 가족이 존재하지 않는 경우",
+                    content = @Content(
+                            mediaType = "application/json",
+                            examples = {
+                                    @ExampleObject(
+                                            name = "memberId에 해당하는 회원 없음",
+                                            value = """
+                                                            {
+                                                                "isSuccess": false,
+                                                                "code": "MEMBER404_1",
+                                                                "message": "존재하지 않는 회원입니다.",
+                                                                "result": null
+                                                            }
+                                                    """
+                                    ),
+                                    @ExampleObject(
+                                            name = "요청한 familyId에 해당하는 가족이 존재하지 않는 경우",
+                                            value = """
+                                                            {
+                                                                "isSuccess": false,
+                                                                "code": "FAMILY404_1",
+                                                                "message": "존재하지 않는 가족입니다.",
+                                                                "result": null
+                                                            }
+                                                    """
+                                    )
+                            }
+                    )
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "500",
+                    description = "서버 오류",
+                    content = @Content(
+                            mediaType = "application/json",
+                            examples = @ExampleObject(value = """
+                                    {
+                                        "isSuccess": false,
+                                        "code": "COMMON500_1",
+                                        "message": "서버 내부 오류가 발생했습니다.",
+                                        "result": null
+                                    }
+                                    """
+                            )
+                    )
+            ),
+    })
+    ApiResponse<FamilyResDTO.Id> getFamilyId(@Parameter(hidden = true) @AuthenticationPrincipal Long memberId);
 }
