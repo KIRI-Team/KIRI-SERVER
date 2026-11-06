@@ -29,7 +29,10 @@ public enum ScheduleErrorCode implements BaseErrorCode {
     NOT_UPDATABLE(HttpStatus.CONFLICT, "SCHEDULE409_4", "수정할 수 없는 일정입니다."),
     CONDITION_NOT_EDITABLE(HttpStatus.CONFLICT, "SCHEDULE409_5", "일정 당일에만 컨디션을 변경할 수 있습니다."),
     CONDITION_NOT_VIEWABLE(HttpStatus.CONFLICT, "SCHEDULE409_6", "일정 당일에만 컨디션을 조회할 수 있습니다."),
-    SCHEDULE_CANCELLED(HttpStatus.CONFLICT, "SCHEDULE409_7", "취소된 일정입니다.");
+    SCHEDULE_CANCELLED(HttpStatus.CONFLICT, "SCHEDULE409_7", "취소된 일정입니다."),
+    NOT_ASSIGNED_WEEKLY_MISSION(HttpStatus.CONFLICT, "SCHEDULE409_8", "현재 가족에 배정된 주간 미션이 아닙니다."),
+    WEEKLY_MISSION_NOT_AVAILABLE(HttpStatus.CONFLICT, "SCHEDULE409_9", "종료되었거나 수행할 수 없는 주간 미션입니다."),
+    WEEKLY_SCHEDULE_ALREADY_EXISTS(HttpStatus.CONFLICT, "SCHEDULE409_10", "이미 연결된 일정이 있는 주간 미션입니다.");
 
     private final HttpStatus httpStatus;
     private final String code;

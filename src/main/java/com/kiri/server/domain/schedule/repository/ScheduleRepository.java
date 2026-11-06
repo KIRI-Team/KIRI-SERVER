@@ -24,6 +24,9 @@ public interface ScheduleRepository extends JpaRepository<Schedule, Long> {
 
     boolean existsByBucketItem_IdAndStatusIn(Long bucketItemId, Collection<ScheduleStatus> statuses);
 
+    boolean existsByFamily_IdAndBucketItem_Mission_IdAndStatusIn(Long familyId, Long missionId,
+                                                                Collection<ScheduleStatus> statuses);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT s FROM Schedule s WHERE s.id = :id")
     Optional<Schedule> findByIdForUpdate(@Param("id") Long id);
