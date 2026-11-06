@@ -7,6 +7,9 @@ import com.kiri.server.domain.family.exception.code.FamilySuccessCode;
 import com.kiri.server.domain.family.service.FamilyService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
@@ -21,11 +24,14 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 
 import java.util.List;
 import java.time.LocalDateTime;
+import java.util.stream.Stream;
 
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
@@ -50,6 +56,115 @@ class FamilyControllerTest {
         ObjectMapper objectMapper() {
             return new ObjectMapper();
         }
+    }
+
+    private static final Long MEMBER_ID = 1L;
+    private static final Long FAMILY_ID = 10L;
+
+    private static Stream<Arguments> invalidAddressRequests() {
+        return Stream.of(
+                Arguments.of(
+                        "우편번호 누락",
+                        """
+                        {
+                            "address": "서울특별시 마포구 양화로 123",
+                            "detailAddress": "101동 202호",
+                            "regionCode": "1144012300",
+                            "latitude": 37.5563,
+                            "longitude": 126.9220
+                        }
+                        """
+                ),
+                Arguments.of(
+                        "우편번호 형식 오류",
+                        """
+                        {
+                            "postalCode": "1234",
+                            "address": "서울특별시 마포구 양화로 123",
+                            "detailAddress": "101동 202호",
+                            "regionCode": "1144012300",
+                            "latitude": 37.5563,
+                            "longitude": 126.9220
+                        }
+                        """
+                ),
+                Arguments.of(
+                        "기본 주소 누락",
+                        """
+                        {
+                            "postalCode": "12345",
+                            "address": "",
+                            "detailAddress": "101동 202호",
+                            "regionCode": "1144012300",
+                            "latitude": 37.5563,
+                            "longitude": 126.9220
+                        }
+                        """
+                ),
+                Arguments.of(
+                        "법정동 코드 누락",
+                        """
+                        {
+                            "postalCode": "12345",
+                            "address": "서울특별시 마포구 양화로 123",
+                            "detailAddress": "101동 202호",
+                            "regionCode": "",
+                            "latitude": 37.5563,
+                            "longitude": 126.9220
+                        }
+                        """
+                ),
+                Arguments.of(
+                        "위도 누락",
+                        """
+                        {
+                            "postalCode": "12345",
+                            "address": "서울특별시 마포구 양화로 123",
+                            "detailAddress": "101동 202호",
+                            "regionCode": "1144012300",
+                            "longitude": 126.9220
+                        }
+                        """
+                ),
+                Arguments.of(
+                        "위도 범위 초과",
+                        """
+                        {
+                            "postalCode": "12345",
+                            "address": "서울특별시 마포구 양화로 123",
+                            "detailAddress": "101동 202호",
+                            "regionCode": "1144012300",
+                            "latitude": 91.0,
+                            "longitude": 126.9220
+                        }
+                        """
+                ),
+                Arguments.of(
+                        "경도 누락",
+                        """
+                        {
+                            "postalCode": "12345",
+                            "address": "서울특별시 마포구 양화로 123",
+                            "detailAddress": "101동 202호",
+                            "regionCode": "1144012300",
+                            "latitude": 37.5563
+                        }
+                        """
+                ),
+                Arguments.of(
+                        "경도 범위 초과",
+                        """
+                        {
+                            "postalCode": "12345",
+                            "address": "서울특별시 마포구 양화로 123",
+                            "detailAddress": "101동 202호",
+                            "regionCode": "1144012300",
+                            "latitude": 37.5563,
+                            "longitude": 181.0
+                        }
+                        """
+                )
+        );
     }
 
     @Test
@@ -128,5 +243,22 @@ class FamilyControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest());
+    }
+
+    @DisplayName("잘못된 주소 정보로 요청하면 400 Bad Request를 반환한다.")
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("invalidAddressRequests")
+    void updateFamilyAddressInvalidRequest(String description, String requestBody) throws Exception {
+
+        var authentication = new UsernamePasswordAuthenticationToken(MEMBER_ID, null, List.of());
+
+        mockMvc.perform(put("/api/v1/families/{familyId}/address", FAMILY_ID)
+                        .with(authentication(authentication))
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestBody))
+                .andExpect(status().isBadRequest());
+
+        verifyNoInteractions(familyService);
     }
 }

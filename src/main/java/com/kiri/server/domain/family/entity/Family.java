@@ -67,8 +67,14 @@ public class Family extends BaseEntity {
     @Column(name = "longitude", precision = 10, scale = 7)
     private BigDecimal longitude;
 
+    @Column(name = "postal_code", length = 10)
+    private String postalCode;
+
     @Column(name = "address")
     private String address;
+
+    @Column(name = "detail_address")
+    private String detailAddress;
 
     public void renewInvite(String inviteCode, String inviteToken, LocalDateTime inviteExpiresAt) {
         this.inviteCode = inviteCode;
@@ -92,5 +98,14 @@ public class Family extends BaseEntity {
 
     public void changeOwner(Member newOwner) {
         this.owner = newOwner;
+    }
+
+    public void updateAddress(String postalCode, String address, String detailAddress, String regionCode, BigDecimal latitude, BigDecimal longitude) {
+        this.postalCode = postalCode;
+        this.address = address;
+        this.detailAddress = detailAddress;
+        this.regionCode = regionCode;
+        this.latitude = latitude;
+        this.longitude = longitude;
     }
 }

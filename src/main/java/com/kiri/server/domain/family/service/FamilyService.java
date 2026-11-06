@@ -177,6 +177,23 @@ public class FamilyService {
         return FamilyConverter.toUpdateNameResponse(family);
     }
 
+    @Transactional
+    public FamilyResDTO.UpdateAddress updateFamilyAddress(Long memberId, Long familyId, FamilyReqDTO.UpdateAddress request) {
+        Member member = memberRepository.findById(memberId)
+                .orElseThrow(() -> new MemberException(MemberErrorCode.NOT_FOUND));
+
+        Family family = familyRepository.findById(familyId)
+                .orElseThrow(() -> new FamilyException(FamilyErrorCode.NOT_FOUND));
+
+        if (member.getFamily() == null || !family.getId().equals(member.getFamily().getId())) {
+            throw new FamilyException(FamilyErrorCode.FORBIDDEN);
+        }
+
+        family.updateAddress(request.postalCode(), request.address(), request.detailAddress(), request.regionCode(), request.latitude(), request.longitude());
+
+        return FamilyConverter.toUpdateAddressResponse(family);
+    }
+
     private String normalizeFamilyName(String name) {
         return name.trim().replaceAll("\\s+", " ");
     }

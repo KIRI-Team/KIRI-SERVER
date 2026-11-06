@@ -8,6 +8,7 @@ import com.kiri.server.domain.family.exception.FamilyException;
 import com.kiri.server.domain.family.exception.code.FamilyErrorCode;
 import com.kiri.server.domain.family.repository.FamilyRepository;
 import com.kiri.server.domain.member.entity.Member;
+import com.kiri.server.domain.member.exception.MemberException;
 import com.kiri.server.domain.member.exception.code.MemberErrorCode;
 import com.kiri.server.domain.member.repository.MemberRepository;
 import com.kiri.server.global.apiPayload.exception.ProjectException;
@@ -22,6 +23,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.Optional;
 
@@ -575,5 +577,112 @@ class FamilyServiceTest {
         FamilyResDTO.UpdateName result = familyService.updateFamilyName(memberId, familyId, request);
 
         verify(family).updateName("우리 가족");
+    }
+
+    @Test
+    @DisplayName("존재하지 않는 회원이 주소 설정을 요청하면 예외가 발생한다.")
+    void updateFamilyAddressMemberNotFound() {
+        Long memberId = 1L;
+        Long familyId = 10L;
+
+        when(memberRepository.findById(memberId)).thenReturn(Optional.empty());
+
+        FamilyReqDTO.UpdateAddress request = createAddressRequest();
+
+        assertThatThrownBy(() -> familyService.updateFamilyAddress(memberId, familyId, request))
+                .isInstanceOf(MemberException.class)
+                .extracting("errorCode")
+                .isEqualTo(MemberErrorCode.NOT_FOUND);
+
+        verify(familyRepository, never()).findById(anyLong());
+    }
+
+    @Test
+    @DisplayName("가족 주소 설정 성공")
+    void updateFamilyAddressSuccess() {
+        Long memberId = 1L;
+        Long familyId = 10L;
+
+        Member member = mock(Member.class);
+
+        Family family = Family.builder().id(familyId).build();
+
+        when(memberRepository.findById(memberId)).thenReturn(Optional.of(member));
+        when(familyRepository.findById(familyId)).thenReturn(Optional.of(family));
+        when(member.getFamily()).thenReturn(family);
+
+        FamilyReqDTO.UpdateAddress request = createAddressRequest();
+
+        FamilyResDTO.UpdateAddress result = familyService.updateFamilyAddress(memberId, familyId, request);
+
+        assertThat(family.getPostalCode()).isEqualTo("12345");
+        assertThat(family.getAddress()).isEqualTo("서울특별시 마포구 양화로 123");
+        assertThat(family.getDetailAddress()).isEqualTo("101동 202호");
+        assertThat(family.getRegionCode()).isEqualTo("1144012300");
+        assertThat(family.getLatitude()).isEqualByComparingTo("37.5563");
+        assertThat(family.getLongitude()).isEqualByComparingTo("126.9220");
+
+        assertThat(result.familyId()).isEqualTo(familyId);
+        assertThat(result.postalCode()).isEqualTo("12345");
+        assertThat(result.address()).isEqualTo("서울특별시 마포구 양화로 123");
+        assertThat(result.detailAddress()).isEqualTo("101동 202호");
+        assertThat(result.regionCode()).isEqualTo("1144012300");
+        assertThat(result.latitude()).isEqualByComparingTo("37.5563");
+        assertThat(result.longitude()).isEqualByComparingTo("126.9220");
+
+        verify(memberRepository).findById(memberId);
+        verify(familyRepository).findById(familyId);
+    }
+
+    @Test
+    @DisplayName("존재하지 않는 가족의 주소 설정을 요청하면 예외가 발생한다.")
+    void updateFamilyAddressFamilyNotFound() {
+        Long memberId = 1L;
+        Long familyId = 10L;
+
+        Member member = mock(Member.class);
+
+        when(memberRepository.findById(memberId)).thenReturn(Optional.of(member));
+        when(familyRepository.findById(familyId)).thenReturn(Optional.empty());
+
+        FamilyReqDTO.UpdateAddress request = createAddressRequest();
+
+        assertThatThrownBy(() -> familyService.updateFamilyAddress(memberId, familyId, request))
+                .isInstanceOf(FamilyException.class)
+                .extracting("errorCode")
+                .isEqualTo(FamilyErrorCode.NOT_FOUND);
+    }
+
+    @Test
+    @DisplayName("해당 가족의 구성원이 아니면 주소 설정을 요청할 수 없다.")
+    void updateFamilyAddressNotFamilyMember() {
+        Long memberId = 1L;
+        Long familyId = 10L;
+
+        Member member = mock(Member.class);
+
+        Family family = Family.builder().id(familyId).build();
+
+        when(memberRepository.findById(memberId)).thenReturn(Optional.of(member));
+        when(familyRepository.findById(familyId)).thenReturn(Optional.of(family));
+        when(member.getFamily()).thenReturn(null);
+
+        FamilyReqDTO.UpdateAddress request = createAddressRequest();
+
+        assertThatThrownBy(() -> familyService.updateFamilyAddress(memberId, familyId, request))
+                .isInstanceOf(FamilyException.class)
+                .extracting("errorCode")
+                .isEqualTo(FamilyErrorCode.FORBIDDEN);
+    }
+
+    private FamilyReqDTO.UpdateAddress createAddressRequest() {
+        return new FamilyReqDTO.UpdateAddress(
+                "12345",
+                "서울특별시 마포구 양화로 123",
+                "101동 202호",
+                "1144012300",
+                new BigDecimal("37.5563"),
+                new BigDecimal("126.9220")
+        );
     }
 }

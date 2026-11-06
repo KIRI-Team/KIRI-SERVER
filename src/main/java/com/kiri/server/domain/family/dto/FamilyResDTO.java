@@ -3,6 +3,7 @@ package com.kiri.server.domain.family.dto;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Builder;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 public class FamilyResDTO {
@@ -28,5 +29,16 @@ public class FamilyResDTO {
     public record UpdateName(
             Long familyId,
             String name
+    ) {}
+
+    @Builder
+    public record UpdateAddress(
+            Long familyId,
+            String postalCode,
+            String address,
+            String detailAddress,
+            String regionCode,
+            BigDecimal latitude,
+            BigDecimal longitude
     ) {}
 }
