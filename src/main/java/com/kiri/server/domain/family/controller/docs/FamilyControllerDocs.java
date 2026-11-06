@@ -743,35 +743,35 @@ public interface FamilyControllerDocs {
                                     @ExampleObject(
                                             name = "Authorization 헤더 없음",
                                             value = """
-                                                {
-                                                    "isSuccess": false,
-                                                    "code": "COMMON401_1",
-                                                    "message": "인증이 필요합니다.",
-                                                    "result": null
-                                                }
-                                            """
+                                                        {
+                                                            "isSuccess": false,
+                                                            "code": "COMMON401_1",
+                                                            "message": "인증이 필요합니다.",
+                                                            "result": null
+                                                        }
+                                                    """
                                     ),
                                     @ExampleObject(
                                             name = "위조·형식 오류·refresh 토큰 사용",
                                             value = """
-                                                {
-                                                    "isSuccess": false,
-                                                    "code": "AUTH401_1",
-                                                    "message": "유효하지 않은 토큰입니다.",
-                                                    "result": null
-                                                }
-                                            """
+                                                        {
+                                                            "isSuccess": false,
+                                                            "code": "AUTH401_1",
+                                                            "message": "유효하지 않은 토큰입니다.",
+                                                            "result": null
+                                                        }
+                                                    """
                                     ),
                                     @ExampleObject(
                                             name = "accessToken 만료",
                                             value = """
-                                                {
-                                                    "isSuccess": false,
-                                                    "code": "AUTH401_2",
-                                                    "message": "토큰이 만료되었습니다",
-                                                    "result": null
-                                                }
-                                            """
+                                                        {
+                                                            "isSuccess": false,
+                                                            "code": "AUTH401_2",
+                                                            "message": "토큰이 만료되었습니다",
+                                                            "result": null
+                                                        }
+                                                    """
                                     )
                             }
                     )
@@ -801,24 +801,24 @@ public interface FamilyControllerDocs {
                                     @ExampleObject(
                                             name = "memberId에 해당하는 회원 없음",
                                             value = """
-                                                    {
-                                                        "isSuccess": false,
-                                                        "code": "MEMBER404_1",
-                                                        "message": "존재하지 않는 회원입니다.",
-                                                        "result": null
-                                                    }
-                                            """
+                                                            {
+                                                                "isSuccess": false,
+                                                                "code": "MEMBER404_1",
+                                                                "message": "존재하지 않는 회원입니다.",
+                                                                "result": null
+                                                            }
+                                                    """
                                     ),
                                     @ExampleObject(
                                             name = "요청한 familyId에 해당하는 가족이 존재하지 않는 경우",
                                             value = """
-                                                    {
-                                                        "isSuccess": false,
-                                                        "code": "FAMILY404_1",
-                                                        "message": "존재하지 않는 가족입니다.",
-                                                        "result": null
-                                                    }
-                                            """
+                                                            {
+                                                                "isSuccess": false,
+                                                                "code": "FAMILY404_1",
+                                                                "message": "존재하지 않는 가족입니다.",
+                                                                "result": null
+                                                            }
+                                                    """
                                     )
                             }
                     )
@@ -857,4 +857,281 @@ public interface FamilyControllerDocs {
             ),
     })
     ApiResponse<FamilyResDTO.UpdateName> updateFamilyName(@Parameter(hidden = true) @AuthenticationPrincipal Long memberId, @PathVariable Long familyId, @Valid @RequestBody FamilyReqDTO.UpdateName dto);
+
+    // 가족 주소 설정
+    @Operation(
+            summary = "가족 주소 설정 API",
+            description = """
+                    # 가족 주소 설정
+                    가족의 주소 정보를 저장하거나 수정합니다. 우편번호, 기본 주소, 상세 주소 및 위치 정보를 전달받아 해당 가족의 주소 정보를 갱신합니다.
+                    
+                    ## 요청 형식
+                    - **Header**
+                        - Authorization: Bearer {Access_Token}
+                        - Content-Type: application/json
+                    - **Body**
+                        - postalCode: 우편번호
+                        - address: 기본 주소
+                        - detailAddress: 상세 주소
+                        - regionCode: 법정동 코드
+                        - latitude: 위도
+                        - longitude: 경도
+                    - **Path Variable**
+                        - familyId: 가족 주소를 설정할 가족 ID
+                    
+                    ## 동작 방식
+                    1. Access Token을 통해 인증된 사용자를 확인합니다.
+                    2. 요청한 familyId에 해당하는 가족 공간이 존재하는지 확인합니다.
+                    3. 인증된 사용자가 해당 가족 공간의 구성원인지 확인합니다.
+                    4. 요청받은 우편번호, 기본 주소, 상세 주소, 법정동 코드, 위도 및 경도 정보의 유효성을 검증합니다.
+                    5. 검증이 완료되면 해당 가족 공간의 주소 정보를 갱신합니다.
+                    6. 변경된 주소 정보를 응답 DTO로 변환합니다.
+                    7. 갱신된 가족 공간의 주소 정보를 반환합니다.
+                    """
+    )
+    @ApiResponses(value = {
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200",
+                    description = "성공 예시",
+                    content = @Content(
+                            mediaType = "application/json",
+                            examples = @ExampleObject(value = """
+                                    {
+                                       "isSuccess": true,
+                                       "code": "FAMILY200_5",
+                                       "message": "가족 주소가 저장되었습니다.",
+                                       "result": {
+                                     	  "familyId": 1,
+                                         "postalCode": "06134",
+                                         "address": "서울특별시 서초구 강남대로 143",
+                                         "detailAddress": "810동 603호",
+                                         "regionCode": "1165010800",
+                                         "latitude": 37.5519,
+                                         "longitude": 126.9254
+                                       }
+                                     }
+                                    """
+                            )
+                    )
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "400",
+                    description = "필수 입력값 누락 또는 잘못된 주소 정보",
+                    content = @Content(
+                            mediaType = "application/json",
+                            examples = {
+                                    @ExampleObject(
+                                            name = "postalCode 누락 또는 공백",
+                                            value = """
+                                                    {
+                                                        "isSuccess": false,
+                                                        "code": "COMMON400_1",
+                                                        "message": "잘못된 요청입니다.",
+                                                        "result": {
+                                                            "postalCode": "우편번호는 필수입니다."
+                                                        }
+                                                    }
+                                                    """
+                                    ),
+                                    @ExampleObject(
+                                            name = "postalCode가 5자리 숫자가 아닌 경우",
+                                            value = """
+                                                    {
+                                                        "isSuccess": false,
+                                                        "code": "COMMON400_1",
+                                                        "message": "잘못된 요청입니다.",
+                                                        "result": {
+                                                            "postalCode": "우편번호는 5자리 숫자여야 합니다."
+                                                        }
+                                                    }
+                                                    """
+                                    ),
+                                    @ExampleObject(
+                                            name = "address 누락 또는 공백",
+                                            value = """
+                                                    {
+                                                        "isSuccess": false,
+                                                        "code": "COMMON400_1",
+                                                        "message": "잘못된 요청입니다.",
+                                                        "result": {
+                                                            "address": "기본 주소는 필수입니다."
+                                                        }
+                                                    }
+                                                    """
+                                    ),
+                                    @ExampleObject(
+                                            name = "regionCode 누락 또는 공백",
+                                            value = """
+                                                    {
+                                                        "isSuccess": false,
+                                                        "code": "COMMON400_1",
+                                                        "message": "잘못된 요청입니다.",
+                                                        "result": {
+                                                            "regionCode": "지역 코드는 필수입니다."
+                                                        }
+                                                    }
+                                                    """
+                                    ),
+                                    @ExampleObject(
+                                            name = "latitude 누락",
+                                            value = """
+                                                    {
+                                                        "isSuccess": false,
+                                                        "code": "COMMON400_1",
+                                                        "message": "잘못된 요청입니다.",
+                                                        "result": {
+                                                            "latitude": "위도는 필수입니다."
+                                                        }
+                                                    }
+                                                    """
+                                    ),
+                                    @ExampleObject(
+                                            name = "latitude가 -90 ~ 90 범위를 벗어남",
+                                            value = """
+                                                    {
+                                                        "isSuccess": false,
+                                                        "code": "COMMON400_1",
+                                                        "message": "잘못된 요청입니다.",
+                                                        "result": {
+                                                            "latitude": "위도는 -90 이상 90 이하여야 합니다."
+                                                        }
+                                                    }
+                                                    """
+                                    ),
+                                    @ExampleObject(
+                                            name = "longitude 누락",
+                                            value = """
+                                                    {
+                                                        "isSuccess": false,
+                                                        "code": "COMMON400_1",
+                                                        "message": "잘못된 요청입니다.",
+                                                        "result": {
+                                                            "longitude": "경도는 필수입니다."
+                                                        }
+                                                    }
+                                                    """
+                                    ),
+                                    @ExampleObject(
+                                            name = "longitude가 -180 ~ 180 범위를 벗어남",
+                                            value = """
+                                                    {
+                                                        "isSuccess": false,
+                                                        "code": "COMMON400_1",
+                                                        "message": "잘못된 요청입니다.",
+                                                        "result": {
+                                                            "longitude": "경도는 -180 이상 180 이하여야 합니다."
+                                                        }
+                                                    }
+                                                    """
+                                    )
+                            }
+                    )
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "401",
+                    description = "인증 실패 (Authorization 헤더 누락, 유효하지 않은 토큰, 만료된 토큰)",
+                    content = @Content(
+                            mediaType = "application/json",
+                            examples = {
+                                    @ExampleObject(
+                                            name = "Authorization 헤더 없음",
+                                            value = """
+                                                        {
+                                                            "isSuccess": false,
+                                                            "code": "COMMON401_1",
+                                                            "message": "인증이 필요합니다.",
+                                                            "result": null
+                                                        }
+                                                    """
+                                    ),
+                                    @ExampleObject(
+                                            name = "위조·형식 오류·refresh 토큰 사용",
+                                            value = """
+                                                        {
+                                                            "isSuccess": false,
+                                                            "code": "AUTH401_1",
+                                                            "message": "유효하지 않은 토큰입니다.",
+                                                            "result": null
+                                                        }
+                                                    """
+                                    ),
+                                    @ExampleObject(
+                                            name = "accessToken 만료",
+                                            value = """
+                                                        {
+                                                            "isSuccess": false,
+                                                            "code": "AUTH401_2",
+                                                            "message": "토큰이 만료되었습니다",
+                                                            "result": null
+                                                        }
+                                                    """
+                                    )
+                            }
+                    )
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "403",
+                    description = "요청한 가족의 구성원이 아닌 사용자가 가족명을 변경하려는 경우",
+                    content = @Content(
+                            mediaType = "application/json",
+                            examples = @ExampleObject(value = """
+                                    {
+                                        "isSuccess": true,
+                                        "code": "FAMILY403_1",
+                                        "message": "해당 가족에 대한 권한이 없습니다.",
+                                        "result": null
+                                    }
+                                    """
+                            )
+                    )
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "404",
+                    description = "사용자나 가족이 존재하지 않는 경우",
+                    content = @Content(
+                            mediaType = "application/json",
+                            examples = {
+                                    @ExampleObject(
+                                            name = "memberId에 해당하는 회원 없음",
+                                            value = """
+                                                            {
+                                                                "isSuccess": false,
+                                                                "code": "MEMBER404_1",
+                                                                "message": "존재하지 않는 회원입니다.",
+                                                                "result": null
+                                                            }
+                                                    """
+                                    ),
+                                    @ExampleObject(
+                                            name = "요청한 familyId에 해당하는 가족이 존재하지 않는 경우",
+                                            value = """
+                                                            {
+                                                                "isSuccess": false,
+                                                                "code": "FAMILY404_1",
+                                                                "message": "존재하지 않는 가족입니다.",
+                                                                "result": null
+                                                            }
+                                                    """
+                                    )
+                            }
+                    )
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "500",
+                    description = "서버 오류",
+                    content = @Content(
+                            mediaType = "application/json",
+                            examples = @ExampleObject(value = """
+                                    {
+                                        "isSuccess": false,
+                                        "code": "COMMON500_1",
+                                        "message": "서버 내부 오류가 발생했습니다.",
+                                        "result": null
+                                    }
+                                    """
+                            )
+                    )
+            ),
+    })
+    ApiResponse<FamilyResDTO.UpdateAddress> updateFamilyAddress(@Parameter(hidden = true) @AuthenticationPrincipal Long memberId, @PathVariable Long familyId, @Valid @RequestBody FamilyReqDTO.UpdateAddress dto);
 }

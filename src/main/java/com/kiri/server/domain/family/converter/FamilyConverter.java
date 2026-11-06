@@ -42,4 +42,16 @@ public class FamilyConverter {
                 .name(family.getName())
                 .build();
     }
+
+    public static FamilyResDTO.UpdateAddress toUpdateAddressResponse(Family family) {
+        return FamilyResDTO.UpdateAddress.builder()
+                .familyId(family.getId())
+                .postalCode(family.getPostalCode())
+                .address(family.getAddress())
+                .detailAddress(family.getDetailAddress())
+                .regionCode(family.getRegionCode())
+                .latitude(family.getLatitude())
+                .longitude(family.getLongitude())
+                .build();
+    }
 }
