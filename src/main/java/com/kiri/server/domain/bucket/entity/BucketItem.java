@@ -4,6 +4,7 @@ import com.kiri.server.domain.bucket.enums.BucketStatus;
 import com.kiri.server.domain.family.entity.Family;
 import com.kiri.server.domain.member.entity.Member;
 import com.kiri.server.domain.mission.entity.Mission;
+import com.kiri.server.domain.mission.entity.WeeklyMission;
 import com.kiri.server.global.entity.BaseEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -49,6 +50,10 @@ public class BucketItem extends BaseEntity {
     @JoinColumn(name = "mission_id", nullable = false)
     private Mission mission;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "weekly_mission_id")
+    private WeeklyMission weeklyMission;
+
     @Builder.Default
     @Enumerated(EnumType.STRING)
     @Column(name = "status", length = 20, nullable = false)
@@ -71,5 +76,9 @@ public class BucketItem extends BaseEntity {
     public void markCompleted(LocalDateTime completedAt) {
         this.status = BucketStatus.COMPLETED;
         this.completedAt = completedAt;
+    }
+
+    public void linkWeeklyMission(WeeklyMission weeklyMission) {
+        this.weeklyMission = weeklyMission;
     }
 }

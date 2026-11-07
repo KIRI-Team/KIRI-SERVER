@@ -11,9 +11,11 @@ import com.kiri.server.domain.member.exception.code.MemberErrorCode;
 import com.kiri.server.domain.member.repository.MemberRepository;
 import com.kiri.server.domain.mission.entity.FamilyMissionRecommendation;
 import com.kiri.server.domain.mission.entity.Mission;
+import com.kiri.server.domain.mission.entity.WeeklyMission;
 import com.kiri.server.domain.mission.enums.MissionStatus;
 import com.kiri.server.domain.mission.enums.MissionType;
 import com.kiri.server.domain.mission.repository.FamilyMissionRecommendationRepository;
+import com.kiri.server.domain.mission.repository.WeeklyMissionRepository;
 import com.kiri.server.domain.schedule.converter.ScheduleConverter;
 import com.kiri.server.domain.schedule.dto.ScheduleReqDTO;
 import com.kiri.server.domain.schedule.dto.ScheduleResDTO;
@@ -37,6 +39,7 @@ import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.time.temporal.ChronoField;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.HashSet;
@@ -57,6 +60,7 @@ public class ScheduleCommandService {
     private final ScheduleParticipantRepository scheduleParticipantRepository;
     private final ScheduleConditionRepository scheduleConditionRepository;
     private final FamilyMissionRecommendationRepository familyMissionRecommendationRepository;
+    private final WeeklyMissionRepository weeklyMissionRepository;
     private final Clock clock;
 
     @Transactional
@@ -102,8 +106,20 @@ public class ScheduleCommandService {
         }
 
         BucketItem bucketItem = resolveWeeklyBucket(proposer, family, mission);
+        bucketItem.linkWeeklyMission(resolveWeeklyMission(family, mission));
 
         return createScheduleForBucket(proposer, family, bucketItem, request);
+    }
+
+    private WeeklyMission resolveWeeklyMission(Family family, Mission mission) {
+        LocalDate weekStart = LocalDate.now(clock).with(ChronoField.DAY_OF_WEEK, 1);
+        return weeklyMissionRepository.findByFamily_IdAndStartDate(family.getId(), weekStart)
+                .orElseGet(() -> weeklyMissionRepository.save(WeeklyMission.builder()
+                        .family(family)
+                        .mission(mission)
+                        .startDate(weekStart)
+                        .endDate(weekStart.plusDays(6))
+                        .build()));
     }
 
     private ScheduleResDTO.Created createScheduleForBucket(Member proposer, Family family, BucketItem bucketItem,

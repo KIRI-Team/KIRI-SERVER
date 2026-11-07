@@ -10,6 +10,7 @@ import com.kiri.server.domain.review.exception.ReviewException;
 import com.kiri.server.domain.review.exception.code.ReviewErrorCode;
 import com.kiri.server.domain.bucket.entity.BucketItem;
 import com.kiri.server.domain.bucket.enums.BucketStatus;
+import com.kiri.server.domain.mission.entity.WeeklyMission;
 import com.kiri.server.domain.review.repository.ReviewPhotoRepository;
 import com.kiri.server.domain.review.repository.ReviewRepository;
 import com.kiri.server.domain.schedule.entity.Schedule;
@@ -67,6 +68,11 @@ public class ReviewService {
             BucketItem bucketItem = schedule.getBucketItem();
             if (bucketItem != null && bucketItem.getStatus() != BucketStatus.COMPLETED) {
                 bucketItem.markCompleted(completedAt);
+
+                WeeklyMission weeklyMission = bucketItem.getWeeklyMission();
+                if (weeklyMission != null && weeklyMission.getCompletedAt() == null) {
+                    weeklyMission.markCompleted(completedAt);
+                }
             }
         }
 
