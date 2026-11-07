@@ -7,8 +7,11 @@ import com.kiri.server.domain.family.entity.Family;
 import com.kiri.server.domain.member.entity.Member;
 import com.kiri.server.domain.member.exception.MemberException;
 import com.kiri.server.domain.member.repository.MemberRepository;
+import com.kiri.server.domain.mission.entity.FamilyMissionRecommendation;
 import com.kiri.server.domain.mission.entity.Mission;
+import com.kiri.server.domain.mission.enums.MissionStatus;
 import com.kiri.server.domain.mission.enums.MissionType;
+import com.kiri.server.domain.mission.repository.FamilyMissionRecommendationRepository;
 import com.kiri.server.domain.schedule.dto.ScheduleReqDTO;
 import com.kiri.server.domain.schedule.dto.ScheduleResDTO;
 import com.kiri.server.domain.schedule.entity.Schedule;
@@ -54,6 +57,9 @@ class ScheduleCommandServiceTest {
 
     private static final Long PROPOSER_ID = 1L;
     private static final Long BUCKET_ID = 42L;
+    private static final Long MISSION_ID = 55L;
+    private static final Long NEW_BUCKET_ID = 77L;
+    private static final Long EXISTING_BUCKET_ID = 88L;
     private static final Clock CLOCK = Clock.fixed(Instant.parse("2026-11-01T00:00:00Z"), ZoneId.of("Asia/Seoul"));
 
     @Mock private MemberRepository memberRepository;
@@ -61,6 +67,7 @@ class ScheduleCommandServiceTest {
     @Mock private ScheduleRepository scheduleRepository;
     @Mock private ScheduleParticipantRepository scheduleParticipantRepository;
     @Mock private ScheduleConditionRepository scheduleConditionRepository;
+    @Mock private FamilyMissionRecommendationRepository familyMissionRecommendationRepository;
 
     private ScheduleCommandService service;
 
@@ -72,7 +79,8 @@ class ScheduleCommandServiceTest {
     @BeforeEach
     void setUp() {
         service = new ScheduleCommandService(memberRepository, bucketItemRepository,
-                scheduleRepository, scheduleParticipantRepository, scheduleConditionRepository, CLOCK);
+                scheduleRepository, scheduleParticipantRepository, scheduleConditionRepository,
+                familyMissionRecommendationRepository, CLOCK);
         family = Family.builder().id(10L).name("가족").build();
         proposer = Member.builder().id(PROPOSER_ID).family(family).nickname("제안자").build();
         m2 = Member.builder().id(2L).family(family).nickname("엄마").build();
@@ -679,5 +687,138 @@ class ScheduleCommandServiceTest {
         assertThat(capturedDeleted()).isEmpty();
         assertThat(capturedSaved()).extracting(ScheduleCondition::getConditionType)
                 .containsExactly(ConditionType.MORE_REST);
+    }
+
+    private Mission weeklyMission(MissionStatus status, LocalDate endDate) {
+        return Mission.builder()
+                .id(MISSION_ID).status(status).missionType(MissionType.PERMANENT).endDate(endDate).build();
+    }
+
+    private FamilyMissionRecommendation recommendation(Mission mission) {
+        return FamilyMissionRecommendation.builder()
+                .id(1L).family(family).mission(mission)
+                .recommendationScore(java.math.BigDecimal.ONE).recommendationRank(1).build();
+    }
+
+    private ScheduleReqDTO.Create weeklyRequest() {
+        return request(LocalDate.of(2026, 11, 15), LocalTime.of(14, 0), List.of(2L, 3L));
+    }
+
+    @Test
+    @DisplayName("주간 미션에서 일정을 만들 때 제안자의 SAVED 버킷이 없으면 제안자를 저장자로 버킷을 새로 만들고 일정을 생성한다.")
+    void createFromWeeklyMission_createsBucket() {
+        Mission mission = weeklyMission(MissionStatus.ACTIVE, null);
+        BucketItem newBucket = BucketItem.builder().id(NEW_BUCKET_ID).family(family).member(proposer)
+                .mission(mission).status(BucketStatus.SAVED).build();
+        given(memberRepository.findById(PROPOSER_ID)).willReturn(Optional.of(proposer));
+        given(familyMissionRecommendationRepository.findFirstByFamilyIdOrderByRecommendationRankAsc(10L))
+                .willReturn(Optional.of(recommendation(mission)));
+        given(scheduleRepository.existsByFamily_IdAndBucketItem_Mission_IdAndStatusIn(eq(10L), eq(MISSION_ID), any()))
+                .willReturn(false);
+        given(bucketItemRepository.findFirstByMember_IdAndMission_IdAndStatus(PROPOSER_ID, MISSION_ID, BucketStatus.SAVED))
+                .willReturn(Optional.empty());
+        given(bucketItemRepository.save(any(BucketItem.class))).willReturn(newBucket);
+        given(scheduleRepository.existsByBucketItem_IdAndStatusIn(eq(NEW_BUCKET_ID), any())).willReturn(false);
+        given(memberRepository.findAllByFamilyAndDeletedAtIsNull(family)).willReturn(List.of(proposer, m2, m3));
+        given(scheduleRepository.save(any(Schedule.class))).willAnswer(inv -> inv.getArgument(0));
+        given(memberRepository.getReferenceById(2L)).willReturn(m2);
+        given(memberRepository.getReferenceById(3L)).willReturn(m3);
+
+        ScheduleResDTO.Created result = service.createFromWeeklyMission(PROPOSER_ID, MISSION_ID, weeklyRequest());
+
+        assertThat(result.status()).isEqualTo(ScheduleStatus.PENDING_RESPONSE);
+        assertThat(result.proposerId()).isEqualTo(PROPOSER_ID);
+        assertThat(result.participantMemberIds()).containsExactly(2L, 3L);
+        assertThat(result.bucketItemId()).isEqualTo(NEW_BUCKET_ID);
+        assertThat(newBucket.getStatus()).isEqualTo(BucketStatus.SCHEDULED);
+        verify(bucketItemRepository).save(any(BucketItem.class));
+    }
+
+    @Test
+    @DisplayName("주간 미션에서 일정을 만들 때 제안자의 SAVED 버킷이 있으면 새로 만들지 않고 그 버킷에 연결한다.")
+    void createFromWeeklyMission_connectsExistingBucket() {
+        Mission mission = weeklyMission(MissionStatus.ACTIVE, null);
+        BucketItem existing = BucketItem.builder().id(EXISTING_BUCKET_ID).family(family).member(proposer)
+                .mission(mission).status(BucketStatus.SAVED).build();
+        given(memberRepository.findById(PROPOSER_ID)).willReturn(Optional.of(proposer));
+        given(familyMissionRecommendationRepository.findFirstByFamilyIdOrderByRecommendationRankAsc(10L))
+                .willReturn(Optional.of(recommendation(mission)));
+        given(scheduleRepository.existsByFamily_IdAndBucketItem_Mission_IdAndStatusIn(eq(10L), eq(MISSION_ID), any()))
+                .willReturn(false);
+        given(bucketItemRepository.findFirstByMember_IdAndMission_IdAndStatus(PROPOSER_ID, MISSION_ID, BucketStatus.SAVED))
+                .willReturn(Optional.of(existing));
+        given(bucketItemRepository.findByIdForUpdate(EXISTING_BUCKET_ID)).willReturn(Optional.of(existing));
+        given(scheduleRepository.existsByBucketItem_IdAndStatusIn(eq(EXISTING_BUCKET_ID), any())).willReturn(false);
+        given(memberRepository.findAllByFamilyAndDeletedAtIsNull(family)).willReturn(List.of(proposer, m2, m3));
+        given(scheduleRepository.save(any(Schedule.class))).willAnswer(inv -> inv.getArgument(0));
+        given(memberRepository.getReferenceById(2L)).willReturn(m2);
+        given(memberRepository.getReferenceById(3L)).willReturn(m3);
+
+        ScheduleResDTO.Created result = service.createFromWeeklyMission(PROPOSER_ID, MISSION_ID, weeklyRequest());
+
+        assertThat(result.bucketItemId()).isEqualTo(EXISTING_BUCKET_ID);
+        assertThat(existing.getStatus()).isEqualTo(BucketStatus.SCHEDULED);
+        verify(bucketItemRepository, never()).save(any(BucketItem.class));
+    }
+
+    @Test
+    @DisplayName("배정된 주간 미션이 없으면 SCHEDULE409_8로 예외를 던진다.")
+    void createFromWeeklyMission_noAssignedMission() {
+        given(memberRepository.findById(PROPOSER_ID)).willReturn(Optional.of(proposer));
+        given(familyMissionRecommendationRepository.findFirstByFamilyIdOrderByRecommendationRankAsc(10L))
+                .willReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.createFromWeeklyMission(PROPOSER_ID, MISSION_ID, weeklyRequest()))
+                .isInstanceOf(ScheduleException.class)
+                .extracting(e -> ((ScheduleException) e).getErrorCode())
+                .isEqualTo(ScheduleErrorCode.NOT_ASSIGNED_WEEKLY_MISSION);
+        verifyNoInteractions(scheduleParticipantRepository);
+    }
+
+    @Test
+    @DisplayName("요청한 missionId가 배정된 주간 미션과 다르면 SCHEDULE409_8로 예외를 던진다.")
+    void createFromWeeklyMission_missionMismatch() {
+        Mission assigned = weeklyMission(MissionStatus.ACTIVE, null);
+        given(memberRepository.findById(PROPOSER_ID)).willReturn(Optional.of(proposer));
+        given(familyMissionRecommendationRepository.findFirstByFamilyIdOrderByRecommendationRankAsc(10L))
+                .willReturn(Optional.of(recommendation(assigned)));
+
+        assertThatThrownBy(() -> service.createFromWeeklyMission(PROPOSER_ID, 999L, weeklyRequest()))
+                .isInstanceOf(ScheduleException.class)
+                .extracting(e -> ((ScheduleException) e).getErrorCode())
+                .isEqualTo(ScheduleErrorCode.NOT_ASSIGNED_WEEKLY_MISSION);
+        verifyNoInteractions(scheduleParticipantRepository);
+    }
+
+    @Test
+    @DisplayName("배정된 주간 미션이 종료 상태면 SCHEDULE409_9로 예외를 던진다.")
+    void createFromWeeklyMission_missionNotAvailable() {
+        Mission mission = weeklyMission(MissionStatus.ENDED, null);
+        given(memberRepository.findById(PROPOSER_ID)).willReturn(Optional.of(proposer));
+        given(familyMissionRecommendationRepository.findFirstByFamilyIdOrderByRecommendationRankAsc(10L))
+                .willReturn(Optional.of(recommendation(mission)));
+
+        assertThatThrownBy(() -> service.createFromWeeklyMission(PROPOSER_ID, MISSION_ID, weeklyRequest()))
+                .isInstanceOf(ScheduleException.class)
+                .extracting(e -> ((ScheduleException) e).getErrorCode())
+                .isEqualTo(ScheduleErrorCode.WEEKLY_MISSION_NOT_AVAILABLE);
+        verifyNoInteractions(scheduleParticipantRepository);
+    }
+
+    @Test
+    @DisplayName("같은 주간 미션에 이미 연결된 활성 일정이 있으면 SCHEDULE409_10으로 예외를 던진다.")
+    void createFromWeeklyMission_alreadyLinked() {
+        Mission mission = weeklyMission(MissionStatus.ACTIVE, null);
+        given(memberRepository.findById(PROPOSER_ID)).willReturn(Optional.of(proposer));
+        given(familyMissionRecommendationRepository.findFirstByFamilyIdOrderByRecommendationRankAsc(10L))
+                .willReturn(Optional.of(recommendation(mission)));
+        given(scheduleRepository.existsByFamily_IdAndBucketItem_Mission_IdAndStatusIn(eq(10L), eq(MISSION_ID), any()))
+                .willReturn(true);
+
+        assertThatThrownBy(() -> service.createFromWeeklyMission(PROPOSER_ID, MISSION_ID, weeklyRequest()))
+                .isInstanceOf(ScheduleException.class)
+                .extracting(e -> ((ScheduleException) e).getErrorCode())
+                .isEqualTo(ScheduleErrorCode.WEEKLY_SCHEDULE_ALREADY_EXISTS);
+        verify(bucketItemRepository, never()).save(any(BucketItem.class));
     }
 }

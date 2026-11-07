@@ -57,6 +57,7 @@ class ScheduleCommandControllerTest {
     static final String SECRET = "test-secret-key-for-jwt-must-be-at-least-32-bytes";
     private static final Long MEMBER_ID = 1L;
     private static final Long BUCKET_ID = 42L;
+    private static final Long MISSION_ID = 55L;
 
     @Autowired
     private MockMvc mockMvc;
@@ -369,5 +370,41 @@ class ScheduleCommandControllerTest {
                         .content(body(Map.of("conditions", List.of("MORE_REST")))))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value("SCHEDULE409_5"));
+    }
+
+    @Test
+    @DisplayName("주간 미션 일정 생성에 성공하면 SCHEDULE201_1과 생성 결과를 반환한다.")
+    void createWeekly_success() throws Exception {
+        given(scheduleCommandService.createFromWeeklyMission(eq(MEMBER_ID), eq(MISSION_ID), any()))
+                .willReturn(ScheduleResDTO.Created.builder()
+                        .scheduleId(100L).bucketItemId(77L)
+                        .scheduleDate(LocalDate.of(2026, 11, 15)).scheduleTime(LocalTime.of(14, 0))
+                        .status(ScheduleStatus.PENDING_RESPONSE)
+                        .responseDeadline(LocalDateTime.of(2026, 11, 14, 14, 0))
+                        .proposerId(MEMBER_ID).participantMemberIds(List.of(2L, 3L)).build());
+
+        mockMvc.perform(post("/api/v1/missions/{missionId}/schedules", MISSION_ID)
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body(validRequest())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value("SCHEDULE201_1"))
+                .andExpect(jsonPath("$.result.scheduleId").value(100))
+                .andExpect(jsonPath("$.result.bucketItemId").value(77))
+                .andExpect(jsonPath("$.result.status").value("PENDING_RESPONSE"));
+    }
+
+    @Test
+    @DisplayName("이미 연결된 활성 일정이 있으면 SCHEDULE409_10으로 응답한다.")
+    void createWeekly_alreadyLinked() throws Exception {
+        willThrow(new ScheduleException(ScheduleErrorCode.WEEKLY_SCHEDULE_ALREADY_EXISTS))
+                .given(scheduleCommandService).createFromWeeklyMission(eq(MEMBER_ID), eq(MISSION_ID), any());
+
+        mockMvc.perform(post("/api/v1/missions/{missionId}/schedules", MISSION_ID)
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body(validRequest())))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("SCHEDULE409_10"));
     }
 }

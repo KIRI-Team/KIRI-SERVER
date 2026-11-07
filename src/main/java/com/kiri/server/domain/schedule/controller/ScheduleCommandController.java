@@ -38,6 +38,18 @@ public class ScheduleCommandController implements ScheduleCommandControllerDocs 
         );
     }
 
+    @PostMapping("/missions/{missionId}/schedules")
+    public ApiResponse<ScheduleResDTO.Created> createWeeklyMissionSchedule(
+            @AuthenticationPrincipal Long memberId,
+            @PathVariable Long missionId,
+            @Valid @RequestBody ScheduleReqDTO.Create request
+    ) {
+        return ApiResponse.onSuccess(
+                ScheduleSuccessCode.CREATE_SUCCESS,
+                scheduleCommandService.createFromWeeklyMission(memberId, missionId, request)
+        );
+    }
+
     @PatchMapping("/schedules/{scheduleId}/response")
     public ApiResponse<ScheduleResDTO.Responded> respondSchedule(
             @AuthenticationPrincipal Long memberId,

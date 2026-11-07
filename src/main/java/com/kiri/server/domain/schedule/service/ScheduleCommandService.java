@@ -1,5 +1,6 @@
 package com.kiri.server.domain.schedule.service;
 
+import com.kiri.server.domain.bucket.converter.BucketConverter;
 import com.kiri.server.domain.bucket.entity.BucketItem;
 import com.kiri.server.domain.bucket.enums.BucketStatus;
 import com.kiri.server.domain.bucket.repository.BucketItemRepository;
@@ -8,8 +9,11 @@ import com.kiri.server.domain.member.entity.Member;
 import com.kiri.server.domain.member.exception.MemberException;
 import com.kiri.server.domain.member.exception.code.MemberErrorCode;
 import com.kiri.server.domain.member.repository.MemberRepository;
+import com.kiri.server.domain.mission.entity.FamilyMissionRecommendation;
 import com.kiri.server.domain.mission.entity.Mission;
+import com.kiri.server.domain.mission.enums.MissionStatus;
 import com.kiri.server.domain.mission.enums.MissionType;
+import com.kiri.server.domain.mission.repository.FamilyMissionRecommendationRepository;
 import com.kiri.server.domain.schedule.converter.ScheduleConverter;
 import com.kiri.server.domain.schedule.dto.ScheduleReqDTO;
 import com.kiri.server.domain.schedule.dto.ScheduleResDTO;
@@ -52,6 +56,7 @@ public class ScheduleCommandService {
     private final ScheduleRepository scheduleRepository;
     private final ScheduleParticipantRepository scheduleParticipantRepository;
     private final ScheduleConditionRepository scheduleConditionRepository;
+    private final FamilyMissionRecommendationRepository familyMissionRecommendationRepository;
     private final Clock clock;
 
     @Transactional
@@ -68,8 +73,43 @@ public class ScheduleCommandService {
         if (bucketItem.getFamily() == null || !bucketItem.getFamily().getId().equals(family.getId())) {
             throw new ScheduleException(ScheduleErrorCode.BUCKET_FORBIDDEN);
         }
+
+        return createScheduleForBucket(proposer, family, bucketItem, request);
+    }
+
+    @Transactional
+    public ScheduleResDTO.Created createFromWeeklyMission(Long memberId, Long missionId, ScheduleReqDTO.Create request) {
+        Member proposer = memberRepository.findById(memberId)
+                .orElseThrow(() -> new MemberException(MemberErrorCode.NOT_FOUND));
+        Family family = proposer.getFamily();
+        if (family == null) {
+            throw new ScheduleException(ScheduleErrorCode.FAMILY_REQUIRED);
+        }
+
+        FamilyMissionRecommendation recommendation = familyMissionRecommendationRepository
+                .findFirstByFamilyIdOrderByRecommendationRankAsc(family.getId())
+                .orElseThrow(() -> new ScheduleException(ScheduleErrorCode.NOT_ASSIGNED_WEEKLY_MISSION));
+        Mission mission = recommendation.getMission();
+        if (mission == null || !mission.getId().equals(missionId)) {
+            throw new ScheduleException(ScheduleErrorCode.NOT_ASSIGNED_WEEKLY_MISSION);
+        }
+        if (!isMissionSchedulable(mission, LocalDate.now(clock))) {
+            throw new ScheduleException(ScheduleErrorCode.WEEKLY_MISSION_NOT_AVAILABLE);
+        }
+        if (scheduleRepository.existsByFamily_IdAndBucketItem_Mission_IdAndStatusIn(
+                family.getId(), missionId, ScheduleStatus.ACTIVE_STATUSES)) {
+            throw new ScheduleException(ScheduleErrorCode.WEEKLY_SCHEDULE_ALREADY_EXISTS);
+        }
+
+        BucketItem bucketItem = resolveWeeklyBucket(proposer, family, mission);
+
+        return createScheduleForBucket(proposer, family, bucketItem, request);
+    }
+
+    private ScheduleResDTO.Created createScheduleForBucket(Member proposer, Family family, BucketItem bucketItem,
+                                                          ScheduleReqDTO.Create request) {
         if (bucketItem.getStatus() != BucketStatus.SAVED
-                || scheduleRepository.existsByBucketItem_IdAndStatusIn(bucketItemId, ScheduleStatus.ACTIVE_STATUSES)) {
+                || scheduleRepository.existsByBucketItem_IdAndStatusIn(bucketItem.getId(), ScheduleStatus.ACTIVE_STATUSES)) {
             throw new ScheduleException(ScheduleErrorCode.BUCKET_NOT_SCHEDULABLE);
         }
 
@@ -93,6 +133,19 @@ public class ScheduleCommandService {
         bucketItem.markScheduled();
 
         return ScheduleConverter.toCreated(schedule, participantMemberIds);
+    }
+
+    private BucketItem resolveWeeklyBucket(Member proposer, Family family, Mission mission) {
+        return bucketItemRepository
+                .findFirstByMember_IdAndMission_IdAndStatus(proposer.getId(), mission.getId(), BucketStatus.SAVED)
+                .flatMap(found -> bucketItemRepository.findByIdForUpdate(found.getId()))
+                .orElseGet(() -> bucketItemRepository.save(
+                        BucketConverter.toBucketItem(family, proposer, mission, LocalDateTime.now(clock))));
+    }
+
+    private boolean isMissionSchedulable(Mission mission, LocalDate today) {
+        return mission.getStatus() == MissionStatus.ACTIVE
+                && (mission.getEndDate() == null || !mission.getEndDate().isBefore(today));
     }
 
     @Transactional
