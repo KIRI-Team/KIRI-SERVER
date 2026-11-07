@@ -67,4 +67,9 @@ public class BucketItem extends BaseEntity {
     public void markSaved() {
         this.status = BucketStatus.SAVED;
     }
+
+    public void markCompleted(LocalDateTime completedAt) {
+        this.status = BucketStatus.COMPLETED;
+        this.completedAt = completedAt;
+    }
 }

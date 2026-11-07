@@ -8,6 +8,8 @@ import com.kiri.server.domain.review.entity.Review;
 import com.kiri.server.domain.review.entity.ReviewPhoto;
 import com.kiri.server.domain.review.exception.ReviewException;
 import com.kiri.server.domain.review.exception.code.ReviewErrorCode;
+import com.kiri.server.domain.bucket.entity.BucketItem;
+import com.kiri.server.domain.bucket.enums.BucketStatus;
 import com.kiri.server.domain.review.repository.ReviewPhotoRepository;
 import com.kiri.server.domain.review.repository.ReviewRepository;
 import com.kiri.server.domain.schedule.entity.Schedule;
@@ -59,7 +61,13 @@ public class ReviewService {
         }
 
         if (schedule.getStatus() != ScheduleStatus.COMPLETED) {
-            schedule.complete(LocalDateTime.now());
+            LocalDateTime completedAt = LocalDateTime.now();
+            schedule.complete(completedAt);
+
+            BucketItem bucketItem = schedule.getBucketItem();
+            if (bucketItem != null && bucketItem.getStatus() != BucketStatus.COMPLETED) {
+                bucketItem.markCompleted(completedAt);
+            }
         }
 
         return ReviewConverter.toCreateResponse(review);
