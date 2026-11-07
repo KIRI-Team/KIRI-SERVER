@@ -9,9 +9,11 @@ import com.kiri.server.domain.member.exception.MemberException;
 import com.kiri.server.domain.member.repository.MemberRepository;
 import com.kiri.server.domain.mission.entity.FamilyMissionRecommendation;
 import com.kiri.server.domain.mission.entity.Mission;
+import com.kiri.server.domain.mission.entity.WeeklyMission;
 import com.kiri.server.domain.mission.enums.MissionStatus;
 import com.kiri.server.domain.mission.enums.MissionType;
 import com.kiri.server.domain.mission.repository.FamilyMissionRecommendationRepository;
+import com.kiri.server.domain.mission.repository.WeeklyMissionRepository;
 import com.kiri.server.domain.schedule.dto.ScheduleReqDTO;
 import com.kiri.server.domain.schedule.dto.ScheduleResDTO;
 import com.kiri.server.domain.schedule.entity.Schedule;
@@ -68,6 +70,7 @@ class ScheduleCommandServiceTest {
     @Mock private ScheduleParticipantRepository scheduleParticipantRepository;
     @Mock private ScheduleConditionRepository scheduleConditionRepository;
     @Mock private FamilyMissionRecommendationRepository familyMissionRecommendationRepository;
+    @Mock private WeeklyMissionRepository weeklyMissionRepository;
 
     private ScheduleCommandService service;
 
@@ -80,7 +83,7 @@ class ScheduleCommandServiceTest {
     void setUp() {
         service = new ScheduleCommandService(memberRepository, bucketItemRepository,
                 scheduleRepository, scheduleParticipantRepository, scheduleConditionRepository,
-                familyMissionRecommendationRepository, CLOCK);
+                familyMissionRecommendationRepository, weeklyMissionRepository, CLOCK);
         family = Family.builder().id(10L).name("가족").build();
         proposer = Member.builder().id(PROPOSER_ID).family(family).nickname("제안자").build();
         m2 = Member.builder().id(2L).family(family).nickname("엄마").build();
@@ -718,6 +721,8 @@ class ScheduleCommandServiceTest {
         given(bucketItemRepository.findFirstByMember_IdAndMission_IdAndStatus(PROPOSER_ID, MISSION_ID, BucketStatus.SAVED))
                 .willReturn(Optional.empty());
         given(bucketItemRepository.save(any(BucketItem.class))).willReturn(newBucket);
+        given(weeklyMissionRepository.findByFamily_IdAndStartDate(eq(10L), any())).willReturn(Optional.empty());
+        given(weeklyMissionRepository.save(any(WeeklyMission.class))).willAnswer(inv -> inv.getArgument(0));
         given(scheduleRepository.existsByBucketItem_IdAndStatusIn(eq(NEW_BUCKET_ID), any())).willReturn(false);
         given(memberRepository.findAllByFamilyAndDeletedAtIsNull(family)).willReturn(List.of(proposer, m2, m3));
         given(scheduleRepository.save(any(Schedule.class))).willAnswer(inv -> inv.getArgument(0));
@@ -748,6 +753,8 @@ class ScheduleCommandServiceTest {
         given(bucketItemRepository.findFirstByMember_IdAndMission_IdAndStatus(PROPOSER_ID, MISSION_ID, BucketStatus.SAVED))
                 .willReturn(Optional.of(existing));
         given(bucketItemRepository.findByIdForUpdate(EXISTING_BUCKET_ID)).willReturn(Optional.of(existing));
+        given(weeklyMissionRepository.findByFamily_IdAndStartDate(eq(10L), any())).willReturn(Optional.empty());
+        given(weeklyMissionRepository.save(any(WeeklyMission.class))).willAnswer(inv -> inv.getArgument(0));
         given(scheduleRepository.existsByBucketItem_IdAndStatusIn(eq(EXISTING_BUCKET_ID), any())).willReturn(false);
         given(memberRepository.findAllByFamilyAndDeletedAtIsNull(family)).willReturn(List.of(proposer, m2, m3));
         given(scheduleRepository.save(any(Schedule.class))).willAnswer(inv -> inv.getArgument(0));

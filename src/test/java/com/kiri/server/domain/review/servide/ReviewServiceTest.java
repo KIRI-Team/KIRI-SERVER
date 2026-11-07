@@ -2,6 +2,7 @@ package com.kiri.server.domain.review.servide;
 
 import com.kiri.server.domain.bucket.entity.BucketItem;
 import com.kiri.server.domain.bucket.enums.BucketStatus;
+import com.kiri.server.domain.mission.entity.WeeklyMission;
 import com.kiri.server.domain.review.dto.ReviewReqDTO;
 import com.kiri.server.domain.review.dto.ReviewResDTO;
 import com.kiri.server.domain.review.entity.Review;
@@ -293,5 +294,91 @@ class ReviewServiceTest {
 
         assertThat(bucketItem.getStatus()).isEqualTo(BucketStatus.COMPLETED);
         assertThat(bucketItem.getCompletedAt()).isEqualTo(firstCompletedAt);
+    }
+
+    @Test
+    @DisplayName("첫 리뷰로 버킷이 완료되면 연결된 주간 미션도 COMPLETED로 변경된다")
+    void createReviewCompletesLinkedWeeklyMission() {
+        WeeklyMission weeklyMission = WeeklyMission.builder()
+                .id(700L)
+                .startDate(LocalDate.now())
+                .endDate(LocalDate.now().plusDays(6))
+                .build();
+        BucketItem bucketItem = BucketItem.builder()
+                .id(500L)
+                .status(BucketStatus.SCHEDULED)
+                .build();
+        bucketItem.linkWeeklyMission(weeklyMission);
+        Schedule scheduleWithBucket = Schedule.builder()
+                .id(scheduleId)
+                .bucketItem(bucketItem)
+                .scheduleDate(LocalDate.now())
+                .scheduleTime(LocalTime.now())
+                .status(ScheduleStatus.CONFIRMED)
+                .build();
+        ScheduleParticipant participant = ScheduleParticipant.builder()
+                .id(scheduleParticipantId)
+                .schedule(scheduleWithBucket)
+                .status(ParticipantStatus.ACCEPTED)
+                .build();
+
+        when(scheduleRepository.findByIdForUpdate(scheduleId)).thenReturn(Optional.of(scheduleWithBucket));
+        when(scheduleParticipantRepository.findBySchedule_IdAndMember_IdForUpdate(scheduleId, memberId)).thenReturn(Optional.of(participant));
+        when(reviewRepository.existsBySchedule_IdAndScheduleParticipant_Id(scheduleId, scheduleParticipantId)).thenReturn(false);
+        when(reviewRepository.save(any(Review.class)))
+                .thenAnswer(invocation -> {
+                    Review review = invocation.getArgument(0);
+                    ReflectionTestUtils.setField(review, "id", 1L);
+                    return review;
+                });
+
+        reviewService.createReview(memberId, scheduleId, createRequest());
+
+        assertThat(bucketItem.getStatus()).isEqualTo(BucketStatus.COMPLETED);
+        assertThat(weeklyMission.getCompletedAt()).isNotNull();
+        assertThat(weeklyMission.getCompletedAt()).isEqualTo(bucketItem.getCompletedAt());
+    }
+
+    @Test
+    @DisplayName("이미 완료된 주간 미션은 다른 버킷의 추가 리뷰로 다시 바뀌지 않는다")
+    void additionalReviewDoesNotRecompleteWeeklyMission() {
+        LocalDateTime firstCompletedAt = LocalDateTime.now().minusHours(1);
+        WeeklyMission weeklyMission = WeeklyMission.builder()
+                .id(700L)
+                .startDate(LocalDate.now())
+                .endDate(LocalDate.now().plusDays(6))
+                .build();
+        weeklyMission.markCompleted(firstCompletedAt);
+        BucketItem bucketItem = BucketItem.builder()
+                .id(500L)
+                .status(BucketStatus.SCHEDULED)
+                .build();
+        bucketItem.linkWeeklyMission(weeklyMission);
+        Schedule scheduleWithBucket = Schedule.builder()
+                .id(scheduleId)
+                .bucketItem(bucketItem)
+                .scheduleDate(LocalDate.now())
+                .scheduleTime(LocalTime.now())
+                .status(ScheduleStatus.CONFIRMED)
+                .build();
+        ScheduleParticipant participant = ScheduleParticipant.builder()
+                .id(scheduleParticipantId)
+                .schedule(scheduleWithBucket)
+                .status(ParticipantStatus.ACCEPTED)
+                .build();
+
+        when(scheduleRepository.findByIdForUpdate(scheduleId)).thenReturn(Optional.of(scheduleWithBucket));
+        when(scheduleParticipantRepository.findBySchedule_IdAndMember_IdForUpdate(scheduleId, memberId)).thenReturn(Optional.of(participant));
+        when(reviewRepository.existsBySchedule_IdAndScheduleParticipant_Id(scheduleId, scheduleParticipantId)).thenReturn(false);
+        when(reviewRepository.save(any(Review.class)))
+                .thenAnswer(invocation -> {
+                    Review review = invocation.getArgument(0);
+                    ReflectionTestUtils.setField(review, "id", 2L);
+                    return review;
+                });
+
+        reviewService.createReview(memberId, scheduleId, createRequest());
+
+        assertThat(weeklyMission.getCompletedAt()).isEqualTo(firstCompletedAt);
     }
 }
