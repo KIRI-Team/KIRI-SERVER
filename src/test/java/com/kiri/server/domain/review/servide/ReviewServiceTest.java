@@ -1,5 +1,7 @@
 package com.kiri.server.domain.review.servide;
 
+import com.kiri.server.domain.bucket.entity.BucketItem;
+import com.kiri.server.domain.bucket.enums.BucketStatus;
 import com.kiri.server.domain.review.dto.ReviewReqDTO;
 import com.kiri.server.domain.review.dto.ReviewResDTO;
 import com.kiri.server.domain.review.entity.Review;
@@ -214,5 +216,82 @@ class ReviewServiceTest {
 
         verify(reviewRepository).save(any(Review.class));
         verify(reviewPhotoRepository, times(2)).save(any(ReviewPhoto.class));
+    }
+
+    @Test
+    @DisplayName("첫 리뷰로 일정이 완료되면 연결된 버킷도 COMPLETED로 변경된다")
+    void createReviewCompletesLinkedBucket() {
+        BucketItem bucketItem = BucketItem.builder()
+                .id(500L)
+                .status(BucketStatus.SCHEDULED)
+                .build();
+        Schedule scheduleWithBucket = Schedule.builder()
+                .id(scheduleId)
+                .bucketItem(bucketItem)
+                .scheduleDate(LocalDate.now())
+                .scheduleTime(LocalTime.now())
+                .status(ScheduleStatus.CONFIRMED)
+                .build();
+        ScheduleParticipant participant = ScheduleParticipant.builder()
+                .id(scheduleParticipantId)
+                .schedule(scheduleWithBucket)
+                .status(ParticipantStatus.ACCEPTED)
+                .build();
+
+        when(scheduleRepository.findByIdForUpdate(scheduleId)).thenReturn(Optional.of(scheduleWithBucket));
+        when(scheduleParticipantRepository.findBySchedule_IdAndMember_IdForUpdate(scheduleId, memberId)).thenReturn(Optional.of(participant));
+        when(reviewRepository.existsBySchedule_IdAndScheduleParticipant_Id(scheduleId, scheduleParticipantId)).thenReturn(false);
+        when(reviewRepository.save(any(Review.class)))
+                .thenAnswer(invocation -> {
+                    Review review = invocation.getArgument(0);
+                    ReflectionTestUtils.setField(review, "id", 1L);
+                    return review;
+                });
+
+        reviewService.createReview(memberId, scheduleId, createRequest());
+
+        assertThat(scheduleWithBucket.getStatus()).isEqualTo(ScheduleStatus.COMPLETED);
+        assertThat(bucketItem.getStatus()).isEqualTo(BucketStatus.COMPLETED);
+        assertThat(bucketItem.getCompletedAt()).isNotNull();
+        assertThat(bucketItem.getCompletedAt()).isEqualTo(scheduleWithBucket.getCompletedAt());
+    }
+
+    @Test
+    @DisplayName("이미 완료된 일정의 추가 리뷰는 이미 COMPLETED인 버킷을 다시 바꾸지 않는다")
+    void additionalReviewDoesNotRecompleteBucket() {
+        LocalDateTime firstCompletedAt = LocalDateTime.now().minusHours(1);
+        BucketItem bucketItem = BucketItem.builder()
+                .id(500L)
+                .status(BucketStatus.SCHEDULED)
+                .build();
+        bucketItem.markCompleted(firstCompletedAt);
+        Schedule scheduleWithBucket = Schedule.builder()
+                .id(scheduleId)
+                .bucketItem(bucketItem)
+                .scheduleDate(LocalDate.now())
+                .scheduleTime(LocalTime.now())
+                .status(ScheduleStatus.CONFIRMED)
+                .build();
+        scheduleWithBucket.complete(firstCompletedAt);
+        ScheduleParticipant participant = ScheduleParticipant.builder()
+                .id(scheduleParticipantId)
+                .schedule(scheduleWithBucket)
+                .status(ParticipantStatus.ACCEPTED)
+                .build();
+
+        when(scheduleRepository.findByIdForUpdate(scheduleId)).thenReturn(Optional.of(scheduleWithBucket));
+        when(scheduleParticipantRepository.findBySchedule_IdAndMember_IdForUpdate(scheduleId, memberId)).thenReturn(Optional.of(participant));
+        when(reviewRepository.existsBySchedule_IdAndScheduleParticipant_Id(scheduleId, scheduleParticipantId)).thenReturn(false);
+        when(reviewRepository.save(any(Review.class)))
+                .thenAnswer(invocation -> {
+                    Review review = invocation.getArgument(0);
+                    ReflectionTestUtils.setField(review, "id", 2L);
+                    return review;
+                });
+
+        reviewService.createReview(memberId, scheduleId, createRequest());
+
+        assertThat(bucketItem.getStatus()).isEqualTo(BucketStatus.COMPLETED);
+        assertThat(bucketItem.getCompletedAt()).isEqualTo(firstCompletedAt);
     }
 }
