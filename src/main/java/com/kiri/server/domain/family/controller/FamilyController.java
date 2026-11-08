@@ -100,4 +100,23 @@ public class FamilyController implements FamilyControllerDocs {
         BaseSuccessCode code = FamilySuccessCode.FAMILY_JOINED;
         return ApiResponse.onSuccess(code, familyService.joinFamily(memberId, dto));
     }
+
+    @Override
+    @GetMapping("/invite/{inviteToken}")
+    public ApiResponse<FamilyResDTO.InviteTokenInfo> getInviteTokenInfo(
+            @PathVariable String inviteToken
+    ) {
+        BaseSuccessCode code = FamilySuccessCode.FAMILY_INVITE_TOKEN_INFO_SUCCESS;
+        return ApiResponse.onSuccess(code, familyService.getInviteTokenInfo(inviteToken));
+    }
+
+    @Override
+    @PostMapping("/join/{inviteToken}")
+    public ApiResponse<FamilyResDTO.Join> joinFamilyByToken(
+            @AuthenticationPrincipal Long memberId,
+            @PathVariable String inviteToken
+    ) {
+        BaseSuccessCode code = FamilySuccessCode.FAMILY_JOINED;
+        return ApiResponse.onSuccess(code, familyService.joinFamilyByToken(memberId, inviteToken));
+    }
 }

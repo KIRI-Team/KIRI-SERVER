@@ -65,4 +65,11 @@ public class FamilyConverter {
                 .familyName(family.getName())
                 .build();
     }
+
+    public static FamilyResDTO.InviteTokenInfo toInviteTokenInfoResponse(Family family) {
+        return FamilyResDTO.InviteTokenInfo.builder()
+                .familyId(family.getId())
+                .familyName(family.getName())
+                .build();
+    }
 }

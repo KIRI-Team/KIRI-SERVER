@@ -365,4 +365,45 @@ class FamilyControllerTest {
 
         then(familyService).shouldHaveNoInteractions();
     }
+
+    @Test
+    @DisplayName("유효한 초대 토큰으로 가족 정보를 조회한다.")
+    void getInviteTokenInfoSuccessfully() throws Exception {
+        String inviteToken = "a1b2c3d4e5f678901234567890abcdef";
+
+        FamilyResDTO.InviteTokenInfo response = new FamilyResDTO.InviteTokenInfo(10L, "우리 가족");
+
+        given(familyService.getInviteTokenInfo(inviteToken)).willReturn(response);
+
+        mockMvc.perform(get("/api/v1/families/invite/{inviteToken}", inviteToken)
+                        .with(authentication(new UsernamePasswordAuthenticationToken(1L, null, List.of(new SimpleGrantedAuthority("ROLE_USER"))))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.isSuccess").value(true))
+                .andExpect(jsonPath("$.result.familyId").value(10L))
+                .andExpect(jsonPath("$.result.familyName").value("우리 가족"));
+
+        then(familyService).should()
+                .getInviteTokenInfo(inviteToken);
+    }
+
+    @Test
+    @DisplayName("유효한 초대 토큰으로 가족 가입에 성공한다.")
+    void joinFamilyByTokenSuccessfully() throws Exception {
+        Long memberId = 1L;
+        String inviteToken = "a1b2c3d4e5f678901234567890abcdef";
+
+        FamilyResDTO.Join response = new FamilyResDTO.Join(10L, "우리 가족");
+
+        given(familyService.joinFamilyByToken(memberId, inviteToken)).willReturn(response);
+
+        mockMvc.perform(post("/api/v1/families/join/{inviteToken}", inviteToken)
+                        .with(authentication(new UsernamePasswordAuthenticationToken(memberId, null, List.of(new SimpleGrantedAuthority("ROLE_USER")))))
+                        .with(csrf()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.isSuccess").value(true))
+                .andExpect(jsonPath("$.result.familyId").value(10L))
+                .andExpect(jsonPath("$.result.familyName").value("우리 가족"));
+
+        then(familyService).should().joinFamilyByToken(memberId, inviteToken);
+    }
 }

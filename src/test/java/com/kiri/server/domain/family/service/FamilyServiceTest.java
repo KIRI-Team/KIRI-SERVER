@@ -818,6 +818,161 @@ class FamilyServiceTest {
         verify(familyRepository, never()).findByInviteCode(anyString());
     }
 
+    @Test
+    @DisplayName("유효한 초대 토큰으로 가족 정보를 조회한다.")
+    void getInviteTokenInfoSuccessfully() {
+        String inviteToken = "a1b2c3d4e5f678901234567890abcdef";
+
+        Family family = Family.builder()
+                .id(10L)
+                .name("우리 가족")
+                .inviteToken(inviteToken)
+                .inviteExpiresAt(LocalDateTime.now().plusDays(7))
+                .build();
+
+        when(familyRepository.findByInviteToken(inviteToken)).thenReturn(Optional.of(family));
+
+        FamilyResDTO.InviteTokenInfo response = familyService.getInviteTokenInfo(inviteToken);
+
+        assertEquals(10L, response.familyId());
+        assertEquals("우리 가족", response.familyName());
+
+        verify(familyRepository).findByInviteToken(inviteToken);
+    }
+
+    @Test
+    @DisplayName("존재하지 않는 초대 토큰으로 조회하면 예외가 발생한다.")
+    void getInviteTokenInfoWithInvalidToken() {
+        String inviteToken = "invalid-token";
+
+        when(familyRepository.findByInviteToken(inviteToken)).thenReturn(Optional.empty());
+
+        assertThrows(FamilyException.class, () -> familyService.getInviteTokenInfo(inviteToken));
+
+        verify(familyRepository).findByInviteToken(inviteToken);
+    }
+
+    @Test
+    @DisplayName("만료된 초대 토큰으로 조회하면 예외가 발생한다.")
+    void getInviteTokenInfoWithExpiredToken() {
+        String inviteToken = "a1b2c3d4e5f678901234567890abcdef";
+
+        Family family = Family.builder()
+                .id(10L)
+                .name("우리 가족")
+                .inviteToken(inviteToken)
+                .inviteExpiresAt(LocalDateTime.now().minusDays(1))
+                .build();
+
+        when(familyRepository.findByInviteToken(inviteToken)).thenReturn(Optional.of(family));
+
+        assertThrows(FamilyException.class, () -> familyService.getInviteTokenInfo(inviteToken));
+
+        verify(familyRepository).findByInviteToken(inviteToken);
+    }
+
+    @Test
+    @DisplayName("유효한 초대 토큰으로 가족 가입에 성공한다.")
+    void joinFamilyByTokenSuccessfully() {
+        Long memberId = 1L;
+        String inviteToken = "a1b2c3d4e5f678901234567890abcdef";
+
+        Member member = Member.builder()
+                .id(memberId)
+                .build();
+
+        Family family = Family.builder()
+                .id(10L)
+                .name("우리 가족")
+                .inviteToken(inviteToken)
+                .inviteExpiresAt(LocalDateTime.now().plusDays(7))
+                .build();
+
+        when(memberRepository.findByIdForUpdate(memberId)).thenReturn(Optional.of(member));
+        when(familyRepository.findByInviteToken(inviteToken)).thenReturn(Optional.of(family));
+
+        FamilyResDTO.Join response = familyService.joinFamilyByToken(memberId, inviteToken);
+
+        assertEquals(10L, response.familyId());
+        assertEquals("우리 가족", response.familyName());
+
+        assertSame(family, member.getFamily());
+        assertNotNull(member.getFamilyJoinedAt());
+
+        verify(memberRepository).findByIdForUpdate(memberId);
+        verify(familyRepository).findByInviteToken(inviteToken);
+    }
+
+    @Test
+    @DisplayName("존재하지 않는 초대 토큰으로 가입하면 예외가 발생한다.")
+    void joinFamilyByTokenWithInvalidToken() {
+        Long memberId = 1L;
+        String inviteToken = "invalid-token";
+
+        Member member = Member.builder()
+                .id(memberId)
+                .build();
+
+        when(memberRepository.findByIdForUpdate(memberId)).thenReturn(Optional.of(member));
+        when(familyRepository.findByInviteToken(inviteToken)).thenReturn(Optional.empty());
+
+        assertThrows(FamilyException.class, () -> familyService.joinFamilyByToken(memberId, inviteToken));
+
+        assertNull(member.getFamily());
+        assertNull(member.getFamilyJoinedAt());
+    }
+
+    @Test
+    @DisplayName("만료된 초대 토큰으로 가입하면 예외가 발생한다.")
+    void joinFamilyByTokenWithExpiredToken() {
+        Long memberId = 1L;
+        String inviteToken = "a1b2c3d4e5f678901234567890abcdef";
+
+        Member member = Member.builder()
+                .id(memberId)
+                .build();
+
+        Family family = Family.builder()
+                .id(10L)
+                .name("우리 가족")
+                .inviteToken(inviteToken)
+                .inviteExpiresAt(LocalDateTime.now().minusDays(1))
+                .build();
+
+        when(memberRepository.findByIdForUpdate(memberId)).thenReturn(Optional.of(member));
+        when(familyRepository.findByInviteToken(inviteToken)).thenReturn(Optional.of(family));
+
+        assertThrows(FamilyException.class, () -> familyService.joinFamilyByToken(memberId, inviteToken));
+
+        assertNull(member.getFamily());
+        assertNull(member.getFamilyJoinedAt());
+    }
+
+    @Test
+    @DisplayName("이미 가족에 가입된 사용자는 초대 토큰으로 가입할 수 없다.")
+    void joinFamilyByTokenWhenAlreadyJoined() {
+        Long memberId = 1L;
+        String inviteToken = "a1b2c3d4e5f678901234567890abcdef";
+
+        Family existingFamily = Family.builder()
+                .id(5L)
+                .name("기존 가족")
+                .build();
+
+        Member member = Member.builder()
+                .id(memberId)
+                .family(existingFamily)
+                .build();
+
+        when(memberRepository.findByIdForUpdate(memberId)).thenReturn(Optional.of(member));
+
+        assertThrows(FamilyException.class, () -> familyService.joinFamilyByToken(memberId, inviteToken));
+
+        assertSame(existingFamily, member.getFamily());
+
+        verify(familyRepository, never()).findByInviteToken(anyString());
+    }
+
     private FamilyReqDTO.UpdateAddress createAddressRequest() {
         return new FamilyReqDTO.UpdateAddress(
                 "12345",

@@ -29,4 +29,6 @@ public interface FamilyRepository extends JpaRepository<Family, Long> {
     Optional<Family> findByMemberId(@Param("memberId") Long memberId);
 
     Optional<Family> findByInviteCode(String inviteCode);
+
+    Optional<Family> findByInviteToken(String inviteToken);
 }
