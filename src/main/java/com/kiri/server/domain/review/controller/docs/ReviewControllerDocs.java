@@ -45,9 +45,9 @@ public interface ReviewControllerDocs {
                     3. 현재 사용자가 해당 일정의 참여자인지 확인합니다.
                     4. 해당 참여자가 이미 리뷰를 작성했는지 확인합니다.
                     5. 리뷰 내용, 별점, 재참여 의사 및 imageKeys를 검증합니다.
-                    6. 전달받은 imageKeys가 유효한 이미지인지 확인합니다.
-                    7. review를 생성합니다.
-                    8. 각 imageKey를 이용하여 review_photo를 생성합니다.
+                    6. review를 생성합니다.
+                    7. 각 imageKey의 업로드 파일을 확인하고 user/original/ 경로로 확정합니다.
+                    8. 확정된 imageKey로 review_photo를 생성합니다.
                     9. 해당 일정의 상태를 COMPLETED로 변경하고 completed_at을 기록합니다.
                     10. 리뷰 작성과 일정 완료 처리를 하나의 트랜잭션으로 처리합니다.
                     """
@@ -168,6 +168,39 @@ public interface ReviewControllerDocs {
                                                         }
                                                     }
                                                     """
+                                    ),
+                                    @ExampleObject(
+                                            name = "지원하지 않는 이미지 형식",
+                                            value = """
+                                                    {
+                                                        "isSuccess": false,
+                                                        "code": "IMAGE400_1",
+                                                        "message": "지원하지 않는 이미지 형식입니다.",
+                                                        "result": null
+                                                    }
+                                                    """
+                                    ),
+                                    @ExampleObject(
+                                            name = "유효하지 않은 이미지 키 (형식 오류, 다른 회원의 키)",
+                                            value = """
+                                                    {
+                                                        "isSuccess": false,
+                                                        "code": "IMAGE400_2",
+                                                        "message": "유효하지 않은 이미지 키입니다.",
+                                                        "result": null
+                                                    }
+                                                    """
+                                    ),
+                                    @ExampleObject(
+                                            name = "이미지 10MB 초과",
+                                            value = """
+                                                    {
+                                                        "isSuccess": false,
+                                                        "code": "IMAGE400_3",
+                                                        "message": "이미지 용량이 너무 큽니다.",
+                                                        "result": null
+                                                    }
+                                                    """
                                     )
                             }
                     )
@@ -232,7 +265,7 @@ public interface ReviewControllerDocs {
             ),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
                     responseCode = "404",
-                    description = "사용자나 일정이 존재하지 않는 경우",
+                    description = "사용자, 일정, 업로드된 이미지가 존재하지 않는 경우",
                     content = @Content(
                             mediaType = "application/json",
                             examples = {
@@ -254,6 +287,17 @@ public interface ReviewControllerDocs {
                                                         "isSuccess": false,
                                                         "code": "SCHEDULE404_1",
                                                         "message": "일정을 찾을 수 없습니다.",
+                                                        "result": null
+                                                    }
+                                            """
+                                    ),
+                                    @ExampleObject(
+                                            name = "imageKey의 파일이 S3에 업로드되지 않은 경우",
+                                            value = """
+                                                    {
+                                                        "isSuccess": false,
+                                                        "code": "IMAGE404_1",
+                                                        "message": "업로드된 이미지를 찾을 수 없습니다.",
                                                         "result": null
                                                     }
                                             """
@@ -297,15 +341,30 @@ public interface ReviewControllerDocs {
                     description = "서버 오류",
                     content = @Content(
                             mediaType = "application/json",
-                            examples = @ExampleObject(value = """
-                                    {
-                                        "isSuccess": false,
-                                        "code": "COMMON500_1",
-                                        "message": "서버 내부 오류가 발생했습니다.",
-                                        "result": null
-                                    }
-                                    """
-                            )
+                            examples = {
+                                    @ExampleObject(
+                                            name = "이미지 저장소 오류",
+                                            value = """
+                                                    {
+                                                        "isSuccess": false,
+                                                        "code": "IMAGE500_1",
+                                                        "message": "이미지 저장소 처리 중 오류가 발생했습니다.",
+                                                        "result": null
+                                                    }
+                                                    """
+                                    ),
+                                    @ExampleObject(
+                                            name = "서버 내부 오류",
+                                            value = """
+                                                    {
+                                                        "isSuccess": false,
+                                                        "code": "COMMON500_1",
+                                                        "message": "서버 내부 오류가 발생했습니다.",
+                                                        "result": null
+                                                    }
+                                                    """
+                                    )
+                            }
                     )
             ),
     })
