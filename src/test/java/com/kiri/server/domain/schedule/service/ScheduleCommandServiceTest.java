@@ -711,8 +711,10 @@ class ScheduleCommandServiceTest {
         BucketItem newBucket = BucketItem.builder().id(NEW_BUCKET_ID).family(family).member(proposer)
                 .mission(mission).status(BucketStatus.SAVED).build();
         given(memberRepository.findById(PROPOSER_ID)).willReturn(Optional.of(proposer));
-        given(familyMissionRecommendationRepository.findFirstByFamilyIdOrderByRecommendationRankAsc(10L))
-                .willReturn(Optional.of(recommendation(mission)));
+        given(familyMissionRecommendationRepository
+                .findFirstByFamilyIdAndStartedAtLessThanEqualAndEndedAtGreaterThanOrderByStartedAtDesc(
+                        eq(10L), any(LocalDateTime.class), any(LocalDateTime.class)
+                )).willReturn(Optional.of(recommendation(mission)));
         given(scheduleRepository.existsByFamily_IdAndBucketItem_Mission_IdAndStatusIn(eq(10L), eq(MISSION_ID), any()))
                 .willReturn(false);
         given(bucketItemRepository.findFirstByMember_IdAndMission_IdAndStatus(PROPOSER_ID, MISSION_ID, BucketStatus.SAVED))
@@ -741,8 +743,10 @@ class ScheduleCommandServiceTest {
         BucketItem existing = BucketItem.builder().id(EXISTING_BUCKET_ID).family(family).member(proposer)
                 .mission(mission).status(BucketStatus.SAVED).build();
         given(memberRepository.findById(PROPOSER_ID)).willReturn(Optional.of(proposer));
-        given(familyMissionRecommendationRepository.findFirstByFamilyIdOrderByRecommendationRankAsc(10L))
-                .willReturn(Optional.of(recommendation(mission)));
+        given(familyMissionRecommendationRepository
+                .findFirstByFamilyIdAndStartedAtLessThanEqualAndEndedAtGreaterThanOrderByStartedAtDesc(
+                        eq(10L), any(LocalDateTime.class), any(LocalDateTime.class)
+                )).willReturn(Optional.of(recommendation(mission)));
         given(scheduleRepository.existsByFamily_IdAndBucketItem_Mission_IdAndStatusIn(eq(10L), eq(MISSION_ID), any()))
                 .willReturn(false);
         given(bucketItemRepository.findFirstByMember_IdAndMission_IdAndStatus(PROPOSER_ID, MISSION_ID, BucketStatus.SAVED))
@@ -765,8 +769,10 @@ class ScheduleCommandServiceTest {
     @DisplayName("배정된 주간 미션이 없으면 SCHEDULE409_8로 예외를 던진다.")
     void createFromWeeklyMission_noAssignedMission() {
         given(memberRepository.findById(PROPOSER_ID)).willReturn(Optional.of(proposer));
-        given(familyMissionRecommendationRepository.findFirstByFamilyIdOrderByRecommendationRankAsc(10L))
-                .willReturn(Optional.empty());
+        given(familyMissionRecommendationRepository
+                .findFirstByFamilyIdAndStartedAtLessThanEqualAndEndedAtGreaterThanOrderByStartedAtDesc(
+                        eq(10L), any(LocalDateTime.class), any(LocalDateTime.class)
+                )).willReturn(Optional.empty());
 
         assertThatThrownBy(() -> service.createFromWeeklyMission(PROPOSER_ID, MISSION_ID, weeklyRequest()))
                 .isInstanceOf(ScheduleException.class)
@@ -780,8 +786,10 @@ class ScheduleCommandServiceTest {
     void createFromWeeklyMission_missionMismatch() {
         Mission assigned = weeklyMission(MissionStatus.ACTIVE, null);
         given(memberRepository.findById(PROPOSER_ID)).willReturn(Optional.of(proposer));
-        given(familyMissionRecommendationRepository.findFirstByFamilyIdOrderByRecommendationRankAsc(10L))
-                .willReturn(Optional.of(recommendation(assigned)));
+        given(familyMissionRecommendationRepository
+                .findFirstByFamilyIdAndStartedAtLessThanEqualAndEndedAtGreaterThanOrderByStartedAtDesc(
+                        eq(10L), any(LocalDateTime.class), any(LocalDateTime.class)
+                )).willReturn(Optional.of(recommendation(assigned)));
 
         assertThatThrownBy(() -> service.createFromWeeklyMission(PROPOSER_ID, 999L, weeklyRequest()))
                 .isInstanceOf(ScheduleException.class)
@@ -795,8 +803,11 @@ class ScheduleCommandServiceTest {
     void createFromWeeklyMission_missionNotAvailable() {
         Mission mission = weeklyMission(MissionStatus.ENDED, null);
         given(memberRepository.findById(PROPOSER_ID)).willReturn(Optional.of(proposer));
-        given(familyMissionRecommendationRepository.findFirstByFamilyIdOrderByRecommendationRankAsc(10L))
-                .willReturn(Optional.of(recommendation(mission)));
+        given(familyMissionRecommendationRepository
+                .findFirstByFamilyIdAndStartedAtLessThanEqualAndEndedAtGreaterThanOrderByStartedAtDesc(
+                        eq(10L), any(LocalDateTime.class), any(LocalDateTime.class)
+                )).willReturn(Optional.of(recommendation(mission)));
+
 
         assertThatThrownBy(() -> service.createFromWeeklyMission(PROPOSER_ID, MISSION_ID, weeklyRequest()))
                 .isInstanceOf(ScheduleException.class)
@@ -810,8 +821,10 @@ class ScheduleCommandServiceTest {
     void createFromWeeklyMission_alreadyLinked() {
         Mission mission = weeklyMission(MissionStatus.ACTIVE, null);
         given(memberRepository.findById(PROPOSER_ID)).willReturn(Optional.of(proposer));
-        given(familyMissionRecommendationRepository.findFirstByFamilyIdOrderByRecommendationRankAsc(10L))
-                .willReturn(Optional.of(recommendation(mission)));
+        given(familyMissionRecommendationRepository
+                .findFirstByFamilyIdAndStartedAtLessThanEqualAndEndedAtGreaterThanOrderByStartedAtDesc(
+                        eq(10L), any(LocalDateTime.class), any(LocalDateTime.class)
+                )).willReturn(Optional.of(recommendation(mission)));
         given(scheduleRepository.existsByFamily_IdAndBucketItem_Mission_IdAndStatusIn(eq(10L), eq(MISSION_ID), any()))
                 .willReturn(true);
 
