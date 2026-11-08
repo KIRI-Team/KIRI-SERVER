@@ -1,8 +1,14 @@
 package com.kiri.server.domain.review.servide;
 
+import com.kiri.server.domain.bucket.entity.BucketItem;
+import com.kiri.server.domain.bucket.enums.BucketStatus;
+import com.kiri.server.domain.family.entity.Family;
 import com.kiri.server.domain.image.exception.ImageException;
 import com.kiri.server.domain.image.exception.code.ImageErrorCode;
 import com.kiri.server.domain.image.service.ImageService;
+import com.kiri.server.domain.mission.entity.FamilyMissionRecommendation;
+import com.kiri.server.domain.mission.entity.Mission;
+import com.kiri.server.domain.mission.repository.FamilyMissionRecommendationRepository;
 import com.kiri.server.domain.review.dto.ReviewReqDTO;
 import com.kiri.server.domain.review.dto.ReviewResDTO;
 import com.kiri.server.domain.review.entity.Review;
@@ -56,6 +62,9 @@ class ReviewServiceTest {
 
     @Mock
     private ImageService imageService;
+
+    @Mock
+    private FamilyMissionRecommendationRepository familyMissionRecommendationRepository;
 
     @InjectMocks
     private ReviewService reviewService;
@@ -260,5 +269,113 @@ class ReviewServiceTest {
 
         verify(reviewRepository).save(any(Review.class));
         verify(reviewPhotoRepository, times(2)).save(any(ReviewPhoto.class));
+    }
+
+    private Schedule scheduleWithBucket(BucketItem bucketItem) {
+        return Schedule.builder()
+                .id(scheduleId)
+                .bucketItem(bucketItem)
+                .scheduleDate(LocalDate.now())
+                .scheduleTime(LocalTime.now())
+                .status(ScheduleStatus.CONFIRMED)
+                .build();
+    }
+
+    private void stubCreateFlow(Schedule target, ScheduleParticipant participant) {
+        when(scheduleRepository.findByIdForUpdate(scheduleId)).thenReturn(Optional.of(target));
+        when(scheduleParticipantRepository.findBySchedule_IdAndMember_IdForUpdate(scheduleId, memberId)).thenReturn(Optional.of(participant));
+        when(reviewRepository.existsBySchedule_IdAndScheduleParticipant_Id(scheduleId, scheduleParticipantId)).thenReturn(false);
+        when(reviewRepository.save(any(Review.class))).thenAnswer(invocation -> {
+            Review review = invocation.getArgument(0);
+            ReflectionTestUtils.setField(review, "id", 1L);
+            return review;
+        });
+    }
+
+    @Test
+    @DisplayName("첫 리뷰로 일정이 완료되면 연결된 버킷도 COMPLETED로 변경된다")
+    void createReviewCompletesLinkedBucket() {
+        Mission mission = Mission.builder().id(500L).build();
+        BucketItem bucketItem = BucketItem.builder()
+                .id(700L).family(Family.builder().id(1L).build()).mission(mission)
+                .status(BucketStatus.SCHEDULED).build();
+        Schedule target = scheduleWithBucket(bucketItem);
+        ScheduleParticipant participant = ScheduleParticipant.builder()
+                .id(scheduleParticipantId).schedule(target).status(ParticipantStatus.ACCEPTED).build();
+        stubCreateFlow(target, participant);
+
+        reviewService.createReview(memberId, scheduleId, createRequest());
+
+        assertThat(bucketItem.getStatus()).isEqualTo(BucketStatus.COMPLETED);
+        assertThat(bucketItem.getCompletedAt()).isNotNull();
+    }
+
+    @Test
+    @DisplayName("주간 미션으로 완료된 버킷이면 이번 주 추천 행의 completed_at을 기록한다")
+    void createReviewCompletesWeeklyRecommendation() {
+        Mission mission = Mission.builder().id(500L).build();
+        BucketItem bucketItem = BucketItem.builder()
+                .id(700L).family(Family.builder().id(1L).build()).mission(mission)
+                .status(BucketStatus.SCHEDULED).build();
+        FamilyMissionRecommendation recommendation = FamilyMissionRecommendation.builder()
+                .id(900L).mission(mission).build();
+        Schedule target = scheduleWithBucket(bucketItem);
+        ScheduleParticipant participant = ScheduleParticipant.builder()
+                .id(scheduleParticipantId).schedule(target).status(ParticipantStatus.ACCEPTED).build();
+        stubCreateFlow(target, participant);
+        when(familyMissionRecommendationRepository
+                .findFirstByFamilyIdAndStartedAtLessThanEqualAndEndedAtGreaterThanOrderByStartedAtDesc(anyLong(), any(), any()))
+                .thenReturn(Optional.of(recommendation));
+
+        reviewService.createReview(memberId, scheduleId, createRequest());
+
+        assertThat(bucketItem.getStatus()).isEqualTo(BucketStatus.COMPLETED);
+        assertThat(recommendation.getCompletedAt()).isNotNull();
+    }
+
+    @Test
+    @DisplayName("이번 주 추천이 이미 완료 상태면 다시 기록하지 않는다")
+    void doesNotRecompleteAlreadyCompletedRecommendation() {
+        LocalDateTime firstCompletedAt = LocalDateTime.now().minusHours(1);
+        Mission mission = Mission.builder().id(500L).build();
+        BucketItem bucketItem = BucketItem.builder()
+                .id(700L).family(Family.builder().id(1L).build()).mission(mission)
+                .status(BucketStatus.SCHEDULED).build();
+        FamilyMissionRecommendation recommendation = FamilyMissionRecommendation.builder()
+                .id(900L).mission(mission).completedAt(firstCompletedAt).build();
+        Schedule target = scheduleWithBucket(bucketItem);
+        ScheduleParticipant participant = ScheduleParticipant.builder()
+                .id(scheduleParticipantId).schedule(target).status(ParticipantStatus.ACCEPTED).build();
+        stubCreateFlow(target, participant);
+        when(familyMissionRecommendationRepository
+                .findFirstByFamilyIdAndStartedAtLessThanEqualAndEndedAtGreaterThanOrderByStartedAtDesc(anyLong(), any(), any()))
+                .thenReturn(Optional.of(recommendation));
+
+        reviewService.createReview(memberId, scheduleId, createRequest());
+
+        assertThat(recommendation.getCompletedAt()).isEqualTo(firstCompletedAt);
+    }
+
+    @Test
+    @DisplayName("완료된 버킷의 미션이 이번 주 추천 미션과 다르면 추천을 완료하지 않는다")
+    void doesNotCompleteRecommendationWhenMissionDiffers() {
+        BucketItem bucketItem = BucketItem.builder()
+                .id(700L).family(Family.builder().id(1L).build())
+                .mission(Mission.builder().id(500L).build())
+                .status(BucketStatus.SCHEDULED).build();
+        FamilyMissionRecommendation recommendation = FamilyMissionRecommendation.builder()
+                .id(900L).mission(Mission.builder().id(999L).build()).build();
+        Schedule target = scheduleWithBucket(bucketItem);
+        ScheduleParticipant participant = ScheduleParticipant.builder()
+                .id(scheduleParticipantId).schedule(target).status(ParticipantStatus.ACCEPTED).build();
+        stubCreateFlow(target, participant);
+        when(familyMissionRecommendationRepository
+                .findFirstByFamilyIdAndStartedAtLessThanEqualAndEndedAtGreaterThanOrderByStartedAtDesc(anyLong(), any(), any()))
+                .thenReturn(Optional.of(recommendation));
+
+        reviewService.createReview(memberId, scheduleId, createRequest());
+
+        assertThat(bucketItem.getStatus()).isEqualTo(BucketStatus.COMPLETED);
+        assertThat(recommendation.getCompletedAt()).isNull();
     }
 }
