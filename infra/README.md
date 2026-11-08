@@ -249,7 +249,7 @@ terraform apply -replace=random_password.nginx_basic_auth
 
 - `public/*` 외의 모든 경로는 Signed URL이 필요합니다. 새 경로를 만들어도 기본은 비공개입니다.
 - 이미지 key는 덮어쓰지 않고 항상 새 UUID로 만듭니다. CloudFront와 앱에서 1년 캐시하므로, 같은 key의 내용을 바꾸면 반영되지 않습니다.
-- 업로드 시 `Cache-Control: public, max-age=31536000, immutable`을 붙입니다. 서버는 presigned PUT URL에 이 헤더를 포함해 서명합니다.
+- 사용자 이미지는 업로드 확정 시 `user/original/`로 복사하면서 `Cache-Control: max-age=31536000, immutable`을 설정합니다. presigned PUT에는 이 헤더를 포함하지 않습니다.
 
 공용 이미지(배너, 기본 이미지 등)는 업로드 API가 없으므로 직접 올립니다. Content-Type과 Cache-Control을 빠뜨리지 않습니다.
 
