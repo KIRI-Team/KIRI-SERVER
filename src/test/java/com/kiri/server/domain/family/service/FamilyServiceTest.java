@@ -29,6 +29,7 @@ import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -92,7 +93,7 @@ class FamilyServiceTest {
         verify(memberRepository).findByIdForUpdate(memberId);
         verify(familyRepository).existsByName(dto.name());
         verify(familyRepository).save(any(Family.class));
-        verify(member).assignFamily(any(Family.class));
+        verify(member).joinFamily(any(Family.class));
         verify(eventPublisher).publishEvent(new FamilyCreatedEvent(1L));
     }
 
@@ -140,7 +141,7 @@ class FamilyServiceTest {
         verify(memberRepository).findByIdForUpdate(memberId);
         verify(familyRepository).existsByName(dto.name());
         verify(familyRepository, never()).save(any(Family.class));
-        verify(member, never()).assignFamily(any(Family.class));
+        verify(member, never()).joinFamily(any(Family.class));
     }
 
     @Test
@@ -705,6 +706,116 @@ class FamilyServiceTest {
                 .hasMessage(FamilyErrorCode.NOT_FOUND.getMessage());
 
         verify(familyRepository).findByMemberId(memberId);
+    }
+
+    @Test
+    @DisplayName("유효한 초대 코드 입력 시 가족에 가입한다.")
+    void joinFamilySuccessfully() {
+        Long memberId = 1L;
+        String inviteCode = "ABC123";
+
+        Member member = Member.builder()
+                .id(memberId)
+                .build();
+
+        Family family = Family.builder()
+                .id(10L)
+                .name("우리 가족")
+                .inviteCode(inviteCode)
+                .inviteExpiresAt(LocalDateTime.now().plusDays(7))
+                .build();
+
+        FamilyReqDTO.Join request = new FamilyReqDTO.Join(inviteCode);
+
+        when(memberRepository.findByIdForUpdate(memberId)).thenReturn(Optional.of(member));
+        when(familyRepository.findByInviteCode(inviteCode)).thenReturn(Optional.of(family));
+
+        FamilyResDTO.Join response = familyService.joinFamily(memberId, request);
+
+        assertEquals(family.getId(), response.familyId());
+        assertEquals(family.getName(), response.familyName());
+
+        assertSame(family, member.getFamily());
+        assertNotNull(member.getFamilyJoinedAt());
+
+        verify(memberRepository).findByIdForUpdate(memberId);
+        verify(familyRepository).findByInviteCode(inviteCode);
+    }
+
+    @Test
+    @DisplayName("존재하지 않는 초대 코드 입력 시 예외가 발생한다.")
+    void joinFamilyWithInvalidInviteCode() {
+        Long memberId = 1L;
+        String inviteCode = "ABC123";
+
+        Member member = Member.builder()
+                .id(memberId)
+                .build();
+
+        FamilyReqDTO.Join request = new FamilyReqDTO.Join(inviteCode);
+
+        when(memberRepository.findByIdForUpdate(memberId)).thenReturn(Optional.of(member));
+        when(familyRepository.findByInviteCode(inviteCode)).thenReturn(Optional.empty());
+
+        assertThrows(FamilyException.class, () -> familyService.joinFamily(memberId, request));
+
+        assertNull(member.getFamily());
+        verify(familyRepository).findByInviteCode(inviteCode);
+    }
+
+    @Test
+    @DisplayName("만료된 초대 코드 입력 시 예외가 발생한다.")
+    void joinFamilyWithExpiredInviteCode() {
+        Long memberId = 1L;
+        String inviteCode = "ABC123";
+
+        Member member = Member.builder()
+                .id(memberId)
+                .build();
+
+        Family family = Family.builder()
+                .id(10L)
+                .name("우리 가족")
+                .inviteCode(inviteCode)
+                .inviteExpiresAt(LocalDateTime.now().minusDays(1))
+                .build();
+
+        FamilyReqDTO.Join request = new FamilyReqDTO.Join(inviteCode);
+
+        when(memberRepository.findByIdForUpdate(memberId)).thenReturn(Optional.of(member));
+        when(familyRepository.findByInviteCode(inviteCode)).thenReturn(Optional.of(family));
+
+        assertThrows(FamilyException.class, () -> familyService.joinFamily(memberId, request));
+
+        assertNull(member.getFamily());
+        assertNull(member.getFamilyJoinedAt());
+    }
+
+    @Test
+    @DisplayName("이미 가족에 가입된 사용자는 다른 가족에 가입할 수 없다.")
+    void joinFamilyWhenAlreadyJoined() {
+        Long memberId = 1L;
+        String inviteCode = "ABC123";
+
+        Family existingFamily = Family.builder()
+                .id(5L)
+                .name("기존 가족")
+                .build();
+
+        Member member = Member.builder()
+                .id(memberId)
+                .family(existingFamily)
+                .build();
+
+        FamilyReqDTO.Join request = new FamilyReqDTO.Join(inviteCode);
+
+        when(memberRepository.findByIdForUpdate(memberId)).thenReturn(Optional.of(member));
+
+        assertThrows(FamilyException.class, () -> familyService.joinFamily(memberId, request));
+
+        assertSame(existingFamily, member.getFamily());
+
+        verify(familyRepository, never()).findByInviteCode(anyString());
     }
 
     private FamilyReqDTO.UpdateAddress createAddressRequest() {

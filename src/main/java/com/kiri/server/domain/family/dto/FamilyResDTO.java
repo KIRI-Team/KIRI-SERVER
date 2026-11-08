@@ -46,4 +46,10 @@ public class FamilyResDTO {
     public record Id(
             Long familyId
     ) {}
+
+    @Builder
+    public record Join(
+            Long familyId,
+            String familyName
+    ) {}
 }

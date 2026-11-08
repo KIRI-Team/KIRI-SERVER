@@ -26,7 +26,7 @@ public class FamilyReqDTO {
             String name
     ) {}
 
-    //
+    // 가족 주소 설정
     public record UpdateAddress(
             @NotBlank(message = "우편번호는 필수입니다.")
             @Pattern(regexp = "^\\d{5}$", message = "우편번호는 5자리 숫자여야 합니다.")
@@ -49,5 +49,12 @@ public class FamilyReqDTO {
             @DecimalMin(value = "-180.0", message = "경도는 -180 이상이어야 합니다.")
             @DecimalMax(value = "180.0", message = "경도는 180 이하여야 합니다.")
             BigDecimal longitude
+    ) {}
+
+    // 가족 초대 코드 입력
+    public record Join(
+            @NotBlank(message = "초대 코드는 필수입니다.")
+            @Pattern(regexp = "^[A-Z0-9]{6}$", message = "초대 코드는 영문 대문자와 숫자 6자리여야 합니다.")
+            String inviteCode
     ) {}
 }

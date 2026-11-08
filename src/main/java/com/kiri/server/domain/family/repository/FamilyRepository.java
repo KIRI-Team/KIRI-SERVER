@@ -27,4 +27,6 @@ public interface FamilyRepository extends JpaRepository<Family, Long> {
         AND m.family IS NOT NULL
         """)
     Optional<Family> findByMemberId(@Param("memberId") Long memberId);
+
+    Optional<Family> findByInviteCode(String inviteCode);
 }

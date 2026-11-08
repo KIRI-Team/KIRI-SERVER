@@ -90,4 +90,14 @@ public class FamilyController implements FamilyControllerDocs {
         BaseSuccessCode code = FamilySuccessCode.FAMILY_ID_SUCCESS;
         return ApiResponse.onSuccess(code, familyService.getFamilyId(memberId));
     }
+
+    @Override
+    @PostMapping("/join/code")
+    public ApiResponse<FamilyResDTO.Join> joinFamily(
+            @AuthenticationPrincipal Long memberId,
+            @Valid @RequestBody FamilyReqDTO.Join dto
+    ) {
+        BaseSuccessCode code = FamilySuccessCode.FAMILY_JOINED;
+        return ApiResponse.onSuccess(code, familyService.joinFamily(memberId, dto));
+    }
 }
