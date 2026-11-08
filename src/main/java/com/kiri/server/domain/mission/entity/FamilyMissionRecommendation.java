@@ -6,12 +6,13 @@ import jakarta.persistence.*;
 import lombok.*;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 
 @Entity
 @Table(
         name = "family_mission_recommendation",
         uniqueConstraints = {
-                @UniqueConstraint(name = "uk_family_mission_recommendation_family_mission", columnNames = {"family_id", "mission_id"})
+                @UniqueConstraint(name = "uk_family_mission_recommendation_period", columnNames = {"family_id", "started_at"})
         }
 )
 @Getter
@@ -38,4 +39,13 @@ public class FamilyMissionRecommendation extends BaseEntity {
 
     @Column(name = "recommendation_rank", nullable = false)
     private Integer recommendationRank;
+
+    @Column(name = "started_at", nullable = false)
+    private LocalDateTime startedAt;
+
+    @Column(name = "ended_at", nullable = false)
+    private LocalDateTime endedAt;
+
+    @Column(name = "completed_at")
+    private LocalDateTime completedAt;
 }
