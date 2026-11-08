@@ -222,4 +222,34 @@ public class FamilyService {
 
         return FamilyConverter.toJoinResponse(family);
     }
+
+    @Transactional(readOnly = true)
+    public FamilyResDTO.InviteTokenInfo getInviteTokenInfo(String inviteToken) {
+        Family family = familyRepository.findByInviteToken(inviteToken).orElseThrow(() -> new FamilyException(FamilyErrorCode.INVALID_INVITE_TOKEN));
+
+        if (family.getInviteExpiresAt() == null || !LocalDateTime.now().isBefore(family.getInviteExpiresAt())) {
+            throw new FamilyException(FamilyErrorCode.EXPIRED_INVITE_TOKEN);
+        }
+
+        return FamilyConverter.toInviteTokenInfoResponse(family);
+    }
+
+    @Transactional
+    public FamilyResDTO.Join joinFamilyByToken(Long memberId, String inviteToken) {
+        Member member = memberRepository.findByIdForUpdate(memberId).orElseThrow(() -> new MemberException(MemberErrorCode.NOT_FOUND));
+
+        if (member.getFamily() != null) {
+            throw new FamilyException(FamilyErrorCode.ALREADY_JOINED);
+        }
+
+        Family family = familyRepository.findByInviteToken(inviteToken).orElseThrow(() -> new FamilyException(FamilyErrorCode.INVALID_INVITE_TOKEN));
+
+        if (family.getInviteExpiresAt() == null || !LocalDateTime.now().isBefore(family.getInviteExpiresAt())) {
+            throw new FamilyException(FamilyErrorCode.EXPIRED_INVITE_TOKEN);
+        }
+
+        member.joinFamily(family);
+
+        return FamilyConverter.toJoinResponse(family);
+    }
 }

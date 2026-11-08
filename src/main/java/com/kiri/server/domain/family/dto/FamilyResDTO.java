@@ -52,4 +52,10 @@ public class FamilyResDTO {
             Long familyId,
             String familyName
     ) {}
+
+    @Builder
+    public record InviteTokenInfo(
+            Long familyId,
+            String familyName
+    ) {}
 }
