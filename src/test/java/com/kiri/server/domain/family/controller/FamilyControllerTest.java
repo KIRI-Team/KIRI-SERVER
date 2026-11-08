@@ -12,6 +12,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
@@ -30,6 +31,7 @@ import java.util.stream.Stream;
 
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.*;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
@@ -307,5 +309,60 @@ class FamilyControllerTest {
                 .andExpect(jsonPath("$.message").value("존재하지 않는 가족입니다."));
 
         verify(familyService).getFamilyId(memberId);
+    }
+
+    @Test
+    @DisplayName("유효한 초대 코드 입력 시 가족 가입에 성공한다.")
+    void joinFamilySuccessfully() throws Exception {
+        Long memberId = 1L;
+        String inviteCode = "ABC123";
+
+        FamilyReqDTO.Join request = new FamilyReqDTO.Join(inviteCode);
+        FamilyResDTO.Join response = new FamilyResDTO.Join(10L, "우리 가족");
+
+        given(familyService.joinFamily(eq(memberId), any(FamilyReqDTO.Join.class))).willReturn(response);
+
+        mockMvc.perform(post("/api/v1/families/join/code")
+                        .with(authentication(new UsernamePasswordAuthenticationToken(memberId, null, List.of(new SimpleGrantedAuthority("ROLE_USER")))))
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.isSuccess").value(true))
+                .andExpect(jsonPath("$.result.familyId").value(10L))
+                .andExpect(jsonPath("$.result.familyName").value("우리 가족"));
+
+        then(familyService).should().joinFamily(eq(memberId), any(FamilyReqDTO.Join.class));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"ABC12", "abc123", "ABC12!", "ABCDEFG"})
+    @DisplayName("잘못된 형식의 초대 코드 입력 시 400 에러가 발생한다.")
+    void joinFamilyWithInvalidInviteCodeFormat(String inviteCode) throws Exception {
+        FamilyReqDTO.Join request = new FamilyReqDTO.Join(inviteCode);
+
+        mockMvc.perform(post("/api/v1/families/join/code")
+                        .with(authentication(new UsernamePasswordAuthenticationToken(1L, null, List.of(new SimpleGrantedAuthority("ROLE_USER")))))
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest());
+
+        then(familyService).shouldHaveNoInteractions();
+    }
+
+    @Test
+    @DisplayName("빈 초대 코드 입력 시 400 에러가 발생한다.")
+    void joinFamilyWithBlankInviteCode() throws Exception {
+        FamilyReqDTO.Join request = new FamilyReqDTO.Join("");
+
+        mockMvc.perform(post("/api/v1/families/join/code")
+                        .with(authentication(new UsernamePasswordAuthenticationToken(1L, null, List.of(new SimpleGrantedAuthority("ROLE_USER")))))
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest());
+
+        then(familyService).shouldHaveNoInteractions();
     }
 }

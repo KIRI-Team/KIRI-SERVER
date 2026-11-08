@@ -56,8 +56,8 @@ class MemberTasteRepositoryTest {
         daughter = memberRepository.save(Member.builder().nickname("취향딸").build());
         other = memberRepository.save(Member.builder().nickname("취향이웃").build());
         family = familyRepository.save(Family.builder().owner(mom).name("취향테스트가족").build());
-        mom.assignFamily(family);
-        daughter.assignFamily(family);
+        mom.joinFamily(family);
+        daughter.joinFamily(family);
         flushAndClear();
     }
 
