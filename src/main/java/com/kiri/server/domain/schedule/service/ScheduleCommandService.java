@@ -32,11 +32,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.Clock;
-import java.time.Duration;
-import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.time.LocalTime;
+import java.time.*;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.HashSet;
@@ -86,8 +82,10 @@ public class ScheduleCommandService {
             throw new ScheduleException(ScheduleErrorCode.FAMILY_REQUIRED);
         }
 
+        LocalDateTime now = LocalDateTime.now(ZoneId.of("Asia/Seoul"));
+
         FamilyMissionRecommendation recommendation = familyMissionRecommendationRepository
-                .findFirstByFamilyIdOrderByRecommendationRankAsc(family.getId())
+                .findFirstByFamilyIdAndStartedAtLessThanEqualAndEndedAtGreaterThanOrderByStartedAtDesc(family.getId(), now, now)
                 .orElseThrow(() -> new ScheduleException(ScheduleErrorCode.NOT_ASSIGNED_WEEKLY_MISSION));
         Mission mission = recommendation.getMission();
         if (mission == null || !mission.getId().equals(missionId)) {

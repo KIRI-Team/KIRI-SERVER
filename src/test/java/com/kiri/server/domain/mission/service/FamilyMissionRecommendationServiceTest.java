@@ -22,6 +22,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -60,41 +61,34 @@ class FamilyMissionRecommendationServiceTest {
     }
 
     @Test
-    @DisplayName("추천 점수 내림차순으로 정렬하여 가족 추천 미션을 저장한다.")
-    void saveRecommendationsSavesRecommendationsInScoreOrder() {
-        Mission mission1 = createMission(1L);
+    @DisplayName("추천 점수가 가장 높은 미션 하나를 가족 추천 미션으로 저장한다.")
+    void saveRecommendationsSavesHighestScoreRecommendation() {
         Mission mission2 = createMission(2L);
-        Mission mission3 = createMission(3L);
 
         MissionResDTO.Recommendation recommendation1 = createRecommendation(1L, "0.5");
         MissionResDTO.Recommendation recommendation2 = createRecommendation(2L, "0.9");
         MissionResDTO.Recommendation recommendation3 = createRecommendation(3L, "0.7");
 
         when(familyRepository.findById(FAMILY_ID)).thenReturn(Optional.of(family));
-
-        when(missionRepository.findAllById(anyList())).thenReturn(List.of(mission1, mission2, mission3));
+        when(missionRepository.findById(2L)).thenReturn(Optional.of(mission2));
 
         familyMissionRecommendationService.saveRecommendations(FAMILY_ID, List.of(recommendation1, recommendation2, recommendation3));
 
-        ArgumentCaptor<List<FamilyMissionRecommendation>> captor = ArgumentCaptor.forClass(List.class);
+        ArgumentCaptor<FamilyMissionRecommendation> captor = ArgumentCaptor.forClass(FamilyMissionRecommendation.class);
 
-        verify(familyMissionRecommendationRepository).deleteAllByFamilyId(FAMILY_ID);
+        verify(familyMissionRecommendationRepository).save(captor.capture());
 
-        verify(familyMissionRecommendationRepository).saveAll(captor.capture());
+        FamilyMissionRecommendation savedRecommendation = captor.getValue();
 
-        List<FamilyMissionRecommendation> savedRecommendations = captor.getValue();
+        assertEquals(2L, savedRecommendation.getMission().getId());
+        assertEquals(new BigDecimal("0.9"), savedRecommendation.getRecommendationScore());
+        assertEquals(1, savedRecommendation.getRecommendationRank());
 
-        assertEquals(3, savedRecommendations.size());
+        assertNotNull(savedRecommendation.getStartedAt());
+        assertNotNull(savedRecommendation.getEndedAt());
+        assertEquals(savedRecommendation.getStartedAt().plusWeeks(1), savedRecommendation.getEndedAt());
 
-        assertEquals(2L, savedRecommendations.get(0).getMission().getId());
-        assertEquals(new BigDecimal("0.9"), savedRecommendations.get(0).getRecommendationScore());
-        assertEquals(1, savedRecommendations.get(0).getRecommendationRank());
-
-        assertEquals(3L, savedRecommendations.get(1).getMission().getId());
-        assertEquals(2, savedRecommendations.get(1).getRecommendationRank());
-
-        assertEquals(1L, savedRecommendations.get(2).getMission().getId());
-        assertEquals(3, savedRecommendations.get(2).getRecommendationRank());
+        verify(familyMissionRecommendationRepository, times(1)).save(any(FamilyMissionRecommendation.class));
     }
 
     @Test
@@ -103,8 +97,6 @@ class FamilyMissionRecommendationServiceTest {
         when(familyRepository.findById(FAMILY_ID)).thenReturn(Optional.of(family));
 
         familyMissionRecommendationService.saveRecommendations(FAMILY_ID, List.of());
-
-        verify(familyMissionRecommendationRepository).deleteAllByFamilyId(FAMILY_ID);
 
         verify(familyMissionRecommendationRepository, never()).saveAll(anyList());
 
@@ -118,8 +110,6 @@ class FamilyMissionRecommendationServiceTest {
 
         assertThrows(FamilyException.class, () -> familyMissionRecommendationService.saveRecommendations(FAMILY_ID, List.of(createRecommendation(1L, "0.9"))));
 
-        verify(familyMissionRecommendationRepository, never()).deleteAllByFamilyId(anyLong());
-
         verify(familyMissionRecommendationRepository, never()).saveAll(anyList());
     }
 
@@ -128,13 +118,11 @@ class FamilyMissionRecommendationServiceTest {
     void saveRecommendationsThrowsExceptionWhenMissionNotFound() {
         when(familyRepository.findById(FAMILY_ID)).thenReturn(Optional.of(family));
 
-        when(missionRepository.findAllById(anyList())).thenReturn(List.of());
+        when(missionRepository.findById(1L)).thenReturn(Optional.empty());
 
         assertThrows(MissionException.class, () -> familyMissionRecommendationService.saveRecommendations(FAMILY_ID, List.of(createRecommendation(1L, "0.9"))));
 
-        verify(familyMissionRecommendationRepository).deleteAllByFamilyId(FAMILY_ID);
-
-        verify(familyMissionRecommendationRepository, never()).saveAll(anyList());
+        verify(familyMissionRecommendationRepository, never()).save(any(FamilyMissionRecommendation.class));
     }
 
     @Test
@@ -149,7 +137,7 @@ class FamilyMissionRecommendationServiceTest {
         when(member.getFamily()).thenReturn(family);
         when(family.getId()).thenReturn(FAMILY_ID);
 
-        when(familyMissionRecommendationRepository.findFirstByFamilyIdOrderByRecommendationRankAsc(FAMILY_ID)).thenReturn(Optional.of(recommendation));
+        when(familyMissionRecommendationRepository.findFirstByFamilyIdAndStartedAtLessThanEqualAndEndedAtGreaterThanOrderByStartedAtDesc(eq(FAMILY_ID), any(LocalDateTime.class), any(LocalDateTime.class))).thenReturn(Optional.of(recommendation));
 
         when(recommendation.getMission()).thenReturn(mission);
         when(recommendation.getRecommendationScore()).thenReturn(new BigDecimal("0.9"));
@@ -168,7 +156,7 @@ class FamilyMissionRecommendationServiceTest {
 
         assertThrows(MemberException.class, () -> familyMissionRecommendationService.getRecommendationsByMemberId(MEMBER_ID));
 
-        verify(familyMissionRecommendationRepository, never()).findFirstByFamilyIdOrderByRecommendationRankAsc(anyLong());
+        verify(familyMissionRecommendationRepository, never()).findFirstByFamilyIdAndStartedAtLessThanEqualAndEndedAtGreaterThanOrderByStartedAtDesc(anyLong(), any(LocalDateTime.class), any(LocalDateTime.class));
     }
 
     @Test
@@ -179,7 +167,7 @@ class FamilyMissionRecommendationServiceTest {
         when(member.getFamily()).thenReturn(family);
         when(family.getId()).thenReturn(FAMILY_ID);
 
-        when(familyMissionRecommendationRepository.findFirstByFamilyIdOrderByRecommendationRankAsc(FAMILY_ID)).thenReturn(Optional.empty());
+        when(familyMissionRecommendationRepository.findFirstByFamilyIdAndStartedAtLessThanEqualAndEndedAtGreaterThanOrderByStartedAtDesc(eq(FAMILY_ID), any(LocalDateTime.class), any(LocalDateTime.class))).thenReturn(Optional.empty());
 
         MissionResDTO.Recommendation result = familyMissionRecommendationService.getRecommendationsByMemberId(MEMBER_ID);
 
