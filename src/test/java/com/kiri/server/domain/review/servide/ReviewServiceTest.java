@@ -1,5 +1,8 @@
 package com.kiri.server.domain.review.servide;
 
+import com.kiri.server.domain.image.exception.ImageException;
+import com.kiri.server.domain.image.exception.code.ImageErrorCode;
+import com.kiri.server.domain.image.service.ImageService;
 import com.kiri.server.domain.review.dto.ReviewReqDTO;
 import com.kiri.server.domain.review.dto.ReviewResDTO;
 import com.kiri.server.domain.review.entity.Review;
@@ -20,6 +23,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -49,6 +53,9 @@ class ReviewServiceTest {
 
     @Mock
     private ScheduleParticipantRepository scheduleParticipantRepository;
+
+    @Mock
+    private ImageService imageService;
 
     @InjectMocks
     private ReviewService reviewService;
@@ -187,6 +194,45 @@ class ReviewServiceTest {
 
         assertThat(schedule.getStatus()).isEqualTo(ScheduleStatus.COMPLETED);
         assertThat(schedule.getCompletedAt()).isNotNull();
+    }
+
+    @Test
+    @DisplayName("확정된 이미지 key를 리뷰 사진에 저장한다")
+    void createReviewSavesConfirmedImageKey() {
+        ReviewReqDTO.Create request = createRequest();
+
+        when(scheduleRepository.findByIdForUpdate(scheduleId)).thenReturn(Optional.of(schedule));
+        when(scheduleParticipantRepository.findBySchedule_IdAndMember_IdForUpdate(scheduleId, memberId)).thenReturn(Optional.of(scheduleParticipant));
+        when(reviewRepository.existsBySchedule_IdAndScheduleParticipant_Id(scheduleId, scheduleParticipantId)).thenReturn(false);
+        when(imageService.confirmUpload(memberId, "review/1/image-1.jpg")).thenReturn("user/original/1/image-1.jpg");
+        when(imageService.confirmUpload(memberId, "review/1/image-2.jpg")).thenReturn("user/original/1/image-2.jpg");
+
+        reviewService.createReview(memberId, scheduleId, request);
+
+        ArgumentCaptor<ReviewPhoto> captor = ArgumentCaptor.forClass(ReviewPhoto.class);
+        verify(reviewPhotoRepository, times(2)).save(captor.capture());
+        assertThat(captor.getAllValues())
+                .extracting(ReviewPhoto::getImageKey)
+                .containsExactly("user/original/1/image-1.jpg", "user/original/1/image-2.jpg");
+    }
+
+    @Test
+    @DisplayName("이미지 확정에 실패하면 리뷰를 작성할 수 없다")
+    void createReviewWithImageConfirmFailure() {
+        ReviewReqDTO.Create request = createRequest();
+
+        when(scheduleRepository.findByIdForUpdate(scheduleId)).thenReturn(Optional.of(schedule));
+        when(scheduleParticipantRepository.findBySchedule_IdAndMember_IdForUpdate(scheduleId, memberId)).thenReturn(Optional.of(scheduleParticipant));
+        when(reviewRepository.existsBySchedule_IdAndScheduleParticipant_Id(scheduleId, scheduleParticipantId)).thenReturn(false);
+        when(imageService.confirmUpload(memberId, "review/1/image-1.jpg"))
+                .thenThrow(new ImageException(ImageErrorCode.IMAGE_NOT_UPLOADED));
+
+        assertThatThrownBy(() -> reviewService.createReview(memberId, scheduleId, request))
+                .isInstanceOf(ImageException.class)
+                .extracting("errorCode")
+                .isEqualTo(ImageErrorCode.IMAGE_NOT_UPLOADED);
+
+        verify(reviewPhotoRepository, never()).save(any());
     }
 
     @Test

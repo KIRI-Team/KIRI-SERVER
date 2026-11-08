@@ -1,5 +1,6 @@
 package com.kiri.server.domain.review.servide;
 
+import com.kiri.server.domain.image.service.ImageService;
 import com.kiri.server.domain.review.converter.ReviewConverter;
 import com.kiri.server.domain.review.converter.ReviewPhotoConverter;
 import com.kiri.server.domain.review.dto.ReviewReqDTO;
@@ -31,6 +32,7 @@ public class ReviewService {
     private final ReviewPhotoRepository reviewPhotoRepository;
     private final ScheduleRepository scheduleRepository;
     private final ScheduleParticipantRepository scheduleParticipantRepository;
+    private final ImageService imageService;
 
     @Transactional
     public ReviewResDTO.Create createReview(Long memberId, Long scheduleId, ReviewReqDTO.Create dto) {
@@ -54,7 +56,8 @@ public class ReviewService {
         reviewRepository.save(review);
 
         for (int i = 0; i < dto.imageKeys().size(); i++) {
-            ReviewPhoto reviewPhoto = ReviewPhotoConverter.toReviewPhoto(review, dto.imageKeys().get(i), i + 1);
+            String confirmedKey=imageService.confirmUpload(memberId, dto.imageKeys().get(i));
+            ReviewPhoto reviewPhoto = ReviewPhotoConverter.toReviewPhoto(review, confirmedKey, i + 1);
             reviewPhotoRepository.save(reviewPhoto);
         }
 
