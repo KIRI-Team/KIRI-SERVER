@@ -1,5 +1,7 @@
 package com.kiri.server.domain.family.service;
 
+import com.kiri.server.domain.character.entity.Character;
+import com.kiri.server.domain.character.repository.CharacterRepository;
 import com.kiri.server.domain.family.converter.FamilyConverter;
 import com.kiri.server.domain.family.dto.FamilyReqDTO;
 import com.kiri.server.domain.family.dto.FamilyResDTO;
@@ -9,6 +11,7 @@ import com.kiri.server.domain.family.exception.FamilyException;
 import com.kiri.server.domain.family.exception.code.FamilyErrorCode;
 import com.kiri.server.domain.family.repository.FamilyRepository;
 import com.kiri.server.domain.member.entity.Member;
+import com.kiri.server.domain.member.enums.FamilyRole;
 import com.kiri.server.domain.member.exception.MemberException;
 import com.kiri.server.domain.member.exception.code.MemberErrorCode;
 import com.kiri.server.domain.member.repository.MemberRepository;
@@ -20,7 +23,11 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.security.SecureRandom;
 import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -29,6 +36,7 @@ public class FamilyService {
     private final FamilyRepository familyRepository;
     private final MemberRepository memberRepository;
     private final ApplicationEventPublisher eventPublisher;
+    private final CharacterRepository characterRepository;
 
     @Transactional
     public FamilyResDTO.Create createFamily(Long memberId, FamilyReqDTO.Create dto) {
@@ -251,5 +259,30 @@ public class FamilyService {
         member.joinFamily(family);
 
         return FamilyConverter.toJoinResponse(family);
+    }
+
+    @Transactional(readOnly = true)
+    public FamilyResDTO.FamilyInfo getFamilyInfo(Long memberId, Long familyId) {
+        Member member = memberRepository.findById(memberId).orElseThrow(() -> new MemberException(MemberErrorCode.NOT_FOUND));
+
+        Family family = familyRepository.findById(familyId).orElseThrow(() -> new FamilyException(FamilyErrorCode.NOT_FOUND));
+
+        if (member.getFamily() == null || !family.getId().equals(member.getFamily().getId())) {
+            throw new FamilyException(FamilyErrorCode.FORBIDDEN);
+        }
+
+        Map<FamilyRole, Character> characterMap = characterRepository.findAll().stream().collect(Collectors.toMap(Character::getRole, Function.identity()));
+
+        List<FamilyResDTO.FamilyMemberInfo> members =
+                memberRepository.findAllByFamilyAndDeletedAtIsNull(family)
+                        .stream()
+                        .map(familyMember -> {
+                            Character character = characterMap.get(familyMember.getFamilyRole());
+                            String characterImageUrl = character == null ? null : character.getImageUrl();
+                            return FamilyConverter.toFamilyMemberInfo(familyMember, characterImageUrl);
+                        })
+                        .toList();
+
+        return FamilyConverter.toFamilyInfoResponse(family, members);
     }
 }

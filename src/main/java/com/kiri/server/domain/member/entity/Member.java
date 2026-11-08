@@ -1,5 +1,6 @@
 package com.kiri.server.domain.member.entity;
 
+import com.kiri.server.domain.character.entity.Character;
 import com.kiri.server.domain.family.entity.Family;
 import com.kiri.server.domain.member.enums.FamilyRole;
 import com.kiri.server.domain.member.enums.SocialProvider;
@@ -46,6 +47,10 @@ public class Member extends BaseEntity {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "family_id")
     private Family family;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "character_id")
+    private Character character;
 
     @Column(name = "nickname", unique = true, length=20)
     private String nickname;

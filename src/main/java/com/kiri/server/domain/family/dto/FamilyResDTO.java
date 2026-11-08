@@ -1,10 +1,12 @@
 package com.kiri.server.domain.family.dto;
 
+import com.kiri.server.domain.member.enums.FamilyRole;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Builder;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
 
 public class FamilyResDTO {
 
@@ -57,5 +59,23 @@ public class FamilyResDTO {
     public record InviteTokenInfo(
             Long familyId,
             String familyName
+    ) {}
+
+    @Builder
+    @Schema(name = "FamilyInfoResponse", description = "가족 정보 조회 응답")
+    public record FamilyInfo(
+            Long familyId,
+            String familyName,
+            Long ownerMemberId,
+            Integer memberCount,
+            List<FamilyMemberInfo> members
+    ) {}
+
+    @Builder
+    public record FamilyMemberInfo(
+            Long memberId,
+            String nickname,
+            FamilyRole familyRole,
+            String characterImageUrl
     ) {}
 }

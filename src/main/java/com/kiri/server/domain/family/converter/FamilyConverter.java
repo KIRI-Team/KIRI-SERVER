@@ -5,6 +5,7 @@ import com.kiri.server.domain.family.entity.Family;
 import com.kiri.server.domain.member.entity.Member;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 public class FamilyConverter {
 
@@ -70,6 +71,25 @@ public class FamilyConverter {
         return FamilyResDTO.InviteTokenInfo.builder()
                 .familyId(family.getId())
                 .familyName(family.getName())
+                .build();
+    }
+
+    public static FamilyResDTO.FamilyInfo toFamilyInfoResponse(Family family, List<FamilyResDTO.FamilyMemberInfo> members) {
+        return FamilyResDTO.FamilyInfo.builder()
+                .familyId(family.getId())
+                .familyName(family.getName())
+                .ownerMemberId(family.getOwner().getId())
+                .memberCount(members.size())
+                .members(members)
+                .build();
+    }
+
+    public static FamilyResDTO.FamilyMemberInfo toFamilyMemberInfo(Member member, String characterImageUrl) {
+        return FamilyResDTO.FamilyMemberInfo.builder()
+                .memberId(member.getId())
+                .nickname(member.getNickname())
+                .familyRole(member.getFamilyRole())
+                .characterImageUrl(characterImageUrl)
                 .build();
     }
 }
