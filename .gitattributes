@@ -3,3 +3,4 @@
 *.bat text eol=crlf
 *.jar binary
 *.pem text eol=lf
+*.py text eol=lf

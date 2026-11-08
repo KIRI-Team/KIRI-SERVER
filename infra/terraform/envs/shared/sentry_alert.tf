@@ -4,6 +4,11 @@ data "aws_caller_identity" "current" {}
 locals {
   sentry_alert_name       = "kiri-sentry-alert"
   sentry_alert_param_path = "/kiri/shared/sentry-alert"
+
+  sentry_alert_parameters = [
+    "DISCORD_WEBHOOK_URL",
+    "SENTRY_CLIENT_SECRET",
+  ]
 }
 
 data "archive_file" "sentry_alert" {
@@ -82,6 +87,18 @@ resource "aws_lambda_function" "sentry_alert" {
   logging_config {
     log_format = "Text"
     log_group  = aws_cloudwatch_log_group.sentry_alert.name
+  }
+}
+
+resource "aws_ssm_parameter" "sentry_alert" {
+  for_each = toset(local.sentry_alert_parameters)
+
+  name  = "${local.sentry_alert_param_path}/${each.key}"
+  type  = "SecureString"
+  value = "CHANGE_ME"
+
+  lifecycle {
+    ignore_changes = [value]
   }
 }
 
