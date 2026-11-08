@@ -69,3 +69,8 @@ module "github_deploy" {
   ecr_repository_name = "kiri-server-dev"
   instance_id         = module.ec2.instance_id
 }
+
+module "app_parameters" {
+  source         = "../../modules/app_parameters"
+  parameter_path = local.parameter_path
+}
