@@ -1,6 +1,9 @@
 package com.kiri.server.domain.review.servide;
 
+import com.kiri.server.domain.bucket.entity.BucketItem;
+import com.kiri.server.domain.bucket.enums.BucketStatus;
 import com.kiri.server.domain.image.service.ImageService;
+import com.kiri.server.domain.mission.repository.FamilyMissionRecommendationRepository;
 import com.kiri.server.domain.review.converter.ReviewConverter;
 import com.kiri.server.domain.review.converter.ReviewPhotoConverter;
 import com.kiri.server.domain.review.dto.ReviewReqDTO;
@@ -23,6 +26,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 
 @Service
 @RequiredArgsConstructor
@@ -33,6 +37,7 @@ public class ReviewService {
     private final ScheduleRepository scheduleRepository;
     private final ScheduleParticipantRepository scheduleParticipantRepository;
     private final ImageService imageService;
+    private final FamilyMissionRecommendationRepository familyMissionRecommendationRepository;
 
     @Transactional
     public ReviewResDTO.Create createReview(Long memberId, Long scheduleId, ReviewReqDTO.Create dto) {
@@ -62,7 +67,20 @@ public class ReviewService {
         }
 
         if (schedule.getStatus() != ScheduleStatus.COMPLETED) {
-            schedule.complete(LocalDateTime.now());
+            LocalDateTime now = LocalDateTime.now(ZoneId.of("Asia/Seoul"));
+            schedule.complete(now);
+
+            BucketItem bucketItem = schedule.getBucketItem();
+            if (bucketItem != null && bucketItem.getStatus() != BucketStatus.COMPLETED) {
+                bucketItem.markCompleted(now);
+
+                familyMissionRecommendationRepository
+                        .findFirstByFamilyIdAndStartedAtLessThanEqualAndEndedAtGreaterThanOrderByStartedAtDesc(
+                                bucketItem.getFamily().getId(), now, now)
+                        .filter(recommendation -> recommendation.getCompletedAt() == null
+                                && recommendation.getMission().getId().equals(bucketItem.getMission().getId()))
+                        .ifPresent(recommendation -> recommendation.markCompleted(now));
+            }
         }
 
         return ReviewConverter.toCreateResponse(review);

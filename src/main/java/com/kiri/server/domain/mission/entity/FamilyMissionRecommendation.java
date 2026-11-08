@@ -48,4 +48,8 @@ public class FamilyMissionRecommendation extends BaseEntity {
 
     @Column(name = "completed_at")
     private LocalDateTime completedAt;
+
+    public void markCompleted(LocalDateTime completedAt) {
+        this.completedAt = completedAt;
+    }
 }
