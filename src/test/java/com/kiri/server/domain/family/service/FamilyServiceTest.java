@@ -1,5 +1,7 @@
 package com.kiri.server.domain.family.service;
 
+import com.kiri.server.domain.character.entity.Character;
+import com.kiri.server.domain.character.repository.CharacterRepository;
 import com.kiri.server.domain.family.dto.FamilyReqDTO;
 import com.kiri.server.domain.family.dto.FamilyResDTO;
 import com.kiri.server.domain.family.entity.Family;
@@ -8,6 +10,7 @@ import com.kiri.server.domain.family.exception.FamilyException;
 import com.kiri.server.domain.family.exception.code.FamilyErrorCode;
 import com.kiri.server.domain.family.repository.FamilyRepository;
 import com.kiri.server.domain.member.entity.Member;
+import com.kiri.server.domain.member.enums.FamilyRole;
 import com.kiri.server.domain.member.exception.MemberException;
 import com.kiri.server.domain.member.exception.code.MemberErrorCode;
 import com.kiri.server.domain.member.repository.MemberRepository;
@@ -25,6 +28,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -43,6 +47,9 @@ class FamilyServiceTest {
 
     @Mock
     private ApplicationEventPublisher eventPublisher;
+
+    @Mock
+    private CharacterRepository characterRepository;
 
     @InjectMocks
     private FamilyService familyService;
@@ -971,6 +978,210 @@ class FamilyServiceTest {
         assertSame(existingFamily, member.getFamily());
 
         verify(familyRepository, never()).findByInviteToken(anyString());
+    }
+
+    @Test
+    @DisplayName("가족 정보와 구성원별 캐릭터 이미지 URL을 조회한다.")
+    void getFamilyInfoSuccess() {
+        Long memberId = 1L;
+        Long familyId = 10L;
+
+        Member member1 = mock(Member.class);
+        Member member2 = mock(Member.class);
+
+        Character fatherCharacter = mock(Character.class);
+
+        when(memberRepository.findById(memberId)).thenReturn(Optional.of(member));
+
+        when(familyRepository.findById(familyId)).thenReturn(Optional.of(family));
+
+        when(member.getFamily()).thenReturn(family);
+        when(family.getId()).thenReturn(familyId);
+        when(family.getName()).thenReturn("우리 가족");
+        when(family.getOwner()).thenReturn(member1);
+
+        when(characterRepository.findAll()).thenReturn(List.of(fatherCharacter));
+
+        when(fatherCharacter.getRole()).thenReturn(FamilyRole.FATHER);
+        when(fatherCharacter.getImageUrl()).thenReturn("https://cdn.kiri.com/father.png");
+
+        when(member1.getId()).thenReturn(1L);
+        when(member1.getNickname()).thenReturn("아빠");
+        when(member1.getFamilyRole()).thenReturn(FamilyRole.FATHER);
+
+        when(member2.getId()).thenReturn(2L);
+        when(member2.getNickname()).thenReturn("아빠2");
+        when(member2.getFamilyRole()).thenReturn(FamilyRole.FATHER);
+
+        when(memberRepository.findAllByFamilyAndDeletedAtIsNull(family)).thenReturn(List.of(member1, member2));
+
+        FamilyResDTO.FamilyInfo result = familyService.getFamilyInfo(memberId, familyId);
+
+        assertThat(result).isNotNull();
+        assertThat(result.familyId()).isEqualTo(familyId);
+        assertThat(result.familyName()).isEqualTo("우리 가족");
+        assertThat(result.ownerMemberId()).isEqualTo(1L);
+        assertThat(result.memberCount()).isEqualTo(2);
+
+        assertThat(result.members()).hasSize(2);
+
+        assertThat(result.members().get(0).memberId()).isEqualTo(1L);
+        assertThat(result.members().get(0).nickname()).isEqualTo("아빠");
+        assertThat(result.members().get(0).familyRole()).isEqualTo(FamilyRole.FATHER);
+        assertThat(result.members().get(0).characterImageUrl()).isEqualTo("https://cdn.kiri.com/father.png");
+
+        assertThat(result.members().get(1).memberId()).isEqualTo(2L);
+        assertThat(result.members().get(1).nickname()).isEqualTo("아빠2");
+        assertThat(result.members().get(1).familyRole()).isEqualTo(FamilyRole.FATHER);
+        assertThat(result.members().get(1).characterImageUrl()).isEqualTo("https://cdn.kiri.com/father.png");
+
+        verify(characterRepository).findAll();
+        verify(memberRepository).findAllByFamilyAndDeletedAtIsNull(family);
+    }
+
+    @Test
+    @DisplayName("해당 가족 역할의 캐릭터가 없으면 이미지 URL은 null을 반환한다.")
+    void getFamilyInfoWithoutCharacter() {
+        Long memberId = 1L;
+        Long familyId = 10L;
+
+        Member familyMember = mock(Member.class);
+
+        when(memberRepository.findById(memberId)).thenReturn(Optional.of(member));
+
+        when(familyRepository.findById(familyId)).thenReturn(Optional.of(family));
+
+        when(member.getFamily()).thenReturn(family);
+        when(family.getId()).thenReturn(familyId);
+        when(family.getName()).thenReturn("우리 가족");
+        when(family.getOwner()).thenReturn(familyMember);
+
+        when(characterRepository.findAll()).thenReturn(List.of());
+
+        when(familyMember.getId()).thenReturn(memberId);
+        when(familyMember.getNickname()).thenReturn("철수");
+        when(familyMember.getFamilyRole()).thenReturn(FamilyRole.SON);
+
+        when(memberRepository.findAllByFamilyAndDeletedAtIsNull(family)).thenReturn(List.of(familyMember));
+
+        FamilyResDTO.FamilyInfo result = familyService.getFamilyInfo(memberId, familyId);
+
+        assertThat(result.members()).hasSize(1);
+        assertThat(result.members().get(0).characterImageUrl()).isNull();
+    }
+
+    @Test
+    @DisplayName("존재하지 않는 회원은 가족 정보를 조회할 수 없다.")
+    void getFamilyInfoMemberNotFound() {
+        Long memberId = 999L;
+        Long familyId = 10L;
+
+        when(memberRepository.findById(memberId)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> familyService.getFamilyInfo(memberId, familyId))
+                .isInstanceOf(MemberException.class)
+                .extracting("errorCode")
+                .isEqualTo(MemberErrorCode.NOT_FOUND);
+
+        verify(familyRepository, never()).findById(anyLong());
+        verify(characterRepository, never()).findAll();
+    }
+
+    @Test
+    @DisplayName("존재하지 않는 가족 정보는 조회할 수 없다.")
+    void getFamilyInfoFamilyNotFound() {
+        Long memberId = 1L;
+        Long familyId = 999L;
+
+        when(memberRepository.findById(memberId)).thenReturn(Optional.of(member));
+
+        when(familyRepository.findById(familyId)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> familyService.getFamilyInfo(memberId, familyId))
+                .isInstanceOf(FamilyException.class)
+                .extracting("errorCode")
+                .isEqualTo(FamilyErrorCode.NOT_FOUND);
+
+        verify(characterRepository, never()).findAll();
+    }
+
+    @Test
+    @DisplayName("다른 가족의 정보는 조회할 수 없다.")
+    void getFamilyInfoForbidden() {
+        Long memberId = 1L;
+        Long familyId = 10L;
+
+        Family anotherFamily = mock(Family.class);
+
+        when(memberRepository.findById(memberId)).thenReturn(Optional.of(member));
+
+        when(familyRepository.findById(familyId)).thenReturn(Optional.of(family));
+
+        when(member.getFamily()).thenReturn(anotherFamily);
+        when(family.getId()).thenReturn(familyId);
+        when(anotherFamily.getId()).thenReturn(20L);
+
+        assertThatThrownBy(() -> familyService.getFamilyInfo(memberId, familyId))
+                .isInstanceOf(FamilyException.class)
+                .extracting("errorCode")
+                .isEqualTo(FamilyErrorCode.FORBIDDEN);
+
+        verify(characterRepository, never()).findAll();
+        verify(memberRepository, never()).findAllByFamilyAndDeletedAtIsNull(any(Family.class));
+    }
+
+    @Test
+    @DisplayName("가족에 속하지 않은 회원은 가족 정보를 조회할 수 없다.")
+    void getFamilyInfoNotJoinedFamily() {
+        Long memberId = 1L;
+        Long familyId = 10L;
+
+        when(memberRepository.findById(memberId)).thenReturn(Optional.of(member));
+
+        when(familyRepository.findById(familyId)).thenReturn(Optional.of(family));
+
+        when(member.getFamily()).thenReturn(null);
+
+        assertThatThrownBy(() -> familyService.getFamilyInfo(memberId, familyId))
+                .isInstanceOf(FamilyException.class)
+                .extracting("errorCode")
+                .isEqualTo(FamilyErrorCode.FORBIDDEN);
+
+        verify(characterRepository, never()).findAll();
+        verify(memberRepository, never()).findAllByFamilyAndDeletedAtIsNull(any(Family.class));
+    }
+
+    @Test
+    @DisplayName("캐릭터 이미지 URL이 등록되지 않았으면 null을 반환한다.")
+    void getFamilyInfoWithoutCharacterImageUrl() {
+        Long memberId = 1L;
+        Long familyId = 10L;
+
+        Member familyMember = mock(Member.class);
+        Character character = mock(Character.class);
+
+        when(memberRepository.findById(memberId)).thenReturn(Optional.of(member));
+
+        when(familyRepository.findById(familyId)).thenReturn(Optional.of(family));
+
+        when(member.getFamily()).thenReturn(family);
+        when(family.getId()).thenReturn(familyId);
+        when(family.getName()).thenReturn("우리 가족");
+        when(family.getOwner()).thenReturn(familyMember);
+
+        when(characterRepository.findAll()).thenReturn(List.of(character));
+        when(character.getRole()).thenReturn(FamilyRole.SON);
+        when(character.getImageUrl()).thenReturn(null);
+
+        when(familyMember.getId()).thenReturn(memberId);
+        when(familyMember.getNickname()).thenReturn("철수");
+        when(familyMember.getFamilyRole()).thenReturn(FamilyRole.SON);
+
+        when(memberRepository.findAllByFamilyAndDeletedAtIsNull(family)).thenReturn(List.of(familyMember));
+
+        FamilyResDTO.FamilyInfo result = familyService.getFamilyInfo(memberId, familyId);
+
+        assertThat(result.members().get(0).characterImageUrl()).isNull();
     }
 
     private FamilyReqDTO.UpdateAddress createAddressRequest() {
