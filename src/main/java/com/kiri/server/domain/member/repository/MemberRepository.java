@@ -4,6 +4,7 @@ import com.kiri.server.domain.family.entity.Family;
 import com.kiri.server.domain.member.entity.Member;
 import com.kiri.server.domain.member.enums.SocialProvider;
 import jakarta.persistence.LockModeType;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
@@ -46,7 +47,11 @@ public interface MemberRepository extends JpaRepository<Member, Long> {
     Optional<Member> findByIdAndDeletedAtIsNull(@Param("id") Long id);
 
     List<Member> findAllByFamily(Family family);
+
+    @EntityGraph(attributePaths = {"character"})
     List<Member> findAllByFamilyAndDeletedAtIsNull(Family family);
+
     boolean existsByNickname(String nickname);
+
     Optional<Member> findFirstByFamilyAndDeletedAtIsNullAndIdNotOrderByFamilyJoinedAtAsc(Family family, Long memberId);
 }

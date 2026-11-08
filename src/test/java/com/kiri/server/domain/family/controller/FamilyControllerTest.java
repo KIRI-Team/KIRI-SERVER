@@ -7,6 +7,7 @@ import com.kiri.server.domain.family.exception.FamilyException;
 import com.kiri.server.domain.family.exception.code.FamilyErrorCode;
 import com.kiri.server.domain.family.exception.code.FamilySuccessCode;
 import com.kiri.server.domain.family.service.FamilyService;
+import com.kiri.server.domain.member.enums.FamilyRole;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -405,5 +406,78 @@ class FamilyControllerTest {
                 .andExpect(jsonPath("$.result.familyName").value("우리 가족"));
 
         then(familyService).should().joinFamilyByToken(memberId, inviteToken);
+    }
+
+    @Test
+    @DisplayName("가족 정보 조회 성공")
+    void getFamilyInfoSuccess() throws Exception {
+        FamilyResDTO.FamilyInfo response = FamilyResDTO.FamilyInfo.builder()
+                .familyId(FAMILY_ID)
+                .familyName("우리 가족")
+                .ownerMemberId(MEMBER_ID)
+                .memberCount(2)
+                .members(List.of(
+                        FamilyResDTO.FamilyMemberInfo.builder()
+                                .memberId(1L)
+                                .nickname("아빠")
+                                .familyRole(FamilyRole.FATHER)
+                                .characterImageUrl("https://example.com/father.png")
+                                .build(),
+                        FamilyResDTO.FamilyMemberInfo.builder()
+                                .memberId(2L)
+                                .nickname("엄마")
+                                .familyRole(FamilyRole.MOTHER)
+                                .characterImageUrl(null)
+                                .build()
+                ))
+                .build();
+
+        given(familyService.getFamilyInfo(MEMBER_ID, FAMILY_ID)).willReturn(response);
+
+        var authentication = new UsernamePasswordAuthenticationToken(MEMBER_ID, null, List.of(new SimpleGrantedAuthority("ROLE_USER")));
+
+        mockMvc.perform(get("/api/v1/families/{familyId}", FAMILY_ID)
+                        .with(authentication(authentication)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.isSuccess").value(true))
+                .andExpect(jsonPath("$.result.familyId").value(FAMILY_ID))
+                .andExpect(jsonPath("$.result.familyName").value("우리 가족"))
+                .andExpect(jsonPath("$.result.ownerMemberId").value(MEMBER_ID))
+                .andExpect(jsonPath("$.result.memberCount").value(2))
+                .andExpect(jsonPath("$.result.members[0].memberId").value(1))
+                .andExpect(jsonPath("$.result.members[0].nickname").value("아빠"))
+                .andExpect(jsonPath("$.result.members[0].familyRole").value("FATHER"))
+                .andExpect(jsonPath("$.result.members[0].characterImageUrl")
+                        .value("https://example.com/father.png"))
+                .andExpect(jsonPath("$.result.members[1].memberId").value(2))
+                .andExpect(jsonPath("$.result.members[1].nickname").value("엄마"))
+                .andExpect(jsonPath("$.result.members[1].familyRole").value("MOTHER"))
+                .andExpect(jsonPath("$.result.members[1].characterImageUrl").doesNotExist());
+
+        then(familyService).should().getFamilyInfo(MEMBER_ID, FAMILY_ID);
+    }
+
+    @Test
+    @DisplayName("인증되지 않은 사용자가 가족 정보 조회 시 401 예외 발생")
+    void getFamilyInfoFailUnauthorized() throws Exception {
+        mockMvc.perform(get("/api/v1/families/{familyId}", FAMILY_ID)).andExpect(status().isUnauthorized());
+
+        then(familyService).shouldHaveNoInteractions();
+    }
+
+    @Test
+    @DisplayName("존재하지 않는 가족 정보 조회 시 404 예외 발생")
+    void getFamilyInfoFailNotFound() throws Exception {
+        given(familyService.getFamilyInfo(MEMBER_ID, FAMILY_ID)).willThrow(new FamilyException(FamilyErrorCode.NOT_FOUND));
+
+        var authentication = new UsernamePasswordAuthenticationToken(MEMBER_ID, null, List.of(new SimpleGrantedAuthority("ROLE_USER")));
+
+        mockMvc.perform(get("/api/v1/families/{familyId}", FAMILY_ID)
+                        .with(authentication(authentication)))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.isSuccess").value(false))
+                .andExpect(jsonPath("$.message").value("존재하지 않는 가족입니다."));
+
+        then(familyService).should().getFamilyInfo(MEMBER_ID, FAMILY_ID);
     }
 }
