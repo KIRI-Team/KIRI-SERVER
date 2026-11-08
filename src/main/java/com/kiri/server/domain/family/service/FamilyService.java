@@ -13,7 +13,6 @@ import com.kiri.server.domain.member.exception.MemberException;
 import com.kiri.server.domain.member.exception.code.MemberErrorCode;
 import com.kiri.server.domain.member.repository.MemberRepository;
 import com.kiri.server.global.apiPayload.exception.ProjectException;
-import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
@@ -21,7 +20,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.security.SecureRandom;
 import java.time.LocalDateTime;
-import java.util.Optional;
 import java.util.UUID;
 
 @Service
@@ -49,7 +47,6 @@ public class FamilyService {
 
         familyRepository.save(family);
 
-        member.assignFamily(family);
         member.joinFamily(family);
 
         eventPublisher.publishEvent(new FamilyCreatedEvent(family.getId()));
@@ -204,5 +201,25 @@ public class FamilyService {
                 .orElseThrow(() -> new FamilyException(FamilyErrorCode.NOT_FOUND));
 
         return FamilyConverter.toId(family);
+    }
+
+    @Transactional
+    public FamilyResDTO.Join joinFamily(Long memberId, FamilyReqDTO.Join request) {
+
+        Member member = memberRepository.findByIdForUpdate(memberId).orElseThrow(() -> new MemberException(MemberErrorCode.NOT_FOUND));
+
+        if (member.getFamily() != null) {
+            throw new FamilyException(FamilyErrorCode.ALREADY_JOINED);
+        }
+
+        Family family = familyRepository.findByInviteCode(request.inviteCode()).orElseThrow(() -> new FamilyException(FamilyErrorCode.INVALID_INVITE_CODE));
+
+        if (family.getInviteExpiresAt() == null || !LocalDateTime.now().isBefore(family.getInviteExpiresAt())) {
+            throw new FamilyException(FamilyErrorCode.EXPIRED_INVITE_CODE);
+        }
+
+        member.joinFamily(family);
+
+        return FamilyConverter.toJoinResponse(family);
     }
 }

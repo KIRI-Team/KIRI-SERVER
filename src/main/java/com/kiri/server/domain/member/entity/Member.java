@@ -77,11 +77,8 @@ public class Member extends BaseEntity {
         this.refreshTokenHash = refreshTokenHash;
     }
 
-    public void assignFamily(Family family) {
-        this.family = family;
-    }
-
     public void joinFamily(Family family) {
+        this.family = family;
         this.familyJoinedAt = LocalDateTime.now();
     }
 

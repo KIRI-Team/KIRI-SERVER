@@ -58,4 +58,11 @@ public class FamilyConverter {
     public static FamilyResDTO.Id toId(Family family) {
         return new FamilyResDTO.Id(family.getId());
     }
+
+    public static FamilyResDTO.Join toJoinResponse(Family family) {
+        return FamilyResDTO.Join.builder()
+                .familyId(family.getId())
+                .familyName(family.getName())
+                .build();
+    }
 }
