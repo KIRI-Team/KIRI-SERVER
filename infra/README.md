@@ -84,7 +84,7 @@ aws ssm get-parameter --name <이름> --with-decryption --query Parameter.Value 
 | DB 비밀번호 | `/kiri/dev/DB_PW` |
 | Swagger 계정 (basic auth) | `/kiri/dev/nginx/BASIC_AUTH_USER`, `/kiri/dev/nginx/BASIC_AUTH_PASSWORD` |
 
-전체 목록은 [앱 환경변수](#앱-환경변수-parameter-store)를 참고합니다.
+파라미터 관리 방식은 [앱 환경변수](#앱-환경변수-parameter-store)를 참고합니다.
 
 ## 디렉터리 구조
 
@@ -217,21 +217,10 @@ terraform apply -replace=random_password.nginx_basic_auth
 
 ## 앱 환경변수 (Parameter Store)
 
-`/kiri/{env}/` **바로 아래** 값이 배포 시 이름 그대로 앱 환경변수로 주입됩니다. 하위 경로(예: `/kiri/dev/nginx/`)는 주입되지 않습니다.
+`/kiri/{env}/` 아래 값이 배포 시 이름 그대로 앱 환경변수로 주입됩니다. 하위 경로(예: `/kiri/dev/nginx/`)는 주입되지 않습니다.
 
-| 이름 | 값 | 생성 |
-|---|---|---|
-| `/kiri/dev/DB_URL` | `jdbc:postgresql://<rds_endpoint>/kiri` | Terraform |
-| `/kiri/dev/DB_USER` | DB 사용자 이름 | Terraform |
-| `/kiri/dev/DB_PW` | DB 비밀번호 (`random_password`) | Terraform |
-| `/kiri/dev/S3_IMAGE_BUCKET` | 이미지 버킷 이름 | Terraform |
-| `/kiri/dev/CDN_BASE_URL` | `https://<cdn_domain>` | Terraform |
-| `/kiri/dev/CLOUDFRONT_KEY_PAIR_ID` | Signed URL `Key-Pair-Id` | Terraform |
-| `/kiri/dev/CLOUDFRONT_PRIVATE_KEY` | Signed URL 서명용 개인키 | 수동 ([Signed URL 키](#signed-url-키) 참고) |
-| `/kiri/dev/JWT_SECRET` | JWT 서명 키 | 수동 |
-| `/kiri/dev/SENTRY_DSN` | Sentry DSN | 수동 |
-
-- EC2의 IAM Role은 `/kiri/dev/*` 경로만 읽을 수 있습니다.
+- 파라미터는 Terraform으로 만들고, 콘솔에서 값을 입력하는 앱 환경변수의 목록은 `terraform/modules/app_parameters`에서 관리합니다.
+- EC2의 IAM Role은 `/kiri/{env}/*` 경로만 읽을 수 있습니다.
 - 새 값을 추가하는 방법은 [docs/deploy.md](../docs/deploy.md#환경변수-추가)를 참고합니다.
 
 ## 이미지 저장소 (S3 + CloudFront)
@@ -263,7 +252,7 @@ aws s3 cp banner.jpg s3://kiri-dev-images-100024219481/public/<uuid>.jpg \
 ### Signed URL 키
 
 - 공개키: `terraform/envs/{env}/keys/cloudfront-public.pem` (Terraform이 CloudFront에 등록)
-- 개인키: Parameter Store `CLOUDFRONT_PRIVATE_KEY`에 수동 등록, git에 올리지 않음
+- 개인키: Terraform이 만든 Parameter Store `CLOUDFRONT_PRIVATE_KEY`에 콘솔에서 값 입력, git에 올리지 않음
   - **한 줄 base64(PKCS#8 DER)** 로 저장합니다. 여러 줄 PEM은 배포 시 환경변수로 주입되지 않습니다.
 - 환경마다 키를 따로 만듭니다.
 
@@ -304,9 +293,9 @@ sudo tail -n 40 /var/log/cloud-init-output.log
 
 ### Sentry 알림 Lambda
 
-비밀 값은 tfstate에 남지 않도록 수동으로 등록합니다. (등록 방법은 [docs/deploy.md](../docs/deploy.md#환경변수-추가)와 같고 경로만 다름)
+파라미터는 Terraform으로 만들고, 실제 값은 콘솔에서 입력합니다.
 
-1. `/kiri/shared/sentry-alert/DISCORD_WEBHOOK_URL` 등록 후 apply
+1. apply로 파라미터 생성 후 `/kiri/shared/sentry-alert/DISCORD_WEBHOOK_URL` 값 입력
 2. Sentry `Settings → Custom Integrations → Internal Integration` 생성
    - Webhook URL: `terraform output sentry_alert_function_url`
    - Alert Rule Action 켜기
@@ -400,7 +389,7 @@ GitHub Actions는 `terraform/modules/github_deploy`로 만든 환경별 Role(dev
 2. GitHub › Settings › Environments에서 `{env}` 생성
    - Deployment branches and tags: **Selected branches and tags** → dev는 `develop`, prod는 `main`
    - Environment variables: `AWS_ROLE_ARN` = `terraform output github_deploy_role_arn`
-3. Parameter Store에 Terraform이 만들지 않는 값 등록 (예: `JWT_SECRET`, [앱 환경변수](#앱-환경변수-parameter-store) 참고)
+3. Parameter Store에서 `CHANGE_ME` 값을 실제 값으로 변경 ([앱 환경변수](#앱-환경변수-parameter-store) 참고)
 4. nginx를 쓰려면 `infra/nginx/{env}.conf` 작성, 도메인 DNS 등록, `/kiri/{env}/nginx/` basic auth 계정 생성
    - 배포 스크립트는 `{env}.conf`가 있으면 이 계정을 반드시 읽으므로, 계정 없이 conf만 추가하면 배포가 실패합니다.
 
