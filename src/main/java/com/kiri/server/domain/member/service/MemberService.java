@@ -74,6 +74,7 @@ public class MemberService {
         return MemberConverter.toNicknameResponse(nickname);
     }
 
+    @Transactional
     public MemberResDTO.TokenReissue tokenReissue(MemberReqDTO.TokenReissue dto) {
         String refreshToken = dto.refreshToken();
 
