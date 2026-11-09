@@ -37,7 +37,6 @@ public interface MemberRepository extends JpaRepository<Member, Long> {
        """)
     Optional<Member> findByIdForUpdate(@Param("id") Long id);
 
-    @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("""
         select m
         from Member m
