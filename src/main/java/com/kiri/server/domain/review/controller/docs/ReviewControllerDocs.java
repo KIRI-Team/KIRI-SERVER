@@ -390,6 +390,8 @@ public interface ReviewControllerDocs {
                     3. 해당 일정의 리뷰를 작성순으로 조회합니다. (작성자·사진 포함)
                     4. 각 리뷰의 사진을 표시 순서대로 사진 ID, imageKey, 이미지 URL(서명 URL)로 반환합니다.
                        리뷰 수정 시 유지할 사진은 이 imageKey를 그대로 imageKeys에 전달합니다.
+                    5. representativePhotoId로 현재 대표사진의 사진 ID를 반환합니다.
+                       대표사진을 직접 지정하지 않았으면 작성순으로 가장 빠른 리뷰의 첫 번째 사진이며, 사진이 하나도 없으면 null입니다.
                     5. isMine으로 본인 작성 리뷰(수정하기 노출용)를 구분합니다.
 
                     ## 참고
@@ -409,6 +411,7 @@ public interface ReviewControllerDocs {
                                         "message": "리뷰 목록 조회가 완료되었습니다.",
                                         "result": {
                                             "scheduleId": 10,
+                                            "representativePhotoId": 1,
                                             "reviews": [
                                                 {
                                                     "reviewId": 1,
@@ -1059,4 +1062,150 @@ public interface ReviewControllerDocs {
             )
     })
     ApiResponse<Void> deleteReview(@Parameter(hidden = true) @AuthenticationPrincipal Long memberId, @PathVariable Long scheduleId, @PathVariable Long reviewId);
+
+    // 대표사진 변경
+    @Operation(
+            summary = "대표사진 변경 API",
+            description = """
+                    # 대표사진 변경
+                    일정(활동)의 대표사진을 해당 일정에 등록된 리뷰 사진 중 1장으로 지정합니다.
+                    대표사진은 캘린더의 날짜 썸네일과 활동 카드에 반영되며, 변경 결과는 가족 전체에 동일하게 적용됩니다.
+
+                    ## 요청 형식
+                    - **Header**
+                        - Authorization: Bearer {Access_Token}
+                        - Content-Type: application/json
+                    - **Path Variable**
+                        - scheduleId: 대표사진을 변경할 일정 ID
+                    - **Body**
+                        - reviewPhotoId: 대표사진으로 지정할 리뷰 사진 ID (리뷰 목록 조회 응답의 photos[].reviewPhotoId)
+
+                    ## 동작 방식
+                    1. Access Token으로 인증된 사용자와 그 가족을 확인합니다.
+                    2. scheduleId로 일정을 조회하고, 요청자 가족의 일정인지 검증합니다. (작성자·참여자 여부와 무관하게 가족 구성원이면 변경 가능)
+                    3. reviewPhotoId가 해당 일정의 리뷰 사진인지 확인합니다.
+                    4. 일정의 대표사진을 해당 사진으로 변경합니다.
+
+                    ## 참고
+                    - 대표사진을 지정하지 않은 일정은 작성순으로 가장 빠른 리뷰의 첫 번째 사진이 대표사진입니다.
+                    - 대표사진이 속한 리뷰가 삭제되거나 해당 사진이 리뷰 수정으로 빠지면, 위 기본값 규칙으로 다시 정해집니다.
+                    """
+    )
+    @ApiResponses(value = {
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200",
+                    description = "성공 예시",
+                    content = @Content(
+                            mediaType = "application/json",
+                            examples = @ExampleObject(value = """
+                                    {
+                                        "isSuccess": true,
+                                        "code": "REVIEW200_5",
+                                        "message": "대표사진 변경이 완료되었습니다.",
+                                        "result": {
+                                            "scheduleId": 10,
+                                            "representativePhotoId": 3
+                                        }
+                                    }
+                                    """
+                            )
+                    )
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "400",
+                    description = "요청 형식 오류 (reviewPhotoId 누락, scheduleId가 숫자가 아님)",
+                    content = @Content(
+                            mediaType = "application/json",
+                            examples = @ExampleObject(value = """
+                                    {
+                                        "isSuccess": false,
+                                        "code": "COMMON400_1",
+                                        "message": "잘못된 요청입니다.",
+                                        "result": null
+                                    }
+                                    """
+                            )
+                    )
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "401",
+                    description = "인증 실패 (Authorization 헤더 누락, 유효하지 않은 토큰, 만료된 토큰)",
+                    content = @Content(
+                            mediaType = "application/json",
+                            examples = @ExampleObject(value = """
+                                    {
+                                        "isSuccess": false,
+                                        "code": "COMMON401_1",
+                                        "message": "인증이 필요합니다.",
+                                        "result": null
+                                    }
+                                    """
+                            )
+                    )
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "403",
+                    description = "다른 가족의 일정이거나 가족 공간이 없는 경우",
+                    content = @Content(
+                            mediaType = "application/json",
+                            examples = @ExampleObject(value = """
+                                    {
+                                        "isSuccess": false,
+                                        "code": "REVIEW403_2",
+                                        "message": "해당 일정의 리뷰를 조회할 권한이 없습니다.",
+                                        "result": null
+                                    }
+                                    """
+                            )
+                    )
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "404",
+                    description = "일정, 회원 또는 리뷰 사진이 존재하지 않는 경우",
+                    content = @Content(
+                            mediaType = "application/json",
+                            examples = {
+                                    @ExampleObject(
+                                            name = "해당 일정에 없는 리뷰 사진",
+                                            value = """
+                                                    {
+                                                        "isSuccess": false,
+                                                        "code": "REVIEW404_2",
+                                                        "message": "해당 일정에 존재하지 않는 리뷰 사진입니다.",
+                                                        "result": null
+                                                    }
+                                                    """
+                                    ),
+                                    @ExampleObject(
+                                            name = "일정 없음",
+                                            value = """
+                                                    {
+                                                        "isSuccess": false,
+                                                        "code": "SCHEDULE404_2",
+                                                        "message": "존재하지 않는 일정입니다.",
+                                                        "result": null
+                                                    }
+                                                    """
+                                    )
+                            }
+                    )
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "500",
+                    description = "서버 내부 오류",
+                    content = @Content(
+                            mediaType = "application/json",
+                            examples = @ExampleObject(value = """
+                                    {
+                                        "isSuccess": false,
+                                        "code": "COMMON500_1",
+                                        "message": "서버 내부 오류가 발생했습니다.",
+                                        "result": null
+                                    }
+                                    """
+                            )
+                    )
+            )
+    })
+    ApiResponse<ReviewResDTO.RepresentativePhoto> changeRepresentativePhoto(@Parameter(hidden = true) @AuthenticationPrincipal Long memberId, @PathVariable Long scheduleId, @Valid @RequestBody ReviewReqDTO.RepresentativePhoto dto);
 }

@@ -63,10 +63,20 @@ public class ReviewConverter {
                 .build();
     }
 
-    public static ReviewResDTO.ScheduleReviews toScheduleReviews(Long scheduleId, List<ReviewResDTO.Item> items) {
+    public static ReviewResDTO.ScheduleReviews toScheduleReviews(
+            Long scheduleId, Long representativePhotoId, List<ReviewResDTO.Item> items) {
         return ReviewResDTO.ScheduleReviews.builder()
                 .scheduleId(scheduleId)
+                .representativePhotoId(representativePhotoId)
                 .reviews(items)
+                .build();
+    }
+
+    public static ReviewResDTO.RepresentativePhoto toRepresentativePhotoResponse(
+            Long scheduleId, Long representativePhotoId) {
+        return ReviewResDTO.RepresentativePhoto.builder()
+                .scheduleId(scheduleId)
+                .representativePhotoId(representativePhotoId)
                 .build();
     }
 }
