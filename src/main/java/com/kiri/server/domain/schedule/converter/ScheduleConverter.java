@@ -76,13 +76,15 @@ public class ScheduleConverter {
                 .build();
     }
 
-    public static ScheduleResDTO.CalendarItem toCalendarItem(Schedule schedule, ScheduleParticipant myParticipant) {
+    public static ScheduleResDTO.CalendarItem toCalendarItem(
+            Schedule schedule, ScheduleParticipant myParticipant, String reviewImageUrl) {
         return ScheduleResDTO.CalendarItem.builder()
                 .scheduleId(schedule.getId())
                 .date(schedule.getScheduleDate())
                 .time(schedule.getScheduleTime())
                 .status(schedule.getStatus())
                 .myStatus(toMyStatus(myParticipant))
+                .reviewImageUrl(reviewImageUrl)
                 .build();
     }
 

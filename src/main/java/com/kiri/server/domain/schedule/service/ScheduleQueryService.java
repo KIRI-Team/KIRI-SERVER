@@ -1,6 +1,7 @@
 package com.kiri.server.domain.schedule.service;
 
 import com.kiri.server.domain.family.entity.Family;
+import com.kiri.server.domain.image.service.ImageUrlService;
 import com.kiri.server.domain.member.entity.Member;
 import com.kiri.server.domain.member.exception.MemberException;
 import com.kiri.server.domain.member.exception.code.MemberErrorCode;
@@ -10,6 +11,7 @@ import com.kiri.server.domain.mission.enums.Category;
 import com.kiri.server.domain.mission.enums.IndoorOutdoor;
 import com.kiri.server.domain.mission.repository.MissionRepository;
 import com.kiri.server.domain.place.entity.Place;
+import com.kiri.server.domain.review.repository.ReviewPhotoRepository;
 import com.kiri.server.domain.schedule.converter.ScheduleConverter;
 import com.kiri.server.domain.schedule.dto.ScheduleReqDTO;
 import com.kiri.server.domain.schedule.dto.ScheduleResDTO;
@@ -39,6 +41,7 @@ import java.time.YearMonth;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -70,6 +73,8 @@ public class ScheduleQueryService {
     private final MissionRepository missionRepository;
     private final FamilyTasteScoreService familyTasteScoreService;
     private final TasteProfileService tasteProfileService;
+    private final ReviewPhotoRepository reviewPhotoRepository;
+    private final ImageUrlService imageUrlService;
     private final Clock clock;
 
     @Transactional(readOnly = true)
@@ -94,8 +99,17 @@ public class ScheduleQueryService {
                 .findBySchedule_IdInAndMember_Id(scheduleIds, memberId).stream()
                 .collect(Collectors.toMap(participant -> participant.getSchedule().getId(), Function.identity()));
 
+        Map<Long, String> reviewImageUrls = new HashMap<>();
+        reviewPhotoRepository.findAllByScheduleIds(scheduleIds).forEach(photo ->
+                reviewImageUrls.computeIfAbsent(
+                        photo.getReview().getSchedule().getId(),
+                        id -> imageUrlService.toUrl(photo.getImageKey())));
+
         List<ScheduleResDTO.CalendarItem> items = schedules.stream()
-                .map(schedule -> ScheduleConverter.toCalendarItem(schedule, myParticipants.get(schedule.getId())))
+                .map(schedule -> ScheduleConverter.toCalendarItem(
+                        schedule,
+                        myParticipants.get(schedule.getId()),
+                        reviewImageUrls.get(schedule.getId())))
                 .toList();
 
         return ScheduleConverter.toCalendar(condition.year(), condition.month(), items);

@@ -2,6 +2,7 @@ package com.kiri.server.domain.schedule.service;
 
 import com.kiri.server.domain.bucket.entity.BucketItem;
 import com.kiri.server.domain.family.entity.Family;
+import com.kiri.server.domain.image.service.ImageUrlService;
 import com.kiri.server.domain.member.entity.Member;
 import com.kiri.server.domain.member.exception.MemberException;
 import com.kiri.server.domain.member.repository.MemberRepository;
@@ -11,6 +12,9 @@ import com.kiri.server.domain.mission.enums.IndoorOutdoor;
 import com.kiri.server.domain.mission.enums.WalkingLevel;
 import com.kiri.server.domain.mission.repository.MissionRepository;
 import com.kiri.server.domain.place.entity.Place;
+import com.kiri.server.domain.review.entity.Review;
+import com.kiri.server.domain.review.entity.ReviewPhoto;
+import com.kiri.server.domain.review.repository.ReviewPhotoRepository;
 import com.kiri.server.domain.schedule.dto.ScheduleReqDTO;
 import com.kiri.server.domain.schedule.dto.ScheduleResDTO;
 import com.kiri.server.domain.schedule.entity.Schedule;
@@ -59,6 +63,7 @@ import static org.mockito.ArgumentMatchers.anyDouble;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 
@@ -89,13 +94,20 @@ class ScheduleQueryServiceTest {
     @Mock
     private TasteProfileService tasteProfileService;
 
+    @Mock
+    private ReviewPhotoRepository reviewPhotoRepository;
+
+    @Mock
+    private ImageUrlService imageUrlService;
+
     private ScheduleQueryService scheduleQueryService;
 
     @BeforeEach
     void setUp() {
         scheduleQueryService = new ScheduleQueryService(
                 scheduleRepository, scheduleParticipantRepository, scheduleConditionRepository, memberRepository,
-                missionRepository, familyTasteScoreService, tasteProfileService, CLOCK);
+                missionRepository, familyTasteScoreService, tasteProfileService,
+                reviewPhotoRepository, imageUrlService, CLOCK);
     }
 
     private ScheduleReqDTO.CalendarCondition condition(int year, int month) {
@@ -183,6 +195,30 @@ class ScheduleQueryServiceTest {
         assertThat(result.schedules()).extracting(ScheduleResDTO.CalendarItem::myStatus)
                 .containsExactly(CalendarMyStatus.ACCEPTED, CalendarMyStatus.NOT_INVITED, CalendarMyStatus.RECONFIRM_REQUIRED);
         assertThat(result.schedules().get(0).status()).isEqualTo(ScheduleStatus.CONFIRMED);
+    }
+
+    @Test
+    @DisplayName("캘린더 조회 시 일정별 첫 리뷰의 첫 사진을 대표사진으로 내려주고, 리뷰가 없으면 null이다.")
+    void getCalendar_returnsReviewImage() {
+        Family family = Family.builder().build();
+        given(memberRepository.findById(MEMBER_ID)).willReturn(Optional.of(Member.builder().family(family).build()));
+
+        Schedule withReview = schedule(100L, LocalDate.of(2026, 10, 3), ScheduleStatus.COMPLETED, family);
+        Schedule withoutReview = schedule(101L, LocalDate.of(2026, 10, 10), ScheduleStatus.CONFIRMED, family);
+        given(scheduleRepository.findByFamily_IdAndScheduleDateBetweenOrderByScheduleDateAscScheduleTimeAsc(
+                any(), any(), any())).willReturn(List.of(withReview, withoutReview));
+
+        Review review = Review.builder().schedule(withReview).build();
+        given(reviewPhotoRepository.findAllByScheduleIds(List.of(100L, 101L))).willReturn(List.of(
+                ReviewPhoto.builder().review(review).imageKey("first").displayOrder(1).build(),
+                ReviewPhoto.builder().review(review).imageKey("second").displayOrder(2).build()));
+        given(imageUrlService.toUrl("first")).willReturn("https://cdn/first");
+
+        ScheduleResDTO.Calendar result = scheduleQueryService.getCalendar(MEMBER_ID, condition(2026, 10));
+
+        assertThat(result.schedules()).extracting(ScheduleResDTO.CalendarItem::reviewImageUrl)
+                .containsExactly("https://cdn/first", null);
+        verify(imageUrlService, never()).toUrl("second");
     }
 
     @Test
