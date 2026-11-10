@@ -43,6 +43,7 @@ public class ReviewController implements ReviewControllerDocs {
                 reviewQueryService.getScheduleReviews(memberId, scheduleId));
     }
 
+    @Override
     @PutMapping("/{scheduleId}/reviews/{reviewId}")
     public ApiResponse<ReviewResDTO.Create> updateReview(
             @AuthenticationPrincipal Long memberId,
@@ -54,6 +55,7 @@ public class ReviewController implements ReviewControllerDocs {
         return ApiResponse.onSuccess(code, reviewService.updateReview(memberId, scheduleId, reviewId, dto));
     }
 
+    @Override
     @DeleteMapping("/{scheduleId}/reviews/{reviewId}")
     public ApiResponse<Void> deleteReview(
             @AuthenticationPrincipal Long memberId,
