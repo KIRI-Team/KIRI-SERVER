@@ -29,9 +29,18 @@ public class ReviewResDTO {
             String content,
             Integer starRating,
             Boolean isRejoinIntended,
-            List<String> imageUrls,
+            List<Photo> photos,
             LocalDateTime createdAt,
             Boolean isMine
+    ) {}
+
+    @Builder
+    @Schema(name = "ReviewPhotoResponse", description = "리뷰 사진 (표시 순서대로)")
+    public record Photo(
+            Long reviewPhotoId,
+            @Schema(description = "리뷰 수정 시 유지할 사진은 이 키를 imageKeys에 그대로 전달")
+            String imageKey,
+            String imageUrl
     ) {}
 
     @Builder

@@ -33,6 +33,7 @@ import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.tuple;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.lenient;
@@ -133,11 +134,15 @@ class ReviewQueryServiceTest {
         assertThat(first.reviewId()).isEqualTo(1L);
         assertThat(first.writer().nickname()).isEqualTo("김주연");
         assertThat(first.isMine()).isTrue();
-        assertThat(first.imageUrls()).containsExactly("url:review/1/a.jpg", "url:review/1/b.jpg");
+        assertThat(first.photos())
+                .extracting(ReviewResDTO.Photo::reviewPhotoId, ReviewResDTO.Photo::imageKey, ReviewResDTO.Photo::imageUrl)
+                .containsExactly(
+                        tuple(1L, "review/1/a.jpg", "url:review/1/a.jpg"),
+                        tuple(2L, "review/1/b.jpg", "url:review/1/b.jpg"));
 
         ReviewResDTO.Item second = result.reviews().get(1);
         assertThat(second.isMine()).isFalse();
-        assertThat(second.imageUrls()).containsExactly("url:review/2/a.jpg");
+        assertThat(second.photos()).extracting(ReviewResDTO.Photo::imageUrl).containsExactly("url:review/2/a.jpg");
     }
 
     @Test

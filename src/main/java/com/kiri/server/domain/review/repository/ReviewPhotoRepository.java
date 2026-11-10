@@ -13,6 +13,8 @@ public interface ReviewPhotoRepository extends JpaRepository<ReviewPhoto, Long> 
 
     List<ReviewPhoto> findByReview_IdInOrderByReview_IdAscDisplayOrderAsc(List<Long> reviewIds);
 
+    List<ReviewPhoto> findByReview_Id(Long reviewId);
+
     @Query("""
             select p from ReviewPhoto p
             join fetch p.review r

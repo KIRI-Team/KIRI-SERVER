@@ -4,6 +4,7 @@ import com.kiri.server.domain.member.entity.Member;
 import com.kiri.server.domain.review.dto.ReviewReqDTO;
 import com.kiri.server.domain.review.dto.ReviewResDTO;
 import com.kiri.server.domain.review.entity.Review;
+import com.kiri.server.domain.review.entity.ReviewPhoto;
 import com.kiri.server.domain.schedule.entity.Schedule;
 import com.kiri.server.domain.schedule.entity.ScheduleParticipant;
 
@@ -41,14 +42,22 @@ public class ReviewConverter {
                 .build();
     }
 
-    public static ReviewResDTO.Item toItem(Review review, List<String> imageUrls, boolean isMine) {
+    public static ReviewResDTO.Photo toPhoto(ReviewPhoto photo, String imageUrl) {
+        return ReviewResDTO.Photo.builder()
+                .reviewPhotoId(photo.getId())
+                .imageKey(photo.getImageKey())
+                .imageUrl(imageUrl)
+                .build();
+    }
+
+    public static ReviewResDTO.Item toItem(Review review, List<ReviewResDTO.Photo> photos, boolean isMine) {
         return ReviewResDTO.Item.builder()
                 .reviewId(review.getId())
                 .writer(toWriter(review.getScheduleParticipant().getMember()))
                 .content(review.getContent())
                 .starRating(review.getStarRating())
                 .isRejoinIntended(review.getIsRejoinIntended())
-                .imageUrls(imageUrls)
+                .photos(photos)
                 .createdAt(review.getCreatedAt())
                 .isMine(isMine)
                 .build();

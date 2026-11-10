@@ -57,18 +57,20 @@ public class ReviewQueryService {
         }
 
         List<Long> reviewIds = reviews.stream().map(Review::getId).toList();
-        Map<Long, List<String>> imageUrlsByReview = reviewPhotoRepository
+        Map<Long, List<ReviewResDTO.Photo>> photosByReview = reviewPhotoRepository
                 .findByReview_IdInOrderByReview_IdAscDisplayOrderAsc(reviewIds).stream()
                 .collect(Collectors.groupingBy(
                         photo -> photo.getReview().getId(),
                         LinkedHashMap::new,
-                        Collectors.mapping(photo -> imageUrlService.toUrl(photo.getImageKey()), Collectors.toList())
+                        Collectors.mapping(
+                                photo -> ReviewConverter.toPhoto(photo, imageUrlService.toUrl(photo.getImageKey())),
+                                Collectors.toList())
                 ));
 
         List<ReviewResDTO.Item> items = reviews.stream()
                 .map(review -> ReviewConverter.toItem(
                         review,
-                        imageUrlsByReview.getOrDefault(review.getId(), List.of()),
+                        photosByReview.getOrDefault(review.getId(), List.of()),
                         isMine(review, memberId)))
                 .toList();
 

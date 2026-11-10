@@ -26,8 +26,11 @@ import java.util.List;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.BDDMockito.given;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
+import static org.mockito.Mockito.verify;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
@@ -144,7 +147,11 @@ class ReviewControllerTest {
                 .content("아빠가 자주 가는 식당에 처음 가봤다.")
                 .starRating(5)
                 .isRejoinIntended(true)
-                .imageUrls(List.of("https://cdn.example.com/review/1/image-1.jpg"))
+                .photos(List.of(ReviewResDTO.Photo.builder()
+                        .reviewPhotoId(1L)
+                        .imageKey("user/original/5/image-1.jpg")
+                        .imageUrl("https://cdn.example.com/user/original/5/image-1.jpg")
+                        .build()))
                 .createdAt(LocalDateTime.of(2026, 6, 13, 14, 50))
                 .isMine(true)
                 .build();
@@ -167,6 +174,47 @@ class ReviewControllerTest {
                 .andExpect(jsonPath("$.result.scheduleId").value(10))
                 .andExpect(jsonPath("$.result.reviews[0].reviewId").value(1))
                 .andExpect(jsonPath("$.result.reviews[0].writer.nickname").value("김주연"))
-                .andExpect(jsonPath("$.result.reviews[0].isMine").value(true));
+                .andExpect(jsonPath("$.result.reviews[0].isMine").value(true))
+                .andExpect(jsonPath("$.result.reviews[0].photos[0].imageKey").value("user/original/5/image-1.jpg"));
+    }
+
+    @Test
+    @DisplayName("리뷰 수정 성공")
+    void updateReviewSuccess() throws Exception {
+        ReviewReqDTO.Create request = new ReviewReqDTO.Create("수정한 내용", 4, false, List.of("user/original/1/image-1.jpg"));
+
+        ReviewResDTO.Create response = ReviewResDTO.Create.builder()
+                .reviewId(3L)
+                .scheduleId(10L)
+                .build();
+
+        given(reviewService.updateReview(eq(1L), eq(10L), eq(3L), any(ReviewReqDTO.Create.class))).willReturn(response);
+
+        mockMvc.perform(put("/api/v1/schedules/{scheduleId}/reviews/{reviewId}", 10L, 3L)
+                        .with(authentication(
+                                new UsernamePasswordAuthenticationToken(1L, null, List.of(new SimpleGrantedAuthority("ROLE_USER")))
+                        ))
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(ReviewSuccessCode.REVIEW_UPDATED.getCode()))
+                .andExpect(jsonPath("$.result.reviewId").value(3))
+                .andExpect(jsonPath("$.result.scheduleId").value(10));
+    }
+
+    @Test
+    @DisplayName("리뷰 삭제 성공")
+    void deleteReviewSuccess() throws Exception {
+        mockMvc.perform(delete("/api/v1/schedules/{scheduleId}/reviews/{reviewId}", 10L, 3L)
+                        .with(authentication(
+                                new UsernamePasswordAuthenticationToken(1L, null, List.of(new SimpleGrantedAuthority("ROLE_USER")))
+                        ))
+                        .with(csrf()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(ReviewSuccessCode.REVIEW_DELETED.getCode()))
+                .andExpect(jsonPath("$.result").doesNotExist());
+
+        verify(reviewService).deleteReview(1L, 10L, 3L);
     }
 }

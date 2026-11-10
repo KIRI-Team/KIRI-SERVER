@@ -8,11 +8,18 @@ import org.springframework.stereotype.Repository;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface ReviewRepository extends JpaRepository<Review, Long> {
 
     boolean existsBySchedule_IdAndScheduleParticipant_Id(Long scheduleId, Long scheduleParticipantId);
+
+    @Query("select r from Review r " +
+            "join fetch r.scheduleParticipant sp " +
+            "left join fetch sp.member " +
+            "where r.id = :reviewId and r.schedule.id = :scheduleId")
+    Optional<Review> findByIdAndScheduleIdWithWriter(@Param("reviewId") Long reviewId, @Param("scheduleId") Long scheduleId);
 
     @Query("select r from Review r " +
             "join fetch r.scheduleParticipant sp " +
