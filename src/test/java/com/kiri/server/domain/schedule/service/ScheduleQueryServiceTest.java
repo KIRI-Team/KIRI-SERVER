@@ -222,6 +222,53 @@ class ScheduleQueryServiceTest {
     }
 
     @Test
+    @DisplayName("캘린더 조회 시 지정한 대표사진이 있으면 기본값 대신 그 사진을 내려준다.")
+    void getCalendar_returnsDesignatedRepresentativePhoto() {
+        Family family = Family.builder().build();
+        given(memberRepository.findById(MEMBER_ID)).willReturn(Optional.of(Member.builder().family(family).build()));
+
+        Schedule completed = schedule(100L, LocalDate.of(2026, 10, 3), ScheduleStatus.COMPLETED, family);
+        completed.changeRepresentativePhoto(2L);
+        given(scheduleRepository.findByFamily_IdAndScheduleDateBetweenOrderByScheduleDateAscScheduleTimeAsc(
+                any(), any(), any())).willReturn(List.of(completed));
+
+        Review review = Review.builder().schedule(completed).build();
+        given(reviewPhotoRepository.findAllByScheduleIds(List.of(100L))).willReturn(List.of(
+                ReviewPhoto.builder().id(1L).review(review).imageKey("first").displayOrder(1).build(),
+                ReviewPhoto.builder().id(2L).review(review).imageKey("second").displayOrder(2).build()));
+        given(imageUrlService.toUrl("second")).willReturn("https://cdn/second");
+
+        ScheduleResDTO.Calendar result = scheduleQueryService.getCalendar(MEMBER_ID, condition(2026, 10));
+
+        assertThat(result.schedules()).extracting(ScheduleResDTO.CalendarItem::reviewImageUrl)
+                .containsExactly("https://cdn/second");
+        verify(imageUrlService, never()).toUrl("first");
+    }
+
+    @Test
+    @DisplayName("캘린더 조회 시 지정한 대표사진이 후보에 없으면 기본값 사진을 내려준다.")
+    void getCalendar_fallsBackToDefaultWhenDesignatedPhotoIsGone() {
+        Family family = Family.builder().build();
+        given(memberRepository.findById(MEMBER_ID)).willReturn(Optional.of(Member.builder().family(family).build()));
+
+        Schedule completed = schedule(100L, LocalDate.of(2026, 10, 3), ScheduleStatus.COMPLETED, family);
+        completed.changeRepresentativePhoto(99L);
+        given(scheduleRepository.findByFamily_IdAndScheduleDateBetweenOrderByScheduleDateAscScheduleTimeAsc(
+                any(), any(), any())).willReturn(List.of(completed));
+
+        Review review = Review.builder().schedule(completed).build();
+        given(reviewPhotoRepository.findAllByScheduleIds(List.of(100L))).willReturn(List.of(
+                ReviewPhoto.builder().id(1L).review(review).imageKey("first").displayOrder(1).build(),
+                ReviewPhoto.builder().id(2L).review(review).imageKey("second").displayOrder(2).build()));
+        given(imageUrlService.toUrl("first")).willReturn("https://cdn/first");
+
+        ScheduleResDTO.Calendar result = scheduleQueryService.getCalendar(MEMBER_ID, condition(2026, 10));
+
+        assertThat(result.schedules()).extracting(ScheduleResDTO.CalendarItem::reviewImageUrl)
+                .containsExactly("https://cdn/first");
+    }
+
+    @Test
     @DisplayName("다가오는 일정 조회: 회원이 없으면 MEMBER404_1로 예외를 던진다.")
     void getUpcoming_memberNotFound() {
         given(memberRepository.findById(MEMBER_ID)).willReturn(Optional.empty());
