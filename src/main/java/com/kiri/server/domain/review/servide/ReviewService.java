@@ -109,6 +109,23 @@ public class ReviewService {
         return ReviewConverter.toCreateResponse(review);
     }
 
+    @Transactional
+    public void deleteReview(Long memberId, Long scheduleId, Long reviewId) {
+        Review review = getOwnReview(memberId, scheduleId, reviewId);
+
+        List<ReviewPhoto> photos = reviewPhotoRepository.findByReview_Id(review.getId());
+        List<String> imageKeys = photos.stream()
+                .map(ReviewPhoto::getImageKey)
+                .toList();
+
+        reviewPhotoRepository.deleteAll(photos);
+        reviewRepository.delete(review);
+
+        if (!imageKeys.isEmpty()) {
+            eventPublisher.publishEvent(new ImageDeletedEvent(imageKeys));
+        }
+    }
+
     private Review getOwnReview(Long memberId, Long scheduleId, Long reviewId) {
         Review review = reviewRepository.findByIdAndScheduleIdWithWriter(reviewId, scheduleId)
                 .orElseThrow(() -> new ReviewException(ReviewErrorCode.REVIEW_NOT_FOUND));
