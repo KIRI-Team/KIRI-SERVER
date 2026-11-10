@@ -34,7 +34,8 @@ public class ScheduleResDTO {
             @JsonFormat(pattern = "HH:mm")
             LocalTime time,
             ScheduleStatus status,
-            CalendarMyStatus myStatus
+            CalendarMyStatus myStatus,
+            String reviewImageUrl
     ) {
     }
 
