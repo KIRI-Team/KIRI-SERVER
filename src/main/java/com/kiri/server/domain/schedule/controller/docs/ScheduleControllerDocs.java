@@ -33,6 +33,7 @@ public interface ScheduleControllerDocs {
                     - myStatus: 현재 회원의 응답 상태 (NOT_INVITED 초대 안 됨 / PENDING 미응답 / ACCEPTED 수락 / DECLINED 거절 / RECONFIRM_REQUIRED 재확인 필요)
                     - 초대받지 않은 일정도 같은 가족이면 조회되며 myStatus는 NOT_INVITED 입니다.
                     - 취소 일정도 숨기지 않고 status=CANCELLED로 내려줍니다. (프론트에서 흐리게 처리)
+                    - reviewImageUrl: 해당 일정의 대표사진 URL(서명 URL, 만료 시간 있음). 대표사진을 직접 지정하지 않았으면 작성순으로 가장 빠른 리뷰의 첫 사진이며, 리뷰·사진이 없으면 null 입니다. (프론트에서 기본 완료 마커로 처리)
                     """
     )
     @ApiResponses(value = {
@@ -54,15 +55,17 @@ public interface ScheduleControllerDocs {
                                             "scheduleId": 100,
                                             "date": "2026-10-03",
                                             "time": "14:50",
-                                            "status": "CONFIRMED",
-                                            "myStatus": "ACCEPTED"
+                                            "status": "COMPLETED",
+                                            "myStatus": "ACCEPTED",
+                                            "reviewImageUrl": "https://cdn.example.com/review/100/a.jpg?Signature=..."
                                           },
                                           {
                                             "scheduleId": 101,
                                             "date": "2026-10-24",
                                             "time": "10:00",
                                             "status": "PENDING_RESPONSE",
-                                            "myStatus": "NOT_INVITED"
+                                            "myStatus": "NOT_INVITED",
+                                            "reviewImageUrl": null
                                           }
                                         ]
                                       }
