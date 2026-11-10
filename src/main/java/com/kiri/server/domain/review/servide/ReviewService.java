@@ -36,7 +36,9 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @Service
@@ -146,27 +148,30 @@ public class ReviewService {
         throw new ReviewException(ReviewErrorCode.NOT_REVIEW_WRITER);
     }
 
-    // 요청 목록에 있는 기존 키 그대로 사용 / 새 키 업로드 확정 / 빠진 기존 키는 커밋 후 S3에서 지움
+    // 기존 사진은 행을 유지한 채 순서만 갱신 / 새 키만 업로드 확정 / 빠진 사진은 행 삭제 후 커밋 후 S3에서 지움
     private void replacePhotos(Long memberId, Review review, List<String> imageKeys) {
-        List<ReviewPhoto> existingPhotos = reviewPhotoRepository.findByReview_Id(review.getId());
-        Set<String> existingKeys = existingPhotos.stream()
-                .map(ReviewPhoto::getImageKey)
-                .collect(Collectors.toSet());
+        Map<String, ReviewPhoto> existingByKey = reviewPhotoRepository.findByReview_Id(review.getId()).stream()
+                .collect(Collectors.toMap(ReviewPhoto::getImageKey, Function.identity()));
+        Set<String> requestedKeys = new HashSet<>(imageKeys);
 
-        reviewPhotoRepository.deleteAll(existingPhotos);
+        List<ReviewPhoto> removedPhotos = existingByKey.values().stream()
+                .filter(photo -> !requestedKeys.contains(photo.getImageKey()))
+                .toList();
+        reviewPhotoRepository.deleteAll(removedPhotos);
 
-        Set<String> keptKeys = new HashSet<>();
         for (int i = 0; i < imageKeys.size(); i++) {
             String key = imageKeys.get(i);
-            String confirmedKey = existingKeys.contains(key) ? key : imageService.confirmUpload(memberId, key);
-            keptKeys.add(confirmedKey);
-            reviewPhotoRepository.save(ReviewPhotoConverter.toReviewPhoto(review, confirmedKey, i + 1));
+            ReviewPhoto existing = existingByKey.get(key);
+            if (existing != null) {
+                existing.changeDisplayOrder(i + 1);
+            } else {
+                String confirmedKey = imageService.confirmUpload(memberId, key);
+                reviewPhotoRepository.save(ReviewPhotoConverter.toReviewPhoto(review, confirmedKey, i + 1));
+            }
         }
 
-        List<String> removedKeys = existingKeys.stream()
-                .filter(key -> !keptKeys.contains(key))
-                .toList();
-        if (!removedKeys.isEmpty()) {
+        if (!removedPhotos.isEmpty()) {
+            List<String> removedKeys = removedPhotos.stream().map(ReviewPhoto::getImageKey).toList();
             eventPublisher.publishEvent(new ImageDeletedEvent(removedKeys));
         }
     }
