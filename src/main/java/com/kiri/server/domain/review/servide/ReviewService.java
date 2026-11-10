@@ -3,6 +3,8 @@ package com.kiri.server.domain.review.servide;
 import com.kiri.server.domain.bucket.entity.BucketItem;
 import com.kiri.server.domain.bucket.enums.BucketStatus;
 import com.kiri.server.domain.image.event.ImageDeletedEvent;
+import com.kiri.server.domain.image.exception.ImageException;
+import com.kiri.server.domain.image.exception.code.ImageErrorCode;
 import com.kiri.server.domain.image.service.ImageService;
 import com.kiri.server.domain.family.entity.Family;
 import com.kiri.server.domain.member.entity.Member;
@@ -56,6 +58,8 @@ public class ReviewService {
 
     @Transactional
     public ReviewResDTO.Create createReview(Long memberId, Long scheduleId, ReviewReqDTO.Create dto) {
+        validateNoDuplicateImageKeys(dto.imageKeys());
+
         Schedule schedule = scheduleRepository.findByIdForUpdate(scheduleId).orElseThrow(() -> new ScheduleException(ScheduleErrorCode.SCHEDULE_NOT_FOUND));
 
         if (schedule.getStatus() == ScheduleStatus.CANCELLED || schedule.getStatus() == ScheduleStatus.NOT_CONFIRMED) {
@@ -103,6 +107,8 @@ public class ReviewService {
 
     @Transactional
     public ReviewResDTO.Create updateReview(Long memberId, Long scheduleId, Long reviewId, ReviewReqDTO.Create dto) {
+        validateNoDuplicateImageKeys(dto.imageKeys());
+
         Review review = getOwnReview(memberId, scheduleId, reviewId);
 
         review.update(dto.content(), dto.starRating(), dto.isRejoinIntended());
@@ -146,6 +152,13 @@ public class ReviewService {
             throw new ReviewException(ReviewErrorCode.FORBIDDEN_FAMILY);
         }
         throw new ReviewException(ReviewErrorCode.NOT_REVIEW_WRITER);
+    }
+
+    // 이미지 키 중복 거부
+    private void validateNoDuplicateImageKeys(List<String> imageKeys) {
+        if (new HashSet<>(imageKeys).size() != imageKeys.size()) {
+            throw new ImageException(ImageErrorCode.INVALID_IMAGE_KEY);
+        }
     }
 
     // 기존 사진은 행을 유지한 채 순서만 갱신 / 새 키만 업로드 확정 / 빠진 사진은 행 삭제 후 커밋 후 S3에서 지움

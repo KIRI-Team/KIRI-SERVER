@@ -255,6 +255,21 @@ class ReviewServiceTest {
     }
 
     @Test
+    @DisplayName("이미지 키가 중복되면 리뷰를 작성할 수 없다")
+    void createReviewWithDuplicateImageKeys() {
+        ReviewReqDTO.Create request = new ReviewReqDTO.Create("내용", 5, true,
+                List.of("pending/user/1/a.jpg", "pending/user/1/a.jpg"));
+
+        assertThatThrownBy(() -> reviewService.createReview(memberId, scheduleId, request))
+                .isInstanceOf(ImageException.class)
+                .extracting("errorCode")
+                .isEqualTo(ImageErrorCode.INVALID_IMAGE_KEY);
+
+        verify(reviewRepository, never()).save(any());
+        verify(imageService, never()).confirmUpload(anyLong(), anyString());
+    }
+
+    @Test
     @DisplayName("이미 OMPLETED인 일정도 다른 참여자가 리뷰를 작성할 수 있다")
     void createReviewOnCompletedSchedule() {
         schedule.complete(LocalDateTime.now());
@@ -437,6 +452,21 @@ class ReviewServiceTest {
 
         verify(reviewPhotoRepository).deleteAll(List.of(removedB));
         verify(eventPublisher).publishEvent(new ImageDeletedEvent(List.of("user/original/1/b.jpg")));
+    }
+
+    @Test
+    @DisplayName("이미지 키가 중복되면 리뷰를 수정할 수 없다")
+    void updateReviewWithDuplicateImageKeys() {
+        ReviewReqDTO.Create request = new ReviewReqDTO.Create("수정한 내용", 5, true,
+                List.of("pending/user/1/a.jpg", "pending/user/1/a.jpg"));
+
+        assertThatThrownBy(() -> reviewService.updateReview(memberId, scheduleId, reviewId, request))
+                .isInstanceOf(ImageException.class)
+                .extracting("errorCode")
+                .isEqualTo(ImageErrorCode.INVALID_IMAGE_KEY);
+
+        verify(imageService, never()).confirmUpload(anyLong(), anyString());
+        verify(reviewPhotoRepository, never()).save(any());
     }
 
     @Test
