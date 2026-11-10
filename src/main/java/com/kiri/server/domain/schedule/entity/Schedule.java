@@ -25,6 +25,7 @@ import lombok.NoArgsConstructor;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.util.Collection;
 
 @Entity
 @Table(name = "schedule")
@@ -73,6 +74,9 @@ public class Schedule extends BaseEntity {
 
     @Column(name = "completed_at")
     private LocalDateTime completedAt;
+
+    @Column(name = "representative_review_photo_id")
+    private Long representativeReviewPhotoId;
 
     public static Schedule create(Family family, BucketItem bucketItem, Member proposer,
                                   LocalDate scheduleDate, LocalTime scheduleTime,
@@ -142,5 +146,15 @@ public class Schedule extends BaseEntity {
     public void complete(LocalDateTime completedAt) {
         this.status = ScheduleStatus.COMPLETED;
         this.completedAt = completedAt;
+    }
+
+    public void changeRepresentativePhoto(Long reviewPhotoId) {
+        this.representativeReviewPhotoId = reviewPhotoId;
+    }
+
+    public void clearRepresentativePhotoIfIn(Collection<Long> reviewPhotoIds) {
+        if (representativeReviewPhotoId != null && reviewPhotoIds.contains(representativeReviewPhotoId)) {
+            this.representativeReviewPhotoId = null;
+        }
     }
 }

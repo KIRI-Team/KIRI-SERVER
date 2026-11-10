@@ -56,6 +56,17 @@ public class ReviewController implements ReviewControllerDocs {
     }
 
     @Override
+    @PatchMapping("/{scheduleId}/representative-photo")
+    public ApiResponse<ReviewResDTO.RepresentativePhoto> changeRepresentativePhoto(
+            @AuthenticationPrincipal Long memberId,
+            @PathVariable Long scheduleId,
+            @Valid @RequestBody ReviewReqDTO.RepresentativePhoto dto
+    ) {
+        BaseSuccessCode code = ReviewSuccessCode.REPRESENTATIVE_PHOTO_CHANGED;
+        return ApiResponse.onSuccess(code, reviewService.changeRepresentativePhoto(memberId, scheduleId, dto.reviewPhotoId()));
+    }
+
+    @Override
     @DeleteMapping("/{scheduleId}/reviews/{reviewId}")
     public ApiResponse<Void> deleteReview(
             @AuthenticationPrincipal Long memberId,

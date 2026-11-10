@@ -126,12 +126,36 @@ public class ReviewService {
                 .map(ReviewPhoto::getImageKey)
                 .toList();
 
+        review.getSchedule().clearRepresentativePhotoIfIn(photos.stream().map(ReviewPhoto::getId).toList());
         reviewPhotoRepository.deleteAll(photos);
         reviewRepository.delete(review);
 
         if (!imageKeys.isEmpty()) {
             eventPublisher.publishEvent(new ImageDeletedEvent(imageKeys));
         }
+    }
+
+    @Transactional
+    public ReviewResDTO.RepresentativePhoto changeRepresentativePhoto(Long memberId, Long scheduleId, Long reviewPhotoId) {
+        Member member = memberRepository.findById(memberId)
+                .orElseThrow(() -> new MemberException(MemberErrorCode.NOT_FOUND));
+        Family family = member.getFamily();
+        if (family == null) {
+            throw new ReviewException(ReviewErrorCode.FORBIDDEN_FAMILY);
+        }
+
+        Schedule schedule = scheduleRepository.findById(scheduleId)
+                .orElseThrow(() -> new ScheduleException(ScheduleErrorCode.SCHEDULE_NOT_FOUND));
+        if (schedule.getFamily() == null || !schedule.getFamily().getId().equals(family.getId())) {
+            throw new ReviewException(ReviewErrorCode.FORBIDDEN_FAMILY);
+        }
+
+        ReviewPhoto photo = reviewPhotoRepository.findByIdAndScheduleId(reviewPhotoId, scheduleId)
+                .orElseThrow(() -> new ReviewException(ReviewErrorCode.REVIEW_PHOTO_NOT_FOUND));
+
+        schedule.changeRepresentativePhoto(photo.getId());
+
+        return ReviewConverter.toRepresentativePhotoResponse(scheduleId, photo.getId());
     }
 
     private Review getOwnReview(Long memberId, Long scheduleId, Long reviewId) {
@@ -170,6 +194,7 @@ public class ReviewService {
         List<ReviewPhoto> removedPhotos = existingByKey.values().stream()
                 .filter(photo -> !requestedKeys.contains(photo.getImageKey()))
                 .toList();
+        review.getSchedule().clearRepresentativePhotoIfIn(removedPhotos.stream().map(ReviewPhoto::getId).toList());
         reviewPhotoRepository.deleteAll(removedPhotos);
 
         for (int i = 0; i < imageKeys.size(); i++) {

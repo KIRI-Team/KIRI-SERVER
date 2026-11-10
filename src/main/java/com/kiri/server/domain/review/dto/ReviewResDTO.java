@@ -19,7 +19,16 @@ public class ReviewResDTO {
     @Builder
     public record ScheduleReviews(
             Long scheduleId,
+            @Schema(description = "현재 대표사진의 reviewPhotoId (지정하지 않았으면 기본값, 사진이 없으면 null)")
+            Long representativePhotoId,
             List<Item> reviews
+    ) {}
+
+    @Builder
+    @Schema(name = "RepresentativePhotoChangeResponse", description = "대표사진 변경 응답")
+    public record RepresentativePhoto(
+            Long scheduleId,
+            Long representativePhotoId
     ) {}
 
     @Builder

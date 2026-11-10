@@ -29,6 +29,7 @@ import static org.springframework.security.test.web.servlet.request.SecurityMock
 import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -216,5 +217,41 @@ class ReviewControllerTest {
                 .andExpect(jsonPath("$.result").doesNotExist());
 
         verify(reviewService).deleteReview(1L, 10L, 3L);
+    }
+
+    @Test
+    @DisplayName("대표사진 변경 성공")
+    void changeRepresentativePhotoSuccess() throws Exception {
+        ReviewResDTO.RepresentativePhoto response = ReviewResDTO.RepresentativePhoto.builder()
+                .scheduleId(10L)
+                .representativePhotoId(5L)
+                .build();
+
+        given(reviewService.changeRepresentativePhoto(1L, 10L, 5L)).willReturn(response);
+
+        mockMvc.perform(patch("/api/v1/schedules/{scheduleId}/representative-photo", 10L)
+                        .with(authentication(
+                                new UsernamePasswordAuthenticationToken(1L, null, List.of(new SimpleGrantedAuthority("ROLE_USER")))
+                        ))
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new ReviewReqDTO.RepresentativePhoto(5L))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(ReviewSuccessCode.REPRESENTATIVE_PHOTO_CHANGED.getCode()))
+                .andExpect(jsonPath("$.result.scheduleId").value(10))
+                .andExpect(jsonPath("$.result.representativePhotoId").value(5));
+    }
+
+    @Test
+    @DisplayName("대표사진으로 지정할 사진 ID가 없으면 대표사진 변경 실패")
+    void changeRepresentativePhotoWithoutPhotoId() throws Exception {
+        mockMvc.perform(patch("/api/v1/schedules/{scheduleId}/representative-photo", 10L)
+                        .with(authentication(
+                                new UsernamePasswordAuthenticationToken(1L, null, List.of(new SimpleGrantedAuthority("ROLE_USER")))
+                        ))
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isBadRequest());
     }
 }

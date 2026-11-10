@@ -525,4 +525,131 @@ class ReviewServiceTest {
         verify(reviewRepository).delete(review);
         verify(eventPublisher).publishEvent(new ImageDeletedEvent(List.of("user/original/1/a.jpg", "user/original/1/b.jpg")));
     }
+
+    @Test
+    @DisplayName("대표사진이 속한 리뷰를 삭제하면 일정의 대표사진 지정이 해제된다")
+    void deleteReviewClearsRepresentativePhoto() {
+        Review review = reviewWrittenBy(memberId);
+        review.getSchedule().changeRepresentativePhoto(2L);
+        List<ReviewPhoto> photos = List.of(
+                photo(1L, review, "user/original/1/a.jpg", 1),
+                photo(2L, review, "user/original/1/b.jpg", 2));
+
+        when(reviewRepository.findByIdAndScheduleIdWithWriter(reviewId, scheduleId)).thenReturn(Optional.of(review));
+        when(reviewPhotoRepository.findByReview_Id(reviewId)).thenReturn(photos);
+
+        reviewService.deleteReview(memberId, scheduleId, reviewId);
+
+        assertThat(review.getSchedule().getRepresentativeReviewPhotoId()).isNull();
+    }
+
+    @Test
+    @DisplayName("다른 리뷰의 사진이 대표사진이면 리뷰를 삭제해도 대표사진은 유지된다")
+    void deleteReviewKeepsOtherRepresentativePhoto() {
+        Review review = reviewWrittenBy(memberId);
+        review.getSchedule().changeRepresentativePhoto(99L);
+        List<ReviewPhoto> photos = List.of(photo(1L, review, "user/original/1/a.jpg", 1));
+
+        when(reviewRepository.findByIdAndScheduleIdWithWriter(reviewId, scheduleId)).thenReturn(Optional.of(review));
+        when(reviewPhotoRepository.findByReview_Id(reviewId)).thenReturn(photos);
+
+        reviewService.deleteReview(memberId, scheduleId, reviewId);
+
+        assertThat(review.getSchedule().getRepresentativeReviewPhotoId()).isEqualTo(99L);
+    }
+
+    @Test
+    @DisplayName("리뷰 수정으로 대표사진이 빠지면 일정의 대표사진 지정이 해제된다")
+    void updateReviewClearsRepresentativePhotoWhenRemoved() {
+        Review review = reviewWrittenBy(memberId);
+        review.getSchedule().changeRepresentativePhoto(2L);
+        ReviewPhoto keptA = photo(1L, review, "user/original/1/a.jpg", 1);
+        ReviewPhoto removedB = photo(2L, review, "user/original/1/b.jpg", 2);
+        ReviewReqDTO.Create request = new ReviewReqDTO.Create("수정한 내용", 5, true, List.of("user/original/1/a.jpg"));
+
+        when(reviewRepository.findByIdAndScheduleIdWithWriter(reviewId, scheduleId)).thenReturn(Optional.of(review));
+        when(reviewPhotoRepository.findByReview_Id(reviewId)).thenReturn(List.of(keptA, removedB));
+
+        reviewService.updateReview(memberId, scheduleId, reviewId, request);
+
+        assertThat(review.getSchedule().getRepresentativeReviewPhotoId()).isNull();
+    }
+
+    @Test
+    @DisplayName("같은 가족 구성원이면 작성자가 아니어도 해당 일정의 리뷰 사진을 대표사진으로 지정한다")
+    void changeRepresentativePhoto() {
+        Long familyMemberId = 2L;
+        Review review = reviewWrittenBy(memberId);
+        Schedule target = review.getSchedule();
+        ReviewPhoto photo = photo(5L, review, "user/original/1/a.jpg", 1);
+
+        when(memberRepository.findById(familyMemberId))
+                .thenReturn(Optional.of(Member.builder().id(familyMemberId).family(family).build()));
+        when(scheduleRepository.findById(scheduleId)).thenReturn(Optional.of(target));
+        when(reviewPhotoRepository.findByIdAndScheduleId(5L, scheduleId)).thenReturn(Optional.of(photo));
+
+        ReviewResDTO.RepresentativePhoto result = reviewService.changeRepresentativePhoto(familyMemberId, scheduleId, 5L);
+
+        assertThat(target.getRepresentativeReviewPhotoId()).isEqualTo(5L);
+        assertThat(result.scheduleId()).isEqualTo(scheduleId);
+        assertThat(result.representativePhotoId()).isEqualTo(5L);
+    }
+
+    @Test
+    @DisplayName("해당 일정의 리뷰 사진이 아니면 대표사진으로 지정할 수 없다")
+    void changeRepresentativePhotoNotFound() {
+        Schedule target = reviewWrittenBy(memberId).getSchedule();
+
+        when(memberRepository.findById(memberId))
+                .thenReturn(Optional.of(Member.builder().id(memberId).family(family).build()));
+        when(scheduleRepository.findById(scheduleId)).thenReturn(Optional.of(target));
+        when(reviewPhotoRepository.findByIdAndScheduleId(5L, scheduleId)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> reviewService.changeRepresentativePhoto(memberId, scheduleId, 5L))
+                .isInstanceOf(ReviewException.class)
+                .extracting("errorCode")
+                .isEqualTo(ReviewErrorCode.REVIEW_PHOTO_NOT_FOUND);
+        assertThat(target.getRepresentativeReviewPhotoId()).isNull();
+    }
+
+    @Test
+    @DisplayName("다른 가족의 일정은 대표사진을 변경할 수 없다")
+    void changeRepresentativePhotoByOtherFamily() {
+        Long outsiderId = 3L;
+        Schedule target = reviewWrittenBy(memberId).getSchedule();
+
+        when(memberRepository.findById(outsiderId))
+                .thenReturn(Optional.of(Member.builder().id(outsiderId).family(Family.builder().id(2L).build()).build()));
+        when(scheduleRepository.findById(scheduleId)).thenReturn(Optional.of(target));
+
+        assertThatThrownBy(() -> reviewService.changeRepresentativePhoto(outsiderId, scheduleId, 5L))
+                .isInstanceOf(ReviewException.class)
+                .extracting("errorCode")
+                .isEqualTo(ReviewErrorCode.FORBIDDEN_FAMILY);
+        verify(reviewPhotoRepository, never()).findByIdAndScheduleId(anyLong(), anyLong());
+    }
+
+    @Test
+    @DisplayName("가족 공간이 없으면 대표사진을 변경할 수 없다")
+    void changeRepresentativePhotoWithoutFamily() {
+        when(memberRepository.findById(memberId)).thenReturn(Optional.of(Member.builder().id(memberId).build()));
+
+        assertThatThrownBy(() -> reviewService.changeRepresentativePhoto(memberId, scheduleId, 5L))
+                .isInstanceOf(ReviewException.class)
+                .extracting("errorCode")
+                .isEqualTo(ReviewErrorCode.FORBIDDEN_FAMILY);
+    }
+
+    @Test
+    @DisplayName("존재하지 않는 일정이면 대표사진을 변경할 수 없다")
+    void changeRepresentativePhotoScheduleNotFound() {
+        when(memberRepository.findById(memberId))
+                .thenReturn(Optional.of(Member.builder().id(memberId).family(family).build()));
+        when(scheduleRepository.findById(scheduleId)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> reviewService.changeRepresentativePhoto(memberId, scheduleId, 5L))
+                .isInstanceOf(ScheduleException.class)
+                .extracting("errorCode")
+                .isEqualTo(ScheduleErrorCode.SCHEDULE_NOT_FOUND);
+    }
 }

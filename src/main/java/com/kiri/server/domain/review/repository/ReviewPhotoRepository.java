@@ -7,6 +7,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface ReviewPhotoRepository extends JpaRepository<ReviewPhoto, Long> {
@@ -14,6 +15,14 @@ public interface ReviewPhotoRepository extends JpaRepository<ReviewPhoto, Long> 
     List<ReviewPhoto> findByReview_IdInOrderByReview_IdAscDisplayOrderAsc(List<Long> reviewIds);
 
     List<ReviewPhoto> findByReview_Id(Long reviewId);
+
+    @Query("""
+            select p from ReviewPhoto p
+            join fetch p.review r
+            where p.id = :reviewPhotoId and r.schedule.id = :scheduleId
+            """)
+    Optional<ReviewPhoto> findByIdAndScheduleId(
+            @Param("reviewPhotoId") Long reviewPhotoId, @Param("scheduleId") Long scheduleId);
 
     @Query("""
             select p from ReviewPhoto p

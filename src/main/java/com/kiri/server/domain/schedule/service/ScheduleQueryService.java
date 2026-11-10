@@ -11,6 +11,8 @@ import com.kiri.server.domain.mission.enums.Category;
 import com.kiri.server.domain.mission.enums.IndoorOutdoor;
 import com.kiri.server.domain.mission.repository.MissionRepository;
 import com.kiri.server.domain.place.entity.Place;
+import com.kiri.server.domain.review.entity.ReviewPhoto;
+import com.kiri.server.domain.review.policy.RepresentativePhotoPolicy;
 import com.kiri.server.domain.review.repository.ReviewPhotoRepository;
 import com.kiri.server.domain.schedule.converter.ScheduleConverter;
 import com.kiri.server.domain.schedule.dto.ScheduleReqDTO;
@@ -41,7 +43,6 @@ import java.time.YearMonth;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.EnumSet;
-import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -99,17 +100,20 @@ public class ScheduleQueryService {
                 .findBySchedule_IdInAndMember_Id(scheduleIds, memberId).stream()
                 .collect(Collectors.toMap(participant -> participant.getSchedule().getId(), Function.identity()));
 
-        Map<Long, String> reviewImageUrls = new HashMap<>();
-        reviewPhotoRepository.findAllByScheduleIds(scheduleIds).forEach(photo ->
-                reviewImageUrls.computeIfAbsent(
-                        photo.getReview().getSchedule().getId(),
-                        id -> imageUrlService.toUrl(photo.getImageKey())));
+        Map<Long, List<ReviewPhoto>> photosBySchedule = reviewPhotoRepository.findAllByScheduleIds(scheduleIds).stream()
+                .collect(Collectors.groupingBy(photo -> photo.getReview().getSchedule().getId()));
 
         List<ScheduleResDTO.CalendarItem> items = schedules.stream()
-                .map(schedule -> ScheduleConverter.toCalendarItem(
-                        schedule,
-                        myParticipants.get(schedule.getId()),
-                        reviewImageUrls.get(schedule.getId())))
+                .map(schedule -> {
+                    ReviewPhoto representative = RepresentativePhotoPolicy.select(
+                            schedule.getRepresentativeReviewPhotoId(),
+                            photosBySchedule.getOrDefault(schedule.getId(), List.of()),
+                            ReviewPhoto::getId);
+                    String reviewImageUrl = representative == null
+                            ? null : imageUrlService.toUrl(representative.getImageKey());
+                    return ScheduleConverter.toCalendarItem(
+                            schedule, myParticipants.get(schedule.getId()), reviewImageUrl);
+                })
                 .toList();
 
         return ScheduleConverter.toCalendar(condition.year(), condition.month(), items);
