@@ -42,4 +42,15 @@ public class ReviewController implements ReviewControllerDocs {
                 ReviewSuccessCode.REVIEW_LIST,
                 reviewQueryService.getScheduleReviews(memberId, scheduleId));
     }
+
+    @PutMapping("/{scheduleId}/reviews/{reviewId}")
+    public ApiResponse<ReviewResDTO.Create> updateReview(
+            @AuthenticationPrincipal Long memberId,
+            @PathVariable Long scheduleId,
+            @PathVariable Long reviewId,
+            @Valid @RequestBody ReviewReqDTO.Create dto
+    ) {
+        BaseSuccessCode code = ReviewSuccessCode.REVIEW_UPDATED;
+        return ApiResponse.onSuccess(code, reviewService.updateReview(memberId, scheduleId, reviewId, dto));
+    }
 }
