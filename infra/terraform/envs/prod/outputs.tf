@@ -21,3 +21,7 @@ output "images_bucket_name" {
 output "cdn_domain" {
   value = module.images.cdn_domain
 }
+
+output "github_deploy_role_arn" {
+  value = module.github_deploy.role_arn
+}

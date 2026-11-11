@@ -56,6 +56,18 @@ module "images" {
   parameter_path = local.parameter_path
 }
 
+module "github_deploy" {
+  source = "../../modules/github_deploy"
+
+  name_prefix = local.name_prefix
+
+  github_repo        = local.github_repo
+  github_environment = "prod"
+
+  ecr_repository_name = "kiri-server-prod"
+  instance_id         = module.ec2.instance_id
+}
+
 module "app_parameters" {
   source         = "../../modules/app_parameters"
   parameter_path = local.parameter_path
