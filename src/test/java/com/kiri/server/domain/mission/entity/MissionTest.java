@@ -208,6 +208,64 @@ class MissionTest {
                 .build();
     }
 
+    @Test
+    @DisplayName("운영자가 잠근 필드는 재수집 갱신에서 그대로 남고, 잠기지 않은 필드만 바뀐다.")
+    void updateContent_keepsLockedFields() {
+        Mission mission = withStatus(MissionStatus.ACTIVE);
+        Place original = Place.builder().name("원래 장소").build();
+        ReflectionTestUtils.setField(mission, "place", original);
+        mission.lock(java.util.List.of(com.kiri.server.domain.mission.enums.LockedField.TITLE,
+                com.kiri.server.domain.mission.enums.LockedField.PERIOD,
+                com.kiri.server.domain.mission.enums.LockedField.PLACE));
+        MissionDraft draft = MissionDraft.builder()
+                .title("외부 제목").description("외부 설명")
+                .category(Category.PERFORMANCE).missionType(MissionType.PERIOD)
+                .startDate(TODAY.plusDays(10)).endDate(TODAY.plusDays(20))
+                .build();
+
+        mission.updateContent(draft, Place.builder().name("다른 장소").build());
+
+        assertThat(mission.getTitle()).isEqualTo("한강 뚜벅뚜벅 축제 방문하기");
+        assertThat(mission.getStartDate()).isEqualTo(TODAY);
+        assertThat(mission.getPlace()).isSameAs(original);
+        assertThat(mission.getDescription()).isEqualTo("외부 설명");
+        assertThat(mission.getCategory()).isEqualTo(Category.PERFORMANCE);
+    }
+
+    @Test
+    @DisplayName("잠금을 풀면 다음 재수집에서 원본 값으로 돌아간다.")
+    void unlock_thenUpdate() {
+        Mission mission = withStatus(MissionStatus.ACTIVE);
+        mission.lock(java.util.List.of(com.kiri.server.domain.mission.enums.LockedField.TITLE));
+        mission.unlock(com.kiri.server.domain.mission.enums.LockedField.TITLE);
+
+        mission.updateContent(MissionDraft.builder().title("외부 제목").description("d")
+                .category(Category.POPUP).missionType(MissionType.PERIOD).build(), null);
+
+        assertThat(mission.getTitle()).isEqualTo("외부 제목");
+    }
+
+    @Test
+    @DisplayName("운영자가 숨긴 미션은 재수집으로 다시 노출되지 않는다.")
+    void hidden_staysHiddenOnReactivate() {
+        Mission mission = withStatus(MissionStatus.CHECK_REQUIRED);
+        mission.hide();
+
+        mission.reactivate(TODAY);
+
+        assertThat(mission.getStatus()).isEqualTo(MissionStatus.HIDDEN);
+    }
+
+    @Test
+    @DisplayName("공개 대기 미션을 공개할 때 기간이 지났으면 바로 종료한다.")
+    void publishFromCheck_periodOver() {
+        Mission mission = withStatus(MissionStatus.CHECK_REQUIRED);
+
+        mission.publishFromCheck(TODAY.plusDays(1));
+
+        assertThat(mission.getStatus()).isEqualTo(MissionStatus.ENDED);
+    }
+
     private Mission withStatus(MissionStatus status) {
         return Mission.builder()
                 .title("한강 뚜벅뚜벅 축제 방문하기").description("설명")

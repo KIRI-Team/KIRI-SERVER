@@ -32,6 +32,7 @@ public class TourApiSyncService {
 
     public static final String PAUSE_RUN_BUDGET = "RUN_BUDGET";
     public static final String PAUSE_DAILY_LIMIT = "DAILY_LIMIT";
+    public static final String ADMIN_PAUSED = "관리자 중단";
     private static final String UNKNOWN_ERROR = "UNKNOWN";
     private static final ExternalSource SOURCE = ExternalSource.TOUR_API;
     private static final int LIST_CALLS = 1;
@@ -55,6 +56,10 @@ public class TourApiSyncService {
         if (!properties.hasServiceKey()) {
             log.warn("[TourAPI] 인증키가 없어 수집을 건너뜁니다.");
             return SyncResult.builder().completed(false).error("인증키 없음").build();
+        }
+        if (externalSyncStateService.isAdminPaused(SOURCE)) {
+            log.info("[TourAPI] 관리자가 수집을 중단해 건너뜁니다.");
+            return SyncResult.builder().completed(false).error(ADMIN_PAUSED).build();
         }
         if (!externalSyncStateService.tryLock(SOURCE, startedAt)) {
             log.warn("[TourAPI] 이미 수집이 실행 중이라 건너뜁니다.");
@@ -84,6 +89,10 @@ public class TourApiSyncService {
         if (!properties.hasServiceKey()) {
             log.warn("[TourAPI] 인증키가 없어 전체 점검을 건너뜁니다.");
             return SyncResult.builder().completed(false).error("인증키 없음").build();
+        }
+        if (externalSyncStateService.isAdminPaused(SOURCE)) {
+            log.info("[TourAPI] 관리자가 수집을 중단해 전체 점검을 건너뜁니다.");
+            return SyncResult.builder().completed(false).error(ADMIN_PAUSED).build();
         }
         if (!externalSyncStateService.hasCompletedSync(SOURCE)) {
             log.info("[TourAPI] 첫 전체 수집이 끝나지 않아 전체 점검을 건너뜁니다.");

@@ -6,6 +6,7 @@ import io.swagger.v3.oas.models.info.Info;
 import io.swagger.v3.oas.models.security.SecurityRequirement;
 import io.swagger.v3.oas.models.security.SecurityScheme;
 import io.swagger.v3.oas.models.servers.Server;
+import org.springdoc.core.models.GroupedOpenApi;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -29,5 +30,29 @@ public class SwaggerConfig {
                                 .scheme("bearer")
                                 .bearerFormat("JWT")))
                 .addSecurityItem(new SecurityRequirement().addList(JWT_SCHEME_NAME));
+    }
+
+    // 앱 API와 관리자 API 문서를 나눈다. 관리자 프론트는 /v3/api-docs/admin 으로 타입을 생성한다.
+    @Bean
+    public GroupedOpenApi appApi() {
+        return GroupedOpenApi.builder()
+                .group("app")
+                .pathsToMatch("/api/**")
+                .pathsToExclude("/api/admin/**")
+                .build();
+    }
+
+    @Bean
+    public GroupedOpenApi adminApi() {
+        // 전역 springdoc.paths-to-match(/api/**)와 합쳐져 앱 경로가 섞이지 않도록 관리자 경로만 남긴다.
+        return GroupedOpenApi.builder()
+                .group("admin")
+                .pathsToMatch("/api/admin/**")
+                .addOpenApiCustomizer(openApi -> {
+                    if (openApi.getPaths() != null) {
+                        openApi.getPaths().keySet().removeIf(path -> !path.startsWith("/api/admin/"));
+                    }
+                })
+                .build();
     }
 }

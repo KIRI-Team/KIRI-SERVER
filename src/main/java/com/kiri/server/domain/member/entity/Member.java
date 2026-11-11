@@ -78,6 +78,15 @@ public class Member extends BaseEntity {
     @Column(name = "family_joined_at")
     private LocalDateTime familyJoinedAt;
 
+    // 테스트 계정은 KPI와 집계에서 제외한다.
+    @Builder.Default
+    @Column(name = "is_test", nullable = false)
+    private Boolean isTest = false;
+
+    public void markTest(boolean isTest) {
+        this.isTest = isTest;
+    }
+
     public void updateRefreshTokenToHash(String refreshTokenHash) {
         this.refreshTokenHash = refreshTokenHash;
     }

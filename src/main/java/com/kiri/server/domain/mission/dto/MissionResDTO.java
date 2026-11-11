@@ -36,7 +36,18 @@ public class MissionResDTO {
             LocalDate startDate,
             LocalDate endDate,
             Integer price,
-            Double distance
+            Double distance,
+            // 끼리 픽으로 상단에 노출된 카드면 채워진다. 버킷 저장 시 kiriPickId를 함께 보내 주세요.
+            KiriPickInfo kiriPick
+    ) {
+    }
+
+    @Builder
+    public record KiriPickInfo(
+            Long kiriPickId,
+            String headline,
+            String description,
+            String imageUrl
     ) {
     }
 

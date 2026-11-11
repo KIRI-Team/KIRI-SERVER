@@ -30,10 +30,14 @@ public class BucketController implements BucketControllerDocs {
     @PostMapping("/missions/{missionId}/bucket")
     public ApiResponse<BucketResDTO.Saved> saveBucket(
             @AuthenticationPrincipal Long memberId,
-            @PathVariable Long missionId
+            @PathVariable Long missionId,
+            @org.springframework.web.bind.annotation.RequestParam(required = false) Long kiriPickId
     ) {
         BaseSuccessCode code = BucketSuccessCode.SAVE_SUCCESS;
-        return ApiResponse.onSuccess(code, bucketService.saveBucket(memberId, missionId));
+        BucketResDTO.Saved saved = kiriPickId == null
+                ? bucketService.saveBucket(memberId, missionId)
+                : bucketService.saveBucket(memberId, missionId, kiriPickId);
+        return ApiResponse.onSuccess(code, saved);
     }
 
     @GetMapping("/bucket-items")
