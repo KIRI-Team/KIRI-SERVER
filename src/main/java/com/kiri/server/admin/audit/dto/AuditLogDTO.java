@@ -21,7 +21,7 @@ public class AuditLogDTO {
     ) {
     }
 
-    public record Item(
+    public record AuditLogItem(
             Long auditLogId,
             Long adminId,
             String adminName,
@@ -33,8 +33,8 @@ public class AuditLogDTO {
             String after,
             LocalDateTime createdAt
     ) {
-        public static Item of(AdminAuditLog log, String adminName) {
-            return new Item(log.getId(), log.getAdminId(), adminName, log.getAction(), log.getTargetType(),
+        public static AuditLogItem of(AdminAuditLog log, String adminName) {
+            return new AuditLogItem(log.getId(), log.getAdminId(), adminName, log.getAction(), log.getTargetType(),
                     log.getTargetId(), log.getReason(), log.getBeforeData(), log.getAfterData(), log.getCreatedAt());
         }
     }

@@ -56,7 +56,7 @@ public class ReviewDTO {
     ) {
     }
 
-    public record Detail(
+    public record ReviewDetail(
             Long externalRecordId,
             ExternalSource source,
             String externalId,
@@ -76,7 +76,7 @@ public class ReviewDTO {
             boolean previouslyApproved,
             MissionFormDTO.MissionForm previousOverrides,
             List<Task> taskHistory,
-            List<AuditLogDTO.Item> auditLogs
+            List<AuditLogDTO.AuditLogItem> auditLogs
     ) {
     }
 

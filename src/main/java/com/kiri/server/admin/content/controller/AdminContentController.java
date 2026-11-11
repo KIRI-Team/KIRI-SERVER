@@ -21,6 +21,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -44,7 +45,7 @@ public class AdminContentController {
 
     @Operation(summary = "미션 목록", description = "상태·카테고리·출처·유형·지역·키워드로 검색합니다.")
     @GetMapping("/missions")
-    public ApiResponse<AdminPageResponse<ContentDTO.MissionItem>> searchMissions(@ModelAttribute ContentDTO.MissionCondition condition) {
+    public ApiResponse<AdminPageResponse<ContentDTO.MissionItem>> searchMissions(@ParameterObject @ModelAttribute ContentDTO.MissionCondition condition) {
         return ApiResponse.onSuccess(AdminSuccessCode.OK, missionService.search(condition));
     }
 
@@ -110,7 +111,7 @@ public class AdminContentController {
 
     @Operation(summary = "장소 목록")
     @GetMapping("/places")
-    public ApiResponse<AdminPageResponse<ContentDTO.PlaceItem>> searchPlaces(@ModelAttribute ContentDTO.PlaceCondition condition) {
+    public ApiResponse<AdminPageResponse<ContentDTO.PlaceItem>> searchPlaces(@ParameterObject @ModelAttribute ContentDTO.PlaceCondition condition) {
         return ApiResponse.onSuccess(AdminSuccessCode.OK, placeQuestionService.searchPlaces(condition));
     }
 
@@ -139,7 +140,7 @@ public class AdminContentController {
 
     @Operation(summary = "질문 목록", description = "assignedCount는 가족에게 배정된 횟수입니다.")
     @GetMapping("/questions")
-    public ApiResponse<AdminPageResponse<ContentDTO.QuestionItem>> searchQuestions(@ModelAttribute ContentDTO.QuestionCondition condition) {
+    public ApiResponse<AdminPageResponse<ContentDTO.QuestionItem>> searchQuestions(@ParameterObject @ModelAttribute ContentDTO.QuestionCondition condition) {
         return ApiResponse.onSuccess(AdminSuccessCode.OK, placeQuestionService.searchQuestions(condition));
     }
 

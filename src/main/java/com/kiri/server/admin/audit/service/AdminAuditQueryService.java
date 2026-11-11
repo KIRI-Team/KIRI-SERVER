@@ -30,7 +30,7 @@ public class AdminAuditQueryService {
     private final AdminRepository adminRepository;
 
     @Transactional(readOnly = true)
-    public AdminPageResponse<AuditLogDTO.Item> search(AuditLogDTO.Condition condition) {
+    public AdminPageResponse<AuditLogDTO.AuditLogItem> search(AuditLogDTO.Condition condition) {
         Specification<AdminAuditLog> spec = (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
             if (condition.targetType() != null) {
@@ -53,14 +53,14 @@ public class AdminAuditQueryService {
         Page<AdminAuditLog> page = adminAuditLogRepository.findAll(spec,
                 AdminPageRequest.of(condition.page(), condition.size(), Sort.by(Sort.Direction.DESC, "id")));
         Map<Long, String> names = adminNames();
-        return AdminPageResponse.of(page, log -> AuditLogDTO.Item.of(log, names.get(log.getAdminId())));
+        return AdminPageResponse.of(page, log -> AuditLogDTO.AuditLogItem.of(log, names.get(log.getAdminId())));
     }
 
     @Transactional(readOnly = true)
-    public List<AuditLogDTO.Item> history(AuditTargetType targetType, Long targetId) {
+    public List<AuditLogDTO.AuditLogItem> history(AuditTargetType targetType, Long targetId) {
         Map<Long, String> names = adminNames();
         return adminAuditLogRepository.findAllByTargetTypeAndTargetIdOrderByIdDesc(targetType, targetId).stream()
-                .map(log -> AuditLogDTO.Item.of(log, names.get(log.getAdminId())))
+                .map(log -> AuditLogDTO.AuditLogItem.of(log, names.get(log.getAdminId())))
                 .toList();
     }
 

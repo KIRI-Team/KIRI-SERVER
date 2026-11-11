@@ -172,7 +172,7 @@ public class AdminReviewQueryService {
     }
 
     @Transactional(readOnly = true)
-    public ReviewDTO.Detail detail(Long recordId) {
+    public ReviewDTO.ReviewDetail detail(Long recordId) {
         ExternalRecord record = em.find(ExternalRecord.class, recordId);
         if (record == null) {
             throw new AdminException(AdminErrorCode.TARGET_NOT_FOUND);
@@ -201,7 +201,7 @@ public class AdminReviewQueryService {
         Optional<MissionReviewTask> lastApproved = tasks.stream()
                 .filter(t -> t.getStatus() == ReviewTaskStatus.APPROVED).findFirst();
 
-        return new ReviewDTO.Detail(record.getId(), record.getExternalSource(), record.getExternalId(),
+        return new ReviewDTO.ReviewDetail(record.getId(), record.getExternalSource(), record.getExternalId(),
                 record.getSourceUrl(), record.getProcessStatus(), record.getReviewReason(),
                 record.getReviewRequestedAt(), record.getSyncedAt(), origin, previous,
                 changedFields(previous, origin), autoResult,

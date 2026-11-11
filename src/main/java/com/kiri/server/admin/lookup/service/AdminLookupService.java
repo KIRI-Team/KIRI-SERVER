@@ -240,7 +240,7 @@ public class AdminLookupService {
     // ===== 일정 =====
 
     @Transactional(readOnly = true)
-    public AdminPageResponse<LookupDTO.ScheduleItem> searchFamilySchedules(Long familyId, LookupDTO.ScheduleCondition c) {
+    public AdminPageResponse<LookupDTO.ScheduleItem> searchFamilySchedules(Long familyId, LookupDTO.ScheduleSearchCondition c) {
         findFamily(familyId);
         String where = " WHERE s.family.id = :id" + (c.status() != null ? " AND s.status = :status" : "");
         Pageable pageable = AdminPageRequest.of(c.page(), c.size());

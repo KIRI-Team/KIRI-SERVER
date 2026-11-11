@@ -111,7 +111,7 @@ public class LookupDTO {
     public record InviteStatus(boolean active, LocalDateTime expiresAt) {
     }
 
-    public record ScheduleCondition(
+    public record ScheduleSearchCondition(
             @Parameter(description = "일정 상태") ScheduleStatus status,
             Integer page,
             Integer size

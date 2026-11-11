@@ -13,6 +13,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -36,13 +37,13 @@ public class AdminReviewController {
 
     @Operation(summary = "[탭①] 검증 실패 대기열", description = "외부 원본 중 자동 검증을 통과하지 못한(REVIEW_REQUIRED) 건. 오래 기다린 순. previouslyApproved=true는 이전에 승인했는데 원본이 바뀌어 다시 들어온 건입니다.")
     @GetMapping
-    public ApiResponse<AdminPageResponse<ReviewDTO.QueueItem>> queue(@ModelAttribute ReviewDTO.QueueCondition condition) {
+    public ApiResponse<AdminPageResponse<ReviewDTO.QueueItem>> queue(@ParameterObject @ModelAttribute ReviewDTO.QueueCondition condition) {
         return ApiResponse.onSuccess(AdminSuccessCode.OK, queryService.queue(condition));
     }
 
     @Operation(summary = "[탭①] 검수 상세", description = "외부 원본·직전 원본과 바뀐 필드, 자동 생성 결과, 입력 초기값(suggestion), 기존 미션, 중복 후보, 이전 승인 때 보완 값(previousOverrides), 작업·변경 이력")
     @GetMapping("/{externalRecordId}")
-    public ApiResponse<ReviewDTO.Detail> detail(@PathVariable Long externalRecordId) {
+    public ApiResponse<ReviewDTO.ReviewDetail> detail(@PathVariable Long externalRecordId) {
         return ApiResponse.onSuccess(AdminSuccessCode.OK, queryService.detail(externalRecordId));
     }
 
@@ -93,7 +94,7 @@ public class AdminReviewController {
 
     @Operation(summary = "[탭②] 공개 대기 목록", description = "자동 검증은 통과했지만 자동 공개가 꺼져 있어 CHECK_REQUIRED로 남은 미션")
     @GetMapping("/pending-publish")
-    public ApiResponse<AdminPageResponse<ReviewDTO.PendingItem>> pending(@ModelAttribute ReviewDTO.PendingCondition condition) {
+    public ApiResponse<AdminPageResponse<ReviewDTO.PendingItem>> pending(@ParameterObject @ModelAttribute ReviewDTO.PendingCondition condition) {
         return ApiResponse.onSuccess(AdminSuccessCode.OK, queryService.pendingPublish(condition));
     }
 

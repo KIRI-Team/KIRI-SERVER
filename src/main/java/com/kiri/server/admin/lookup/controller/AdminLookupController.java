@@ -12,6 +12,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -30,7 +31,7 @@ public class AdminLookupController {
 
     @Operation(summary = "회원 검색", description = "회원 ID, 닉네임·이메일, 가입 상태, 가족 연결 여부, 역할, 테스트 여부로 검색합니다. 탈퇴 회원은 닉네임·이메일이 지워져 회원 ID로만 찾을 수 있습니다.")
     @GetMapping("/members")
-    public ApiResponse<AdminPageResponse<LookupDTO.MemberItem>> searchMembers(@ModelAttribute LookupDTO.MemberCondition condition) {
+    public ApiResponse<AdminPageResponse<LookupDTO.MemberItem>> searchMembers(@ParameterObject @ModelAttribute LookupDTO.MemberCondition condition) {
         return ApiResponse.onSuccess(AdminSuccessCode.OK, adminLookupService.searchMembers(condition));
     }
 
@@ -50,7 +51,7 @@ public class AdminLookupController {
 
     @Operation(summary = "가족 검색")
     @GetMapping("/families")
-    public ApiResponse<AdminPageResponse<LookupDTO.FamilyItem>> searchFamilies(@ModelAttribute LookupDTO.FamilyCondition condition) {
+    public ApiResponse<AdminPageResponse<LookupDTO.FamilyItem>> searchFamilies(@ParameterObject @ModelAttribute LookupDTO.FamilyCondition condition) {
         return ApiResponse.onSuccess(AdminSuccessCode.OK, adminLookupService.searchFamilies(condition));
     }
 
@@ -79,7 +80,7 @@ public class AdminLookupController {
     @Operation(summary = "가족 일정 목록")
     @GetMapping("/families/{familyId}/schedules")
     public ApiResponse<AdminPageResponse<LookupDTO.ScheduleItem>> searchSchedules(@PathVariable Long familyId,
-                                                                                @ModelAttribute LookupDTO.ScheduleCondition condition) {
+                                                                                @ParameterObject @ModelAttribute LookupDTO.ScheduleSearchCondition condition) {
         return ApiResponse.onSuccess(AdminSuccessCode.OK, adminLookupService.searchFamilySchedules(familyId, condition));
     }
 
