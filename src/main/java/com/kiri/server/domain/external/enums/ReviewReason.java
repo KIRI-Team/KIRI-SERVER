@@ -12,5 +12,7 @@ public enum ReviewReason {
     EXCLUDED_TYPE,
     PERIOD_OVER,
     DUPLICATE,
-    EXTERNAL_CANCELLED
+    EXTERNAL_CANCELLED,
+    // 관리자가 검수에서 제외했다. 재수집해도 다시 처리하지 않는다.
+    ADMIN_EXCLUDED
 }
