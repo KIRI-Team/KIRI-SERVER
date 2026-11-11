@@ -38,6 +38,9 @@ public class ImageService {
     private static final String PENDING_KEY_FORMAT = "pending/user/%d/%s.%s";
     private static final String PENDING_PREFIX = "pending/user/";
     private static final String ORIGINAL_PREFIX = "user/original/";
+    private static final String ADMIN_PENDING_KEY_FORMAT = "pending/admin/%d/%s.%s";
+    private static final String ADMIN_PENDING_PREFIX = "pending/admin/";
+    private static final String ADMIN_PUBLIC_PREFIX = "public/content/";
     private static final Pattern FILE_NAME_PATTERN = Pattern.compile("[0-9a-f-]{36}\\.(jpg|png|webp)");
     private static final String CACHE_CONTROL = "max-age=31536000, immutable";
 
@@ -52,9 +55,50 @@ public class ImageService {
         if (dto.contentLength() > s3Properties.maxUploadSize().toBytes()) {
             throw new ImageException(ImageErrorCode.IMAGE_TOO_LARGE);
         }
+        return presign(PENDING_KEY_FORMAT.formatted(memberId, UUID.randomUUID(), contentType.getExtension()), dto);
+    }
 
-        String imageKey = PENDING_KEY_FORMAT.formatted(memberId, UUID.randomUUID(), contentType.getExtension());
+    // 관리자 콘텐츠 이미지(미션·장소·끼리 픽). 확정되면 서명 없이 열리는 public/ 경로로 옮긴다.
+    public ImageResDTO.PresignedUrl issueAdminPresignedUrl(Long adminId, ImageReqDTO.PresignedUrl dto) {
+        ImageContentType contentType = ImageContentType.from(dto.contentType());
+        if (dto.contentLength() > s3Properties.maxUploadSize().toBytes()) {
+            throw new ImageException(ImageErrorCode.IMAGE_TOO_LARGE);
+        }
+        return presign(ADMIN_PENDING_KEY_FORMAT.formatted(adminId, UUID.randomUUID(), contentType.getExtension()), dto);
+    }
 
+    // 확정된 public 이미지 키를 돌려준다.
+    public String confirmAdminUpload(Long adminId, String pendingKey) {
+        String prefix = ADMIN_PENDING_PREFIX + adminId + "/";
+        if (pendingKey == null || !pendingKey.startsWith(prefix)
+                || !FILE_NAME_PATTERN.matcher(pendingKey.substring(prefix.length())).matches()) {
+            throw new ImageException(ImageErrorCode.INVALID_IMAGE_KEY);
+        }
+        String fileName = pendingKey.substring(prefix.length());
+        HeadObjectResponse head = headObject(pendingKey);
+        ImageContentType contentType = ImageContentType.from(head.contentType());
+        if (head.contentLength() > s3Properties.maxUploadSize().toBytes()) {
+            throw new ImageException(ImageErrorCode.IMAGE_TOO_LARGE);
+        }
+        String publicKey = ADMIN_PUBLIC_PREFIX + fileName;
+        try {
+            s3Client.copyObject(CopyObjectRequest.builder()
+                    .sourceBucket(s3Properties.bucket())
+                    .sourceKey(pendingKey)
+                    .destinationBucket(s3Properties.bucket())
+                    .destinationKey(publicKey)
+                    .metadataDirective(MetadataDirective.REPLACE)
+                    .contentType(contentType.getMimeType())
+                    .cacheControl(CACHE_CONTROL)
+                    .build());
+        } catch (SdkException e) {
+            throw new ImageException(ImageErrorCode.STORAGE_ERROR, e);
+        }
+        eventPublisher.publishEvent(new ImageConfirmedEvent(pendingKey, publicKey));
+        return publicKey;
+    }
+
+    private ImageResDTO.PresignedUrl presign(String imageKey, ImageReqDTO.PresignedUrl dto) {
         PutObjectRequest putObjectRequest = PutObjectRequest.builder()
                 .bucket(s3Properties.bucket())
                 .key(imageKey)
