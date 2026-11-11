@@ -52,6 +52,8 @@ class AdminSyncIntegrationTest {
     private ExternalSyncStateRepository stateRepository;
     @Autowired
     private EntityManager em;
+    @Autowired
+    private java.time.Clock clock;
 
     // 실제 외부 API를 부르지 않도록 비동기 실행기는 가짜로 둔다.
     @MockitoBean
@@ -87,7 +89,7 @@ class AdminSyncIntegrationTest {
         mockMvc.perform(get("/api/admin/sync/sources").header(HttpHeaders.AUTHORIZATION, token)).andExpect(status().isOk());
         em.flush();
         em.createQuery("UPDATE ExternalSyncState s SET s.runningSince = :now WHERE s.externalSource = :source")
-                .setParameter("now", LocalDateTime.now()).setParameter("source", ExternalSource.TOUR_API).executeUpdate();
+                .setParameter("now", LocalDateTime.now(clock)).setParameter("source", ExternalSource.TOUR_API).executeUpdate();
         em.clear();
 
         mockMvc.perform(post("/api/admin/sync/TOUR_API/run").header(HttpHeaders.AUTHORIZATION, token))

@@ -44,9 +44,15 @@ public class SwaggerConfig {
 
     @Bean
     public GroupedOpenApi adminApi() {
+        // 전역 springdoc.paths-to-match(/api/**)와 합쳐져 앱 경로가 섞이지 않도록 관리자 경로만 남긴다.
         return GroupedOpenApi.builder()
                 .group("admin")
                 .pathsToMatch("/api/admin/**")
+                .addOpenApiCustomizer(openApi -> {
+                    if (openApi.getPaths() != null) {
+                        openApi.getPaths().keySet().removeIf(path -> !path.startsWith("/api/admin/"));
+                    }
+                })
                 .build();
     }
 }

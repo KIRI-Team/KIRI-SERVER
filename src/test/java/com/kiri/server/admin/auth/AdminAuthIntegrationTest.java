@@ -189,6 +189,17 @@ class AdminAuthIntegrationTest {
     }
 
     @Test
+    @DisplayName("관리자 OpenAPI 문서에는 관리자 경로만, 앱 문서에는 앱 경로만 들어간다.")
+    void openApiGroups() throws Exception {
+        String admin = mockMvc.perform(get("/v3/api-docs/admin")).andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        String app = mockMvc.perform(get("/v3/api-docs/app")).andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        assertThat(admin).contains("\"/api/admin/auth/login\"").doesNotContain("\"/api/v1/");
+        assertThat(app).contains("\"/api/v1/missions\"").doesNotContain("\"/api/admin/");
+    }
+
+    @Test
     @DisplayName("감사 로그를 대상 종류로 검색한다.")
     void searchAuditLogs() throws Exception {
         mockMvc.perform(post("/api/admin/admins").header(HttpHeaders.AUTHORIZATION, support.bearer(admin))
