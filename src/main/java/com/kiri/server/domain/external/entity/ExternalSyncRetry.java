@@ -57,6 +57,11 @@ public class ExternalSyncRetry extends BaseEntity {
     @Column(name = "last_error", length = MAX_ERROR_LENGTH)
     private String lastError;
 
+    // 최대 시도 횟수를 넘긴 건을 관리자가 다시 처리 대상으로 돌린다. 다음 수집 실행에서 재처리된다.
+    public void resetAttempts() {
+        this.attemptCount = 0;
+    }
+
     public void recordFailure(String rawItem, String error) {
         this.rawItem = rawItem;
         this.attemptCount = attemptCount + 1;
