@@ -6,7 +6,7 @@
 |---|---|
 | develop/main으로 PR을 열거나 커밋을 추가할 때 | 테스트 (`CI`) |
 | develop에 머지될 때 | 테스트 → dev 서버 자동 배포 (`Deploy dev`) |
-| prod 배포 | 현재 미구성 (prod 인프라 구성 후 main에서 수동 실행) |
+| prod 배포 | main에서 수동 실행 (`Deploy prod`) |
 
 > `infra/terraform/**`, `*.md`만 바뀐 경우에는 테스트와 배포를 건너뜁니다.
 
@@ -24,6 +24,15 @@ develop 머지
 - 배포 중 30~60초 정도 dev 서버 요청이 실패할 수 있습니다. (무중단 배포 아님)
 - dev 서버 주소: `https://kiri-dev.halo-app.co.kr`
 - Swagger: `https://kiri-dev.halo-app.co.kr/swagger-ui/index.html` (basic auth 계정은 [infra/README.md](../infra/README.md#값-조회-parameter-store)에서 조회)
+
+prod 배포:
+
+1. develop → main PR 머지
+2. GitHub Actions › `Deploy prod` › **Run workflow** (branch: `main`)
+3. 테스트 → 이미지 빌드 후 ECR push (태그: `prod-<commit sha>`) → 이후는 dev와 동일
+
+- prod 서버 주소: `https://kiri.halo-app.co.kr` (외부에는 `/api/**`, `/actuator/health`만 공개)
+- 아래 확인·실패·롤백 방법은 prod도 같습니다. (`Deploy dev` → `Deploy prod`, `/kiri/dev` → `/kiri/prod`)
 
 ## 배포 결과 확인
 
@@ -81,7 +90,7 @@ aws ssm put-parameter --name /kiri/dev/<변수명> --type SecureString --value $
 |---|---|
 | `.github/workflows/ci.yml` | PR 테스트 |
 | `.github/workflows/deploy-dev.yml` | develop 머지 시 dev 배포 |
-| `.github/workflows/deploy-prod.yml` | prod 수동 배포 (미구성) |
+| `.github/workflows/deploy-prod.yml` | prod 수동 배포 |
 | `.github/workflows/_test.yml`, `_deploy.yml` | 공통 테스트, 공통 배포 단계 |
 | `scripts/deploy/ssm-deploy.sh` | Actions에서 EC2로 배포 명령 전송 |
 | `scripts/deploy/deploy.sh` | EC2에서 컨테이너 교체, 헬스체크, 롤백, nginx 설정·인증서 반영 |
@@ -89,5 +98,5 @@ aws ssm put-parameter --name /kiri/dev/<변수명> --type SecureString --value $
 
 - AWS 인증은 GitHub OIDC를 사용합니다. (Access Key 없음)
 - dev 배포는 GitHub Environment `dev`에서 develop 브랜치만 허용합니다.
-- prod는 private 레포 요금제상 승인자(Required reviewers) 기능을 쓸 수 없어, main에서 수동 실행하는 방식으로 운영합니다.
+- prod 배포는 GitHub Environment `prod`에서 main 브랜치만 허용하며, 자동 배포 없이 수동 실행합니다.
 - 인프라와 최초 설정은 [infra/README.md](../infra/README.md)를 참고합니다.

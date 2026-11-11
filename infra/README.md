@@ -6,6 +6,7 @@ KIRI의 AWS 인프라(Terraform)와 서버의 nginx 설정을 관리합니다.
 - Terraform: `>= 1.10`
 - AWS 계정: `100024219481` (provider의 `allowed_account_ids`로 다른 계정에서는 실행되지 않음)
 - dev 주소: `https://kiri-dev.halo-app.co.kr`
+- prod 주소: `https://kiri.halo-app.co.kr`
 
 배포 흐름, 결과 확인, 롤백은 [docs/deploy.md](../docs/deploy.md)를 참고합니다.
 
@@ -14,7 +15,7 @@ KIRI의 AWS 인프라(Terraform)와 서버의 nginx 설정을 관리합니다.
 - [사전 준비](#사전-준비)
 - [자주 쓰는 작업](#자주-쓰는-작업): 서버 접속, DB 접속, 값 조회
 - [디렉터리 구조](#디렉터리-구조)
-- 환경 구성: [dev](#dev-환경), [nginx](#nginx-https-basic-auth), [앱 환경변수](#앱-환경변수-parameter-store), [이미지 저장소](#이미지-저장소-s3--cloudfront), [EC2 초기 설정](#ec2-초기-설정-user_data), [shared](#shared-환경), [비용 알람](#비용-알람-global)
+- 환경 구성: [dev](#dev-환경), [prod](#prod-환경), [nginx](#nginx-https-basic-auth), [앱 환경변수](#앱-환경변수-parameter-store), [이미지 저장소](#이미지-저장소-s3--cloudfront), [EC2 초기 설정](#ec2-초기-설정-user_data), [shared](#shared-환경), [비용 알람](#비용-알람-global)
 - [Terraform 작업](#terraform-작업): 실행 방법, tfvars, 운영 규칙
 - [새 환경 만들기](#새-환경-만들기-github-actions-배포-설정)
 - [주의 사항](#주의-사항)
@@ -151,6 +152,19 @@ Terraform의 각 디렉터리는 독립된 루트이며, state는 S3 버킷 `kir
 - 야간·주말에도 작업이 있어 자동 중지 스케줄은 적용하지 않았습니다.
 
 > EC2가 arm64이므로 Docker 이미지는 `linux/arm64`로 빌드해야 합니다.
+
+## prod 환경
+
+dev와 같은 모듈을 사용하며, 다른 점만 적습니다.
+
+| 항목 | prod |
+|---|---|
+| VPC | `10.1.0.0/16` |
+| CloudWatch Logs | `/kiri/prod/app`, 보관 30일 |
+| RDS | 삭제 보호 켜짐, 삭제 시 최종 스냅샷(`kiri-prod-db-final`) 생성, 백업 보관 1일 (프리 플랜 제한) |
+| S3 (이미지) | `kiri-prod-images-100024219481`, `force_destroy` 꺼짐 |
+| 도메인 | `kiri.halo-app.co.kr` (A 레코드 → EC2 Elastic IP) |
+| nginx | `/api/**`, `/actuator/health`만 공개, 나머지 `404` (basic auth 없음) |
 
 ## nginx (HTTPS, basic auth)
 
@@ -400,4 +414,4 @@ GitHub Actions는 `terraform/modules/github_deploy`로 만든 환경별 Role(dev
 
 - **AMI 자동 업데이트 무시**: 최신 AL2023 AMI를 조회하지만 `ignore_changes = [ami]`로 설정되어, 새 AMI가 나와도 인스턴스가 재생성되지 않습니다.
 - **RDS 생성/삭제**: 10분 정도 걸립니다.
-- **dev RDS는 삭제 보호가 꺼져 있고, 삭제 시 최종 스냅샷을 남기지 않습니다.** prod에서는 `deletion_protection = true`, `skip_final_snapshot = false`로 설정합니다.
+- **dev RDS는 삭제 보호가 꺼져 있고, 삭제 시 최종 스냅샷을 남기지 않습니다.** prod는 삭제 보호가 켜져 있어, 지우려면 먼저 `deletion_protection = false`로 apply해야 합니다.
