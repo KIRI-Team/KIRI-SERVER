@@ -78,12 +78,16 @@ class MissionQueryServiceTest {
     @Mock
     private BucketItemRepository bucketItemRepository;
 
+    @Mock
+    private com.kiri.server.domain.pick.repository.KiriPickRepository kiriPickRepository;
+
     private MissionQueryService missionQueryService;
 
     @BeforeEach
     void setUp() {
         missionQueryService = new MissionQueryService(missionRepository, missionFeedRepository,
-                missionChecklistItemRepository, externalRecordRepository, memberRepository, bucketItemRepository, CLOCK);
+                missionChecklistItemRepository, externalRecordRepository, memberRepository, bucketItemRepository,
+                kiriPickRepository, CLOCK);
     }
 
     @Test

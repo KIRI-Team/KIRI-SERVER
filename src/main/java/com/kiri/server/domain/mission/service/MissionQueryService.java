@@ -25,8 +25,14 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.kiri.server.domain.pick.entity.KiriPick;
+import com.kiri.server.domain.pick.repository.KiriPickRepository;
+
 import java.time.Clock;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -51,6 +57,7 @@ public class MissionQueryService {
     private final ExternalRecordRepository externalRecordRepository;
     private final MemberRepository memberRepository;
     private final BucketItemRepository bucketItemRepository;
+    private final KiriPickRepository kiriPickRepository;
     private final Clock clock;
 
     @Transactional(readOnly = true)
@@ -58,20 +65,37 @@ public class MissionQueryService {
         validate(condition);
         BaseLocation base = resolveBaseLocation(memberId, condition);
         int size = condition.size() == null ? DEFAULT_SIZE : condition.size();
+        LocalDate today = LocalDate.now(clock);
 
-        List<Long> ids = missionFeedRepository.findFeedIds(condition, base, LocalDate.now(clock), size + 1);
+        // 끼리 픽: 노출 중인 픽 미션은 일반 목록에서 빼고, 첫 페이지 맨 앞에 운영자 순서대로 붙인다.
+        Map<Long, KiriPick> picksByMission = new LinkedHashMap<>();
+        kiriPickRepository.findExposed(LocalDateTime.now(clock))
+                .forEach(pick -> picksByMission.putIfAbsent(pick.getMission().getId(), pick));
+        List<Long> topIds = List.of();
+        if (!picksByMission.isEmpty() && condition.cursor() == null) {
+            Set<Long> matched = Set.copyOf(missionFeedRepository.findFeedIds(
+                    condition, base, today, picksByMission.size(), picksByMission.keySet(), null));
+            topIds = picksByMission.keySet().stream().filter(matched::contains).toList();
+        }
+
+        List<Long> ids = picksByMission.isEmpty()
+                ? missionFeedRepository.findFeedIds(condition, base, today, size + 1)
+                : missionFeedRepository.findFeedIds(condition, base, today, size + 1, null, picksByMission.keySet());
         boolean hasNext = ids.size() > size;
         List<Long> pageIds = hasNext ? ids.subList(0, size) : ids;
-        if (pageIds.isEmpty()) {
+        if (pageIds.isEmpty() && topIds.isEmpty()) {
             return MissionConverter.toFeed(List.of(), null, false);
         }
 
-        Map<Long, Mission> missions = missionRepository.findAllWithPlaceByIdIn(pageIds).stream()
+        List<Long> allIds = new ArrayList<>(topIds);
+        allIds.addAll(pageIds);
+        Map<Long, Mission> missions = missionRepository.findAllWithPlaceByIdIn(allIds).stream()
                 .collect(Collectors.toMap(Mission::getId, Function.identity()));
-        List<MissionResDTO.FeedItem> items = pageIds.stream()
+        List<MissionResDTO.FeedItem> items = allIds.stream()
                 .map(missions::get)
                 .filter(Objects::nonNull)
-                .map(mission -> MissionConverter.toFeedItem(mission, distanceFrom(base, mission.getPlace())))
+                .map(mission -> MissionConverter.toFeedItem(mission, distanceFrom(base, mission.getPlace()),
+                        picksByMission.get(mission.getId())))
                 .toList();
 
         return MissionConverter.toFeed(items, hasNext ? pageIds.getLast() : null, hasNext);

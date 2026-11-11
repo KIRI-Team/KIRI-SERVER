@@ -60,6 +60,14 @@ public class BucketItem extends BaseEntity {
     @Column(name = "completed_at")
     private LocalDateTime completedAt;
 
+    // 끼리 픽에서 저장했으면 그 픽. 일정·완료 성과는 이 값으로 한 픽에만 귀속된다.
+    @Column(name = "source_kiri_pick_id")
+    private Long sourceKiriPickId;
+
+    public void attributeToKiriPick(Long kiriPickId) {
+        this.sourceKiriPickId = kiriPickId;
+    }
+
     public void markScheduled() {
         this.status = BucketStatus.SCHEDULED;
     }

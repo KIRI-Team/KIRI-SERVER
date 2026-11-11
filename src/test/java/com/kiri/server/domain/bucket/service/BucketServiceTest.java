@@ -59,11 +59,14 @@ class BucketServiceTest {
     @Mock
     private BucketItemRepository bucketItemRepository;
 
+    @Mock
+    private com.kiri.server.domain.pick.repository.KiriPickRepository kiriPickRepository;
+
     private BucketService bucketService;
 
     @BeforeEach
     void setUp() {
-        bucketService = new BucketService(memberRepository, missionRepository, bucketItemRepository, CLOCK);
+        bucketService = new BucketService(memberRepository, missionRepository, bucketItemRepository, kiriPickRepository, CLOCK);
     }
 
     @Test

@@ -75,7 +75,18 @@ public class MissionConverter {
     }
 
     public static MissionResDTO.FeedItem toFeedItem(Mission mission, Double distance) {
+        return toFeedItem(mission, distance, null);
+    }
+
+    public static MissionResDTO.FeedItem toFeedItem(Mission mission, Double distance,
+                                                    com.kiri.server.domain.pick.entity.KiriPick pick) {
         return MissionResDTO.FeedItem.builder()
+                .kiriPick(pick == null ? null : MissionResDTO.KiriPickInfo.builder()
+                        .kiriPickId(pick.getId())
+                        .headline(pick.getHeadline())
+                        .description(pick.getDescription())
+                        .imageUrl(pick.displayImageUrl())
+                        .build())
                 .missionId(mission.getId())
                 .title(mission.getTitle())
                 .imageUrl(mission.getImageUrl())

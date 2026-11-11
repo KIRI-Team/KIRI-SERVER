@@ -197,7 +197,9 @@ public interface BucketControllerDocs {
     })
     ApiResponse<BucketResDTO.Saved> saveBucket(
             @Parameter(hidden = true) @AuthenticationPrincipal Long memberId,
-            @PathVariable Long missionId
+            @PathVariable Long missionId,
+            @Parameter(description = "끼리 픽 카드에서 저장했으면 피드 응답의 kiriPick.kiriPickId. 성과 집계에 쓰입니다.")
+            Long kiriPickId
     );
 
     @Operation(
