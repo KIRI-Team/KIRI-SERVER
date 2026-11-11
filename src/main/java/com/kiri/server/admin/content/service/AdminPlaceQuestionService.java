@@ -214,7 +214,7 @@ public class AdminPlaceQuestionService {
 
     private ContentDTO.PlaceItem toPlaceItem(Place p, long missionCount) {
         return new ContentDTO.PlaceItem(p.getId(), p.getName(), p.getPlaceType(), p.getRegionCode(), p.getLatitude(),
-                p.getLongitude(), p.getAddress(), p.getImageUrl(), missionCount,
+                p.getLongitude(), p.getAddress(), p.getOpeningTime(), p.getClosingTime(), p.getImageUrl(), p.getImageSource(), missionCount,
                 Arrays.stream(LockedField.values()).filter(p::isLocked).toList());
     }
 

@@ -91,7 +91,10 @@ public class ContentDTO {
             BigDecimal latitude,
             BigDecimal longitude,
             String address,
+            @com.fasterxml.jackson.annotation.JsonFormat(pattern = "HH:mm") java.time.LocalTime openingTime,
+            @com.fasterxml.jackson.annotation.JsonFormat(pattern = "HH:mm") java.time.LocalTime closingTime,
             String imageUrl,
+            String imageSource,
             long missionCount,
             List<LockedField> lockedFields
     ) {
