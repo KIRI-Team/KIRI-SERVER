@@ -384,7 +384,12 @@ apply_nginx(){
   mv "$conf" "${NGINX_STAGING}/conf.d/kiri.conf"
   echo "DEPLOY_ENV=${DEPLOY_ENV}" > "${NGINX_STAGING}/.env"
   mkdir -p "${NGINX_STAGING}/auth"
-  write_htpasswd "${NGINX_STAGING}/auth/.htpasswd"
+  # basic auth를 쓰는 conf만 계정을 읽음
+  if grep -q '^[[:space:]]*auth_basic_user_file' "${NGINX_STAGING}/conf.d/kiri.conf"; then
+    write_htpasswd "${NGINX_STAGING}/auth/.htpasswd"
+  else
+    : > "${NGINX_STAGING}/auth/.htpasswd"
+  fi
 
   # 인증서 발급
   ensure_certificates "${NGINX_STAGING}/conf.d/kiri.conf"
