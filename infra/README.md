@@ -6,6 +6,7 @@ KIRI의 AWS 인프라(Terraform)와 서버의 nginx 설정을 관리합니다.
 - Terraform: `>= 1.10`
 - AWS 계정: `100024219481` (provider의 `allowed_account_ids`로 다른 계정에서는 실행되지 않음)
 - dev 주소: `https://kiri-dev.halo-app.co.kr`
+- prod 주소: `https://kiri.halo-app.co.kr`
 
 배포 흐름, 결과 확인, 롤백은 [docs/deploy.md](../docs/deploy.md)를 참고합니다.
 
@@ -14,7 +15,7 @@ KIRI의 AWS 인프라(Terraform)와 서버의 nginx 설정을 관리합니다.
 - [사전 준비](#사전-준비)
 - [자주 쓰는 작업](#자주-쓰는-작업): 서버 접속, DB 접속, 값 조회
 - [디렉터리 구조](#디렉터리-구조)
-- 환경 구성: [dev](#dev-환경), [nginx](#nginx-https-basic-auth), [앱 환경변수](#앱-환경변수-parameter-store), [이미지 저장소](#이미지-저장소-s3--cloudfront), [EC2 초기 설정](#ec2-초기-설정-user_data), [shared](#shared-환경), [비용 알람](#비용-알람-global)
+- 환경 구성: [dev](#dev-환경), [prod](#prod-환경), [nginx](#nginx-https-basic-auth), [앱 환경변수](#앱-환경변수-parameter-store), [이미지 저장소](#이미지-저장소-s3--cloudfront), [EC2 초기 설정](#ec2-초기-설정-user_data), [shared](#shared-환경), [비용 알람](#비용-알람-global)
 - [Terraform 작업](#terraform-작업): 실행 방법, tfvars, 운영 규칙
 - [새 환경 만들기](#새-환경-만들기-github-actions-배포-설정)
 - [주의 사항](#주의-사항)
@@ -152,6 +153,19 @@ Terraform의 각 디렉터리는 독립된 루트이며, state는 S3 버킷 `kir
 
 > EC2가 arm64이므로 Docker 이미지는 `linux/arm64`로 빌드해야 합니다.
 
+## prod 환경
+
+dev와 같은 모듈을 사용하며, 다른 점만 적습니다.
+
+| 항목 | prod |
+|---|---|
+| VPC | `10.1.0.0/16` |
+| CloudWatch Logs | `/kiri/prod/app`, 보관 30일 |
+| RDS | 삭제 보호 켜짐, 삭제 시 최종 스냅샷(`kiri-prod-db-final`) 생성, 백업 보관 1일 (프리 플랜 제한) |
+| S3 (이미지) | `kiri-prod-images-100024219481`, `force_destroy` 꺼짐 |
+| 도메인 | `kiri.halo-app.co.kr` (A 레코드 → EC2 Elastic IP) |
+| nginx | `/api/**`, `/actuator/health`만 공개, 나머지 `404` (basic auth 없음) |
+
 ## nginx (HTTPS, basic auth)
 
 EC2에서 nginx가 컨테이너(`kiri-nginx`)로 실행되며, 외부 요청을 받아 앱으로 전달합니다.
@@ -165,7 +179,7 @@ EC2에서 nginx가 컨테이너(`kiri-nginx`)로 실행되며, 외부 요청을 
 | `http://...` | `https://`로 301 이동 (인증서 갱신용 `/.well-known/acme-challenge/`만 예외) |
 | IP로 직접 접속, 다른 도메인 | 연결 끊기 (80: `444`, 443: 핸드셰이크 거절) |
 | `/api/**`, `/actuator/health` | 그대로 앱으로 전달 (API 인증은 앱의 JWT) |
-| `/actuator/info`, Swagger 등 나머지 | **basic auth** 필요 |
+| `/actuator/info`, Swagger 등 나머지 | dev: **basic auth** 필요, prod: `404` |
 | 그 외 `/actuator/**` | `404` |
 
 ### 설정 반영
@@ -175,7 +189,7 @@ EC2에서 nginx가 컨테이너(`kiri-nginx`)로 실행되며, 외부 요청을 
 - 바뀐 게 없으면 아무것도 하지 않습니다.
 - 반영 전에 임시 컨테이너로 `nginx -t` 검사를 하고, 실패하면 기존 설정을 유지한 채 배포를 실패 처리합니다.
 - conf만 바뀌면 `nginx -s reload`(접속 끊김 없음), `compose.yml`이 바뀌면 컨테이너를 새로 만듭니다.
-- `{env}.conf`가 없는 환경(현재 prod)은 nginx 반영을 건너뜁니다.
+- `{env}.conf`가 없는 환경은 nginx 반영을 건너뜁니다.
 
 로그는 CloudWatch `/kiri/dev/app`의 `nginx` 스트림에서 봅니다.
 
@@ -200,7 +214,7 @@ cd /opt/kiri/nginx && sudo docker compose run --rm -T certbot renew --webroot -w
 
 ### basic auth 계정
 
-Terraform(`terraform/envs/dev/nginx.tf`)이 Parameter Store `/kiri/dev/nginx/`에 만들고, 배포 때 `.htpasswd`로 변환됩니다. 조회는 [값 조회](#값-조회-parameter-store)를 참고합니다.
+dev만 사용합니다. Terraform(`terraform/envs/dev/nginx.tf`)이 Parameter Store `/kiri/dev/nginx/`에 만들고, 배포 때 `.htpasswd`로 변환됩니다. 조회는 [값 조회](#값-조회-parameter-store)를 참고합니다.
 
 비밀번호를 바꾸려면 새로 생성한 뒤 재배포합니다.
 
@@ -390,8 +404,8 @@ GitHub Actions는 `terraform/modules/github_deploy`로 만든 환경별 Role(dev
    - Deployment branches and tags: **Selected branches and tags** → dev는 `develop`, prod는 `main`
    - Environment variables: `AWS_ROLE_ARN` = `terraform output github_deploy_role_arn`
 3. Parameter Store에서 `CHANGE_ME` 값을 실제 값으로 변경 ([앱 환경변수](#앱-환경변수-parameter-store) 참고)
-4. nginx를 쓰려면 `infra/nginx/{env}.conf` 작성, 도메인 DNS 등록, `/kiri/{env}/nginx/` basic auth 계정 생성
-   - 배포 스크립트는 `{env}.conf`가 있으면 이 계정을 반드시 읽으므로, 계정 없이 conf만 추가하면 배포가 실패합니다.
+4. nginx를 쓰려면 `infra/nginx/{env}.conf` 작성, 도메인 DNS 등록
+   - conf에 `auth_basic_user_file`이 있으면 배포 스크립트가 `/kiri/{env}/nginx/` basic auth 계정을 읽으므로, 계정도 함께 만들어야 합니다.
 
 > **브랜치 제한은 AWS가 아니라 GitHub Environment 설정이 담당합니다.** Role은 "해당 Environment에서 실행된 job"인지만 확인합니다.
 > Environment를 만들기 전에 워크플로가 실행되면 GitHub이 제한 없는 Environment를 자동 생성하므로, 반드시 먼저 만듭니다.
@@ -400,4 +414,4 @@ GitHub Actions는 `terraform/modules/github_deploy`로 만든 환경별 Role(dev
 
 - **AMI 자동 업데이트 무시**: 최신 AL2023 AMI를 조회하지만 `ignore_changes = [ami]`로 설정되어, 새 AMI가 나와도 인스턴스가 재생성되지 않습니다.
 - **RDS 생성/삭제**: 10분 정도 걸립니다.
-- **dev RDS는 삭제 보호가 꺼져 있고, 삭제 시 최종 스냅샷을 남기지 않습니다.** prod에서는 `deletion_protection = true`, `skip_final_snapshot = false`로 설정합니다.
+- **dev RDS는 삭제 보호가 꺼져 있고, 삭제 시 최종 스냅샷을 남기지 않습니다.** prod는 삭제 보호가 켜져 있어, 지우려면 먼저 `deletion_protection = false`로 apply해야 합니다.
