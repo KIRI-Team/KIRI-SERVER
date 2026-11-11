@@ -76,6 +76,15 @@ public class Family extends BaseEntity {
     @Column(name = "detail_address")
     private String detailAddress;
 
+    // 테스트 가족은 KPI와 집계에서 제외한다.
+    @lombok.Builder.Default
+    @Column(name = "is_test", nullable = false)
+    private Boolean isTest = false;
+
+    public void markTest(boolean isTest) {
+        this.isTest = isTest;
+    }
+
     public void renewInvite(String inviteCode, String inviteToken, LocalDateTime inviteExpiresAt) {
         this.inviteCode = inviteCode;
         this.inviteToken = inviteToken;
