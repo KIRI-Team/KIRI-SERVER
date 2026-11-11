@@ -165,7 +165,7 @@ EC2에서 nginx가 컨테이너(`kiri-nginx`)로 실행되며, 외부 요청을 
 | `http://...` | `https://`로 301 이동 (인증서 갱신용 `/.well-known/acme-challenge/`만 예외) |
 | IP로 직접 접속, 다른 도메인 | 연결 끊기 (80: `444`, 443: 핸드셰이크 거절) |
 | `/api/**`, `/actuator/health` | 그대로 앱으로 전달 (API 인증은 앱의 JWT) |
-| `/actuator/info`, Swagger 등 나머지 | **basic auth** 필요 |
+| `/actuator/info`, Swagger 등 나머지 | dev: **basic auth** 필요, prod: `404` |
 | 그 외 `/actuator/**` | `404` |
 
 ### 설정 반영
@@ -175,7 +175,7 @@ EC2에서 nginx가 컨테이너(`kiri-nginx`)로 실행되며, 외부 요청을 
 - 바뀐 게 없으면 아무것도 하지 않습니다.
 - 반영 전에 임시 컨테이너로 `nginx -t` 검사를 하고, 실패하면 기존 설정을 유지한 채 배포를 실패 처리합니다.
 - conf만 바뀌면 `nginx -s reload`(접속 끊김 없음), `compose.yml`이 바뀌면 컨테이너를 새로 만듭니다.
-- `{env}.conf`가 없는 환경(현재 prod)은 nginx 반영을 건너뜁니다.
+- `{env}.conf`가 없는 환경은 nginx 반영을 건너뜁니다.
 
 로그는 CloudWatch `/kiri/dev/app`의 `nginx` 스트림에서 봅니다.
 
@@ -200,7 +200,7 @@ cd /opt/kiri/nginx && sudo docker compose run --rm -T certbot renew --webroot -w
 
 ### basic auth 계정
 
-Terraform(`terraform/envs/dev/nginx.tf`)이 Parameter Store `/kiri/dev/nginx/`에 만들고, 배포 때 `.htpasswd`로 변환됩니다. 조회는 [값 조회](#값-조회-parameter-store)를 참고합니다.
+dev만 사용합니다. Terraform(`terraform/envs/dev/nginx.tf`)이 Parameter Store `/kiri/dev/nginx/`에 만들고, 배포 때 `.htpasswd`로 변환됩니다. 조회는 [값 조회](#값-조회-parameter-store)를 참고합니다.
 
 비밀번호를 바꾸려면 새로 생성한 뒤 재배포합니다.
 
@@ -390,8 +390,8 @@ GitHub Actions는 `terraform/modules/github_deploy`로 만든 환경별 Role(dev
    - Deployment branches and tags: **Selected branches and tags** → dev는 `develop`, prod는 `main`
    - Environment variables: `AWS_ROLE_ARN` = `terraform output github_deploy_role_arn`
 3. Parameter Store에서 `CHANGE_ME` 값을 실제 값으로 변경 ([앱 환경변수](#앱-환경변수-parameter-store) 참고)
-4. nginx를 쓰려면 `infra/nginx/{env}.conf` 작성, 도메인 DNS 등록, `/kiri/{env}/nginx/` basic auth 계정 생성
-   - 배포 스크립트는 `{env}.conf`가 있으면 이 계정을 반드시 읽으므로, 계정 없이 conf만 추가하면 배포가 실패합니다.
+4. nginx를 쓰려면 `infra/nginx/{env}.conf` 작성, 도메인 DNS 등록
+   - conf에 `auth_basic_user_file`이 있으면 배포 스크립트가 `/kiri/{env}/nginx/` basic auth 계정을 읽으므로, 계정도 함께 만들어야 합니다.
 
 > **브랜치 제한은 AWS가 아니라 GitHub Environment 설정이 담당합니다.** Role은 "해당 Environment에서 실행된 job"인지만 확인합니다.
 > Environment를 만들기 전에 워크플로가 실행되면 GitHub이 제한 없는 Environment를 자동 생성하므로, 반드시 먼저 만듭니다.
