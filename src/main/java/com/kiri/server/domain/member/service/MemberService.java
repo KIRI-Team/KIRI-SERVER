@@ -150,7 +150,7 @@ public class MemberService {
 
     @Transactional(readOnly = true)
     public MemberResDTO.MyInfo getMyInfo(Long memberId) {
-        Member member = memberRepository.findById(memberId)
+        Member member = memberRepository.findByIdAndDeletedAtIsNull(memberId)
                 .orElseThrow(() -> new MemberException(MemberErrorCode.NOT_FOUND));
 
         String characterImageUrl = resolveCharacterImageUrl(member.getFamilyRole());
