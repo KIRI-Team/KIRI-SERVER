@@ -76,4 +76,13 @@ public class MemberController implements MemberControllerDocs {
         BaseSuccessCode code = MemberSuccessCode.DELETE_SUCCESS;
         return ApiResponse.onSuccess(code);
     }
+
+    @Override
+    @GetMapping("/v1/members/me")
+    public ApiResponse<MemberResDTO.MyInfo> getMyInfo(
+            @AuthenticationPrincipal Long memberId
+    ) {
+        BaseSuccessCode code = MemberSuccessCode.MY_INFO_FOUND;
+        return ApiResponse.onSuccess(code, memberService.getMyInfo(memberId));
+    }
 }

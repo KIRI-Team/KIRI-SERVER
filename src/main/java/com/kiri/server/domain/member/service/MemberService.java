@@ -1,7 +1,10 @@
 package com.kiri.server.domain.member.service;
 
+import com.kiri.server.domain.character.entity.Character;
+import com.kiri.server.domain.character.repository.CharacterRepository;
 import com.kiri.server.domain.family.entity.Family;
 import com.kiri.server.domain.member.converter.MemberConverter;
+import com.kiri.server.domain.member.enums.FamilyRole;
 import com.kiri.server.domain.member.dto.MemberReqDTO;
 import com.kiri.server.domain.member.dto.MemberResDTO;
 import com.kiri.server.domain.member.entity.Member;
@@ -31,6 +34,7 @@ public class MemberService {
 
     private final MemberRepository memberRepository;
     private final MemberTermRepository memberTermRepository;
+    private final CharacterRepository characterRepository;
     private final OidcProviderFactory oidcProviderFactory;
     private final MemberWriter memberWriter;
     private final JwtProvider jwtProvider;
@@ -142,5 +146,25 @@ public class MemberService {
 
         member.withdraw();
         applicationEventPublisher.publishEvent(new MemberWithdrawnEvent(memberId));
+    }
+
+    @Transactional(readOnly = true)
+    public MemberResDTO.MyInfo getMyInfo(Long memberId) {
+        Member member = memberRepository.findById(memberId)
+                .orElseThrow(() -> new MemberException(MemberErrorCode.NOT_FOUND));
+
+        String characterImageUrl = resolveCharacterImageUrl(member.getFamilyRole());
+
+        return MemberConverter.toMyInfo(member, characterImageUrl, member.getFamily());
+    }
+
+    private String resolveCharacterImageUrl(FamilyRole familyRole) {
+        if (familyRole == null) {
+            return null;
+        }
+
+        return characterRepository.findByRole(familyRole)
+                .map(Character::getImageUrl)
+                .orElse(null);
     }
 }

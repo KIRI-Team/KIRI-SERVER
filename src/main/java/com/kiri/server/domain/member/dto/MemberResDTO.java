@@ -29,4 +29,13 @@ public class MemberResDTO {
     public record SelectFamilyRole (
             FamilyRole familyRole
     ) {}
+
+    @Builder
+    public record MyInfo(
+            Long memberId,
+            String nickname,
+            FamilyRole familyRole,
+            String characterImageUrl,
+            String familyName
+    ) {}
 }

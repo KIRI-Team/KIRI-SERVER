@@ -834,4 +834,97 @@ public interface MemberControllerDocs {
             ),
     })
     ApiResponse<Void> withdraw(@Parameter(hidden = true) @AuthenticationPrincipal Long memberId);
+
+    // 내 정보 조회
+    @Operation(
+            summary = "내 정보 조회 API",
+            description = """
+                    # 내 정보 조회
+                    마이페이지 상단 프로필 영역에 표시할 로그인 회원의 정보(닉네임, 가족 역할, 역할별 KIRI 캐릭터, 가족명)를 조회합니다.
+
+                    ## 요청 형식
+                    - **Header**
+                        - Authorization: Bearer {Access_Token}
+
+                    ## 동작 방식
+                    1. Access Token을 통해 인증된 회원을 확인합니다.
+                    2. 회원의 닉네임과 가족 역할을 조회합니다.
+                    3. 가족 역할에 매핑된 KIRI 캐릭터 이미지를 함께 반환합니다.
+                    4. 가족에 소속된 회원이면 가족명을 함께 반환합니다.
+                    5. 역할이 설정되지 않은 회원은 familyRole·characterImageUrl이 null로 반환됩니다.
+                    6. 가족에 소속되지 않은(둘러보기) 회원은 familyName이 null로 반환됩니다.
+                    """
+    )
+    @ApiResponses(value = {
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200",
+                    description = "성공 예시",
+                    content = @Content(
+                            mediaType = "application/json",
+                            examples = @ExampleObject(value = """
+                                    {
+                                        "isSuccess": true,
+                                        "code": "MEMBER200_4",
+                                        "message": "내 정보 조회에 성공했습니다.",
+                                        "result": {
+                                            "memberId": 1,
+                                            "nickname": "쥬123",
+                                            "familyRole": "DAUGHTER",
+                                            "characterImageUrl": "https://cdn.kiri.app/characters/daughter.png",
+                                            "familyName": "끼리네 가족"
+                                        }
+                                    }
+                                    """
+                            )
+                    )
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "401",
+                    description = "인증 실패 (Authorization 헤더 누락, 유효하지 않은 토큰, 만료된 토큰)",
+                    content = @Content(
+                            mediaType = "application/json",
+                            examples = {
+                                    @ExampleObject(
+                                            name = "Authorization 헤더 없음",
+                                            value = """
+                                            {
+                                                "isSuccess": false,
+                                                "code": "COMMON401_1",
+                                                "message": "인증이 필요합니다.",
+                                                "result": null
+                                            }
+                                            """
+                                    ),
+                                    @ExampleObject(
+                                            name = "accessToken 만료",
+                                            value = """
+                                            {
+                                                "isSuccess": false,
+                                                "code": "AUTH401_2",
+                                                "message": "토큰이 만료되었습니다",
+                                                "result": null
+                                            }
+                                            """
+                                    )
+                            }
+                    )
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "404",
+                    description = "memberId에 해당하는 회원 없음",
+                    content = @Content(
+                            mediaType = "application/json",
+                            examples = @ExampleObject(value = """
+                                    {
+                                        "isSuccess": false,
+                                        "code": "MEMBER404_1",
+                                        "message": "존재하지 않는 회원입니다.",
+                                        "result": null
+                                    }
+                                    """
+                            )
+                    )
+            )
+    })
+    ApiResponse<MemberResDTO.MyInfo> getMyInfo(@Parameter(hidden = true) @AuthenticationPrincipal Long memberId);
 }
