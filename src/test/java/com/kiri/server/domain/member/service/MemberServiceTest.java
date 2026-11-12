@@ -1,5 +1,8 @@
 package com.kiri.server.domain.member.service;
 
+import com.kiri.server.domain.character.entity.Character;
+import com.kiri.server.domain.character.repository.CharacterRepository;
+import com.kiri.server.domain.family.entity.Family;
 import com.kiri.server.domain.member.dto.MemberReqDTO;
 import com.kiri.server.domain.member.dto.MemberResDTO;
 import com.kiri.server.domain.member.entity.Member;
@@ -57,6 +60,9 @@ class MemberServiceTest {
 
     @Mock
     private HashUtil hashUtil;
+
+    @Mock
+    private CharacterRepository characterRepository;
 
     @InjectMocks
     private MemberService memberService;
@@ -428,5 +434,90 @@ class MemberServiceTest {
                 .isEqualTo(MemberErrorCode.NOT_FOUND);
 
         verify(memberRepository).findByIdForUpdate(memberId);
+    }
+
+    @Test
+    @DisplayName("내 정보 조회 성공 - 가족·역할 있음")
+    void getMyInfoSuccess() {
+        Long memberId = 1L;
+
+        Member member = mock(Member.class);
+        Family family = mock(Family.class);
+        Character character = mock(Character.class);
+
+        when(memberRepository.findById(memberId)).thenReturn(Optional.of(member));
+        when(member.getId()).thenReturn(memberId);
+        when(member.getNickname()).thenReturn("쥬123");
+        when(member.getFamilyRole()).thenReturn(FamilyRole.DAUGHTER);
+        when(member.getFamily()).thenReturn(family);
+        when(family.getName()).thenReturn("끼리네 가족");
+        when(characterRepository.findByRole(FamilyRole.DAUGHTER)).thenReturn(Optional.of(character));
+        when(character.getImageUrl()).thenReturn("https://cdn.kiri.app/characters/daughter.png");
+
+        MemberResDTO.MyInfo response = memberService.getMyInfo(memberId);
+
+        assertThat(response.memberId()).isEqualTo(memberId);
+        assertThat(response.nickname()).isEqualTo("쥬123");
+        assertThat(response.familyRole()).isEqualTo(FamilyRole.DAUGHTER);
+        assertThat(response.characterImageUrl()).isEqualTo("https://cdn.kiri.app/characters/daughter.png");
+        assertThat(response.familyName()).isEqualTo("끼리네 가족");
+
+        verify(memberRepository).findById(memberId);
+        verify(characterRepository).findByRole(FamilyRole.DAUGHTER);
+    }
+
+    @Test
+    @DisplayName("내 정보 조회 - 역할 미설정 시 familyRole·characterImageUrl null")
+    void getMyInfoRoleNotSet() {
+        Long memberId = 1L;
+
+        Member member = mock(Member.class);
+
+        when(memberRepository.findById(memberId)).thenReturn(Optional.of(member));
+        when(member.getFamilyRole()).thenReturn(null);
+        when(member.getFamily()).thenReturn(null);
+
+        MemberResDTO.MyInfo response = memberService.getMyInfo(memberId);
+
+        assertThat(response.familyRole()).isNull();
+        assertThat(response.characterImageUrl()).isNull();
+
+        verify(characterRepository, never()).findByRole(any());
+    }
+
+    @Test
+    @DisplayName("내 정보 조회 - 가족 미소속 시 familyName null")
+    void getMyInfoNoFamily() {
+        Long memberId = 1L;
+
+        Member member = mock(Member.class);
+        Character character = mock(Character.class);
+
+        when(memberRepository.findById(memberId)).thenReturn(Optional.of(member));
+        when(member.getFamilyRole()).thenReturn(FamilyRole.SON);
+        when(member.getFamily()).thenReturn(null);
+        when(characterRepository.findByRole(FamilyRole.SON)).thenReturn(Optional.of(character));
+        when(character.getImageUrl()).thenReturn("https://cdn.kiri.app/characters/son.png");
+
+        MemberResDTO.MyInfo response = memberService.getMyInfo(memberId);
+
+        assertThat(response.familyName()).isNull();
+        assertThat(response.characterImageUrl()).isEqualTo("https://cdn.kiri.app/characters/son.png");
+    }
+
+    @Test
+    @DisplayName("내 정보 조회 실패 - 존재하지 않는 회원")
+    void getMyInfoMemberNotFound() {
+        Long memberId = 1L;
+
+        when(memberRepository.findById(memberId)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> memberService.getMyInfo(memberId))
+                .isInstanceOf(MemberException.class)
+                .extracting("errorCode")
+                .isEqualTo(MemberErrorCode.NOT_FOUND);
+
+        verify(memberRepository).findById(memberId);
+        verify(characterRepository, never()).findByRole(any());
     }
 }
