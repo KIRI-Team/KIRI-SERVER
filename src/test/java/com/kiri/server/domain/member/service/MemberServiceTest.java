@@ -445,7 +445,7 @@ class MemberServiceTest {
         Family family = mock(Family.class);
         Character character = mock(Character.class);
 
-        when(memberRepository.findById(memberId)).thenReturn(Optional.of(member));
+        when(memberRepository.findByIdAndDeletedAtIsNull(memberId)).thenReturn(Optional.of(member));
         when(member.getId()).thenReturn(memberId);
         when(member.getNickname()).thenReturn("쥬123");
         when(member.getFamilyRole()).thenReturn(FamilyRole.DAUGHTER);
@@ -462,7 +462,7 @@ class MemberServiceTest {
         assertThat(response.characterImageUrl()).isEqualTo("https://cdn.kiri.app/characters/daughter.png");
         assertThat(response.familyName()).isEqualTo("끼리네 가족");
 
-        verify(memberRepository).findById(memberId);
+        verify(memberRepository).findByIdAndDeletedAtIsNull(memberId);
         verify(characterRepository).findByRole(FamilyRole.DAUGHTER);
     }
 
@@ -473,7 +473,7 @@ class MemberServiceTest {
 
         Member member = mock(Member.class);
 
-        when(memberRepository.findById(memberId)).thenReturn(Optional.of(member));
+        when(memberRepository.findByIdAndDeletedAtIsNull(memberId)).thenReturn(Optional.of(member));
         when(member.getFamilyRole()).thenReturn(null);
         when(member.getFamily()).thenReturn(null);
 
@@ -493,7 +493,7 @@ class MemberServiceTest {
         Member member = mock(Member.class);
         Character character = mock(Character.class);
 
-        when(memberRepository.findById(memberId)).thenReturn(Optional.of(member));
+        when(memberRepository.findByIdAndDeletedAtIsNull(memberId)).thenReturn(Optional.of(member));
         when(member.getFamilyRole()).thenReturn(FamilyRole.SON);
         when(member.getFamily()).thenReturn(null);
         when(characterRepository.findByRole(FamilyRole.SON)).thenReturn(Optional.of(character));
@@ -510,14 +510,14 @@ class MemberServiceTest {
     void getMyInfoMemberNotFound() {
         Long memberId = 1L;
 
-        when(memberRepository.findById(memberId)).thenReturn(Optional.empty());
+        when(memberRepository.findByIdAndDeletedAtIsNull(memberId)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> memberService.getMyInfo(memberId))
                 .isInstanceOf(MemberException.class)
                 .extracting("errorCode")
                 .isEqualTo(MemberErrorCode.NOT_FOUND);
 
-        verify(memberRepository).findById(memberId);
+        verify(memberRepository).findByIdAndDeletedAtIsNull(memberId);
         verify(characterRepository, never()).findByRole(any());
     }
 }
