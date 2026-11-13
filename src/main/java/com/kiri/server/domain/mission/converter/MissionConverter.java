@@ -149,14 +149,16 @@ public class MissionConverter {
                 .build();
     }
 
-    public static MissionResDTO.NearbyItem toNearbyItem(Mission mission, String description) {
+    public static MissionResDTO.NearbyItem toNearbyItem(Mission mission, double distance, String description) {
         Place place = mission.getPlace();
         return MissionResDTO.NearbyItem.builder()
+                .missionId(mission.getId())
                 .placeName(place.getName())
                 .region(toRegion(place.getAddress()))
                 .description(description)
                 .imageUrl(place.getImageUrl() != null ? place.getImageUrl() : mission.getImageUrl())
                 .price(mission.getPrice())
+                .distance(distance)
                 .build();
     }
 

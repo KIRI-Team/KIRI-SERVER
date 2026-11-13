@@ -44,11 +44,13 @@ public class MissionResDTO {
 
     @Builder
     public record NearbyItem(
+            Long missionId,
             String placeName,
             String region,
             String description,
             String imageUrl,
-            Integer price
+            Integer price,
+            Double distance
     ) {
     }
 

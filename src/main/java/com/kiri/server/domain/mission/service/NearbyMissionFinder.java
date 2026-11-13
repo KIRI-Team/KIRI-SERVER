@@ -52,7 +52,8 @@ public class NearbyMissionFinder {
                 .collect(Collectors.toMap(Place::getId, place -> distanceKm(base, place)));
 
         Comparator<Candidate> order = Comparator.comparingDouble(score).reversed()
-                .thenComparingDouble(Candidate::distanceKm);
+                .thenComparingDouble(Candidate::distanceKm)
+                .thenComparing(candidate -> candidate.mission().getId());
 
         Map<Long, Candidate> representatives = new LinkedHashMap<>();
         candidates.stream()

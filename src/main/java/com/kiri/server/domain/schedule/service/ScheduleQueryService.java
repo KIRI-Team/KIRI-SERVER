@@ -206,7 +206,7 @@ public class ScheduleQueryService {
                         candidate -> tasteScore.applyAsDouble(candidate.mission())
                                 + conditionScore(candidate.mission(), candidate.distanceKm(), conditions))
                 .stream()
-                .map(candidate -> MissionConverter.toNearbyItem(candidate.mission(),
+                .map(candidate -> MissionConverter.toNearbyItem(candidate.mission(), candidate.distanceKm(),
                         nearbyReason(candidate.mission(), candidate.distanceKm(), likedCategories, conditions)))
                 .toList();
     }

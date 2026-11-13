@@ -87,7 +87,7 @@ class MissionQueryServiceTest {
     void setUp() {
         missionQueryService = new MissionQueryService(missionRepository, missionFeedRepository,
                 missionChecklistItemRepository, externalRecordRepository, memberRepository, bucketItemRepository,
-                kiriPickRepository, CLOCK);
+                kiriPickRepository, new NearbyMissionFinder(missionRepository), CLOCK);
     }
 
     @Test

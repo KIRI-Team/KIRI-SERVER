@@ -50,6 +50,7 @@ public class MissionQueryService {
     private static final Pattern REGION_CODE = Pattern.compile("\\d{2}|\\d{5}");
     private static final Set<MissionStatus> DETAIL_STATUSES = Set.of(MissionStatus.ACTIVE, MissionStatus.ENDED);
     private static final double EARTH_RADIUS_KM = 6371.0;
+    private static final String NEAR_REASON = "미션 장소에서 가까운 곳이에요";
 
     private final MissionRepository missionRepository;
     private final MissionFeedRepository missionFeedRepository;
@@ -58,6 +59,7 @@ public class MissionQueryService {
     private final MemberRepository memberRepository;
     private final BucketItemRepository bucketItemRepository;
     private final KiriPickRepository kiriPickRepository;
+    private final NearbyMissionFinder nearbyMissionFinder;
     private final Clock clock;
 
     @Transactional(readOnly = true)
@@ -115,6 +117,28 @@ public class MissionQueryService {
         return MissionConverter.toDetail(mission,
                 missionChecklistItemRepository.findAllByMissionOrderByItemTypeAscDisplayOrderAsc(mission),
                 sourceUrl, bucketState);
+    }
+
+    // 일정 없이 미션 장소 기준으로 조회하므로 취향·컨디션 없이 가까운 순 (MIS-07)
+    @Transactional(readOnly = true)
+    public List<MissionResDTO.NearbyItem> getNearby(Long missionId) {
+        Mission mission = missionRepository.findWithPlaceById(missionId)
+                .filter(found -> DETAIL_STATUSES.contains(found.getStatus()))
+                .orElseThrow(() -> new MissionException(MissionErrorCode.NOT_FOUND));
+        Place base = mission.getPlace();
+
+        List<Mission> candidates = nearbyMissionFinder.findCandidates(base, LocalDate.now(clock));
+        return nearbyMissionFinder.pickTop(candidates, base, candidate -> 0).stream()
+                .map(candidate -> MissionConverter.toNearbyItem(candidate.mission(), candidate.distanceKm(),
+                        nearbyReason(candidate)))
+                .toList();
+    }
+
+    // 근거가 거리뿐이라 가까우면 거리 문구, 아니면 미션 소개 문구
+    private String nearbyReason(NearbyMissionFinder.Candidate candidate) {
+        return candidate.distanceKm() <= NearbyMissionFinder.NEAR_DISTANCE_KM
+                ? NEAR_REASON
+                : candidate.mission().getDescription();
     }
 
     private BucketSaveState resolveBucketState(Long memberId, Long missionId) {
