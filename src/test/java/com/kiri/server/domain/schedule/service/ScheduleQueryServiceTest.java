@@ -11,6 +11,7 @@ import com.kiri.server.domain.mission.enums.Category;
 import com.kiri.server.domain.mission.enums.IndoorOutdoor;
 import com.kiri.server.domain.mission.enums.WalkingLevel;
 import com.kiri.server.domain.mission.repository.MissionRepository;
+import com.kiri.server.domain.mission.service.NearbyMissionFinder;
 import com.kiri.server.domain.place.entity.Place;
 import com.kiri.server.domain.review.entity.Review;
 import com.kiri.server.domain.review.entity.ReviewPhoto;
@@ -106,7 +107,7 @@ class ScheduleQueryServiceTest {
     void setUp() {
         scheduleQueryService = new ScheduleQueryService(
                 scheduleRepository, scheduleParticipantRepository, scheduleConditionRepository, memberRepository,
-                missionRepository, familyTasteScoreService, tasteProfileService,
+                new NearbyMissionFinder(missionRepository), familyTasteScoreService, tasteProfileService,
                 reviewPhotoRepository, imageUrlService, CLOCK);
     }
 

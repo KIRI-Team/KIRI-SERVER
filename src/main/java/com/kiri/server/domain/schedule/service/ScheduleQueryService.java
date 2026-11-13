@@ -9,7 +9,7 @@ import com.kiri.server.domain.member.repository.MemberRepository;
 import com.kiri.server.domain.mission.entity.Mission;
 import com.kiri.server.domain.mission.enums.Category;
 import com.kiri.server.domain.mission.enums.IndoorOutdoor;
-import com.kiri.server.domain.mission.repository.MissionRepository;
+import com.kiri.server.domain.mission.service.NearbyMissionFinder;
 import com.kiri.server.domain.place.entity.Place;
 import com.kiri.server.domain.review.entity.ReviewPhoto;
 import com.kiri.server.domain.review.policy.RepresentativePhotoPolicy;
@@ -41,9 +41,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.YearMonth;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.EnumSet;
-import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -57,21 +55,16 @@ import java.util.stream.Collectors;
 public class ScheduleQueryService {
 
     private static final int UPCOMING_DAYS = 7;
-    private static final double NEARBY_DISTANCE_KM = 5.0;
-    private static final int NEARBY_LIMIT = 5;
-    private static final double NEAR_DISTANCE_KM = 1.0;
     private static final String TASTE_REASON = "우리 가족이 좋아하는 활동이에요";
     private static final String REST_REASON = "잠깐 쉬어가기 좋은 곳이에요";
     private static final String NEAR_REASON = "일정 장소에서 가까운 곳이에요";
-    private static final double KM_PER_DEGREE = 111.0;
-    private static final double EARTH_RADIUS_KM = 6371.0;
     private static final int LOW_PRICE = 10_000;
 
     private final ScheduleRepository scheduleRepository;
     private final ScheduleParticipantRepository scheduleParticipantRepository;
     private final ScheduleConditionRepository scheduleConditionRepository;
     private final MemberRepository memberRepository;
-    private final MissionRepository missionRepository;
+    private final NearbyMissionFinder nearbyMissionFinder;
     private final FamilyTasteScoreService familyTasteScoreService;
     private final TasteProfileService tasteProfileService;
     private final ReviewPhotoRepository reviewPhotoRepository;
@@ -195,7 +188,7 @@ public class ScheduleQueryService {
                 .orElseThrow(() -> new ScheduleException(ScheduleErrorCode.SCHEDULE_NOT_FOUND));
         Place base = schedule.getBucketItem().getMission().getPlace();
 
-        List<Mission> candidates = findNearbyMissions(base, schedule.getScheduleDate());
+        List<Mission> candidates = nearbyMissionFinder.findCandidates(base, schedule.getScheduleDate());
         if (candidates.isEmpty()) {
             return List.of();
         }
@@ -206,21 +199,14 @@ public class ScheduleQueryService {
         Set<ConditionType> conditions = scheduleConditionRepository.findBySchedule_Id(scheduleId).stream()
                 .map(ScheduleCondition::getConditionType)
                 .collect(Collectors.toCollection(() -> EnumSet.noneOf(ConditionType.class)));
-        return recommendPlaces(candidates, base, tasteScore, likedCategories, conditions);
-    }
 
-    // 반경 내에서 일정 날짜에 운영 중인 활성 미션 (메인 미션 장소 제외)
-    private List<Mission> findNearbyMissions(Place base, LocalDate scheduleDate) {
-        double latitude = base.getLatitude().doubleValue();
-        double longitude = base.getLongitude().doubleValue();
-        double latitudeDelta = NEARBY_DISTANCE_KM / KM_PER_DEGREE;
-        double longitudeDelta = NEARBY_DISTANCE_KM / (KM_PER_DEGREE * Math.cos(Math.toRadians(latitude)));
-
-        List<Long> ids = missionRepository.findNearbyIds(latitude, longitude,
-                latitude - latitudeDelta, latitude + latitudeDelta,
-                longitude - longitudeDelta, longitude + longitudeDelta,
-                NEARBY_DISTANCE_KM, base.getId(), scheduleDate);
-        return ids.isEmpty() ? List.of() : missionRepository.findAllWithPlaceByIdIn(ids);
+        return nearbyMissionFinder.pickTop(candidates, base,
+                        candidate -> tasteScore.applyAsDouble(candidate.mission())
+                                + conditionScore(candidate.mission(), candidate.distanceKm(), conditions))
+                .stream()
+                .map(candidate -> ScheduleConverter.toNearbyItem(candidate.mission(),
+                        nearbyReason(candidate.mission(), candidate.distanceKm(), likedCategories, conditions)))
+                .toList();
     }
 
     // 제안자와 수락한 참여자의 취향으로 계산한 미션별 취향 점수
@@ -255,34 +241,6 @@ public class ScheduleQueryService {
         return memberIds;
     }
 
-    // 취향 + 컨디션 점수 높은 순 → 같으면 가까운 순으로 정렬, 장소별 첫 미션만 남겨 상위 5개 장소 추천
-    private List<ScheduleResDTO.NearbyItem> recommendPlaces(List<Mission> candidates, Place base,
-                                                            ToDoubleFunction<Mission> tasteScore,
-                                                            Set<Category> likedCategories,
-                                                            Set<ConditionType> conditions) {
-        Map<Long, Double> distances = candidates.stream()
-                .map(Mission::getPlace)
-                .distinct()
-                .collect(Collectors.toMap(Place::getId, place -> distanceKm(base, place)));
-        ToDoubleFunction<Mission> distance = mission -> distances.get(mission.getPlace().getId());
-        ToDoubleFunction<Mission> score = mission -> tasteScore.applyAsDouble(mission)
-                + conditionScore(mission, distance.applyAsDouble(mission), conditions);
-
-        Comparator<Mission> order = Comparator.comparingDouble(score).reversed()
-                .thenComparingDouble(distance);
-
-        Map<Long, Mission> representatives = new LinkedHashMap<>();
-        candidates.stream()
-                .sorted(order)
-                .forEach(mission -> representatives.putIfAbsent(mission.getPlace().getId(), mission));
-
-        return representatives.values().stream()
-                .limit(NEARBY_LIMIT)
-                .map(mission -> ScheduleConverter.toNearbyItem(mission, nearbyReason(mission,
-                        distance.applyAsDouble(mission), likedCategories, conditions)))
-                .toList();
-    }
-
     // 실제로 확인된 근거 (취향 일치 → 휴식 조건 → 가까운 거리)
     // 근거가 없으면 미션 소개 문구
     private String nearbyReason(Mission mission, double distanceKm, Set<Category> likedCategories,
@@ -293,7 +251,7 @@ public class ScheduleQueryService {
         if (conditions.contains(ConditionType.MORE_REST) && restScore(mission) == 1) {
             return REST_REASON;
         }
-        if (distanceKm <= NEAR_DISTANCE_KM) {
+        if (distanceKm <= NearbyMissionFinder.NEAR_DISTANCE_KM) {
             return NEAR_REASON;
         }
         return mission.getDescription();
@@ -303,7 +261,7 @@ public class ScheduleQueryService {
     private double conditionScore(Mission mission, double distanceKm, Set<ConditionType> conditions) {
         double score = 0;
         if (conditions.contains(ConditionType.REDUCE_STEPS)) {
-            score += 1 - distanceKm / NEARBY_DISTANCE_KM;
+            score += 1 - distanceKm / NearbyMissionFinder.RADIUS_KM;
         }
         if (conditions.contains(ConditionType.MORE_REST)) {
             score += restScore(mission);
@@ -331,17 +289,6 @@ public class ScheduleQueryService {
             return 1;
         }
         return price <= LOW_PRICE ? 0.5 : 0;
-    }
-
-    private double distanceKm(Place base, Place place) {
-        double phi1 = Math.toRadians(base.getLatitude().doubleValue());
-        double phi2 = Math.toRadians(place.getLatitude().doubleValue());
-        double deltaPhi = phi2 - phi1;
-        double deltaLambda = Math.toRadians(place.getLongitude().doubleValue() - base.getLongitude().doubleValue());
-        double a = Math.pow(Math.sin(deltaPhi / 2), 2)
-                + Math.cos(phi1) * Math.cos(phi2) * Math.pow(Math.sin(deltaLambda / 2), 2);
-        double km = 2 * EARTH_RADIUS_KM * Math.asin(Math.sqrt(a));
-        return Math.round(km * 10) / 10.0;
     }
 
     private Map<Long, ScheduleParticipant> findMyParticipants(Schedule responseRequired, Schedule upcoming,
