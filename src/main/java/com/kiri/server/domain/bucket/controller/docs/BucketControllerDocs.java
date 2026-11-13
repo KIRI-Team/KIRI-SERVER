@@ -224,7 +224,7 @@ public interface BucketControllerDocs {
                     - schedulable은 SAVED이면서 미션이 공개 중(ACTIVE)이고 기간이 끝나지 않았을 때만 true입니다.
                     - deletable은 로그인한 회원이 저장했고 SAVED일 때만 true입니다. 삭제하기 버튼 노출에 사용합니다.
                     - 미션이 종료·취소·비공개로 바뀌어도 항목은 그대로 반환하며, mission.status로 구분합니다.
-                    - scheduleId·scheduledDate는 일정 기능이 연결되기 전까지 null입니다.
+                    - scheduleId·scheduledDate는 버킷에 연결된 활성 일정(PENDING_RESPONSE·CONFIRMED)의 ID와 날짜입니다. 연결된 활성 일정이 없으면(취소·완료 일정 포함) 둘 다 null입니다.
 
                     ## 페이지
                     첫 조회는 cursor 없이 요청하고, 다음 조회부터 응답의 nextCursor를 넣습니다. hasNext가 false면 마지막입니다.
@@ -265,7 +265,7 @@ public interface BucketControllerDocs {
                                         "bucketItems": [
                                           {
                                             "bucketItemId": 42,
-                                            "status": "SAVED",
+                                            "status": "SCHEDULED",
                                             "savedAt": "2026-10-27T19:40:12.345",
                                             "completedAt": null,
                                             "mission": {
@@ -281,10 +281,10 @@ public interface BucketControllerDocs {
                                               "familyRole": "FATHER",
                                               "withdrawn": false
                                             },
-                                            "schedulable": true,
-                                            "deletable": true,
-                                            "scheduleId": null,
-                                            "scheduledDate": null
+                                            "schedulable": false,
+                                            "deletable": false,
+                                            "scheduleId": 77,
+                                            "scheduledDate": "2026-11-20"
                                           },
                                           {
                                             "bucketItemId": 31,
