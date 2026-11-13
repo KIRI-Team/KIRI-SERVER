@@ -21,6 +21,7 @@ import com.kiri.server.domain.mission.repository.MissionFeedRepository;
 import com.kiri.server.domain.mission.repository.MissionFeedRepository.BaseLocation;
 import com.kiri.server.domain.mission.repository.MissionRepository;
 import com.kiri.server.domain.place.entity.Place;
+import com.kiri.server.domain.review.repository.ReviewRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -58,6 +59,7 @@ public class MissionQueryService {
     private final MemberRepository memberRepository;
     private final BucketItemRepository bucketItemRepository;
     private final KiriPickRepository kiriPickRepository;
+    private final ReviewRepository reviewRepository;
     private final Clock clock;
 
     @Transactional(readOnly = true)
@@ -112,9 +114,13 @@ public class MissionQueryService {
 
         BucketSaveState bucketState = resolveBucketState(memberId, missionId);
 
+        ReviewRepository.MissionRating rating = reviewRepository.findMissionRating(missionId);
+        long reviewCount = rating.getReviewCount();
+        Double averageRating = reviewCount == 0 ? null : Math.round(rating.getAverageRating() * 10) / 10.0;
+
         return MissionConverter.toDetail(mission,
                 missionChecklistItemRepository.findAllByMissionOrderByItemTypeAscDisplayOrderAsc(mission),
-                sourceUrl, bucketState);
+                sourceUrl, bucketState, averageRating, (int) reviewCount);
     }
 
     private BucketSaveState resolveBucketState(Long memberId, Long missionId) {

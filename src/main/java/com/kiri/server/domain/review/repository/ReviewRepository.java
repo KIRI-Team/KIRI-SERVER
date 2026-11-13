@@ -40,4 +40,19 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
       AND s.status = com.kiri.server.domain.schedule.enums.ScheduleStatus.COMPLETED
     """)
     List<Review> findAllCompletedReviewsByMemberIds(@Param("memberIds") Collection<Long> memberIds);
+
+    @Query("""
+            SELECT AVG(r.starRating) AS averageRating, COUNT(r) AS reviewCount
+            FROM Review r
+            WHERE r.schedule.bucketItem.mission.id = :missionId
+              AND r.starRating IS NOT NULL
+            """)
+    MissionRating findMissionRating(@Param("missionId") Long missionId);
+
+    interface MissionRating {
+
+        Double getAverageRating();
+
+        long getReviewCount();
+    }
 }
