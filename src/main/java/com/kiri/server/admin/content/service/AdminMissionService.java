@@ -187,7 +187,7 @@ public class AdminMissionService {
         Mission mission = find(missionId);
         return MissionConverter.toDetail(mission,
                 checklistRepository.findAllByMissionOrderByItemTypeAscDisplayOrderAsc(mission),
-                sourceUrl(mission), BucketSaveState.NONE);
+                sourceUrl(mission), BucketSaveState.NONE, null, 0);
     }
 
     private ContentDTO.MissionDetail toDetail(Mission mission) {
