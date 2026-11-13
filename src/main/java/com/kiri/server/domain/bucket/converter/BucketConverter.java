@@ -6,6 +6,7 @@ import com.kiri.server.domain.family.entity.Family;
 import com.kiri.server.domain.member.entity.Member;
 import com.kiri.server.domain.mission.entity.Mission;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -49,7 +50,8 @@ public class BucketConverter {
                 .build();
     }
 
-    public static BucketResDTO.FamilyBucketItem toFamilyBucketItem(BucketItem item, boolean schedulable, boolean deletable) {
+    public static BucketResDTO.FamilyBucketItem toFamilyBucketItem(BucketItem item, boolean schedulable, boolean deletable,
+                                                                   Long scheduleId, LocalDate scheduledDate) {
         return BucketResDTO.FamilyBucketItem.builder()
                 .bucketItemId(item.getId())
                 .status(item.getStatus())
@@ -59,8 +61,8 @@ public class BucketConverter {
                 .saver(toSaver(item.getMember()))
                 .schedulable(schedulable)
                 .deletable(deletable)
-                .scheduleId(null)
-                .scheduledDate(null)
+                .scheduleId(scheduleId)
+                .scheduledDate(scheduledDate)
                 .build();
     }
 

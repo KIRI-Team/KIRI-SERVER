@@ -80,4 +80,23 @@ public interface ScheduleRepository extends JpaRepository<Schedule, Long> {
                                          @Param("acceptedStatus") ParticipantStatus acceptedStatus,
                                          @Param("startDate") LocalDate startDate,
                                          @Param("endDate") LocalDate endDate);
+
+    @Query("""
+            SELECT bi.id AS bucketItemId, s.id AS scheduleId, s.scheduleDate AS scheduledDate
+            FROM Schedule s
+            JOIN s.bucketItem bi
+            WHERE bi.id IN :bucketItemIds
+              AND s.status IN :statuses
+            """)
+    List<BucketSchedule> findActiveByBucketItemIds(@Param("bucketItemIds") Collection<Long> bucketItemIds,
+                                                   @Param("statuses") Collection<ScheduleStatus> statuses);
+
+    interface BucketSchedule {
+
+        Long getBucketItemId();
+
+        Long getScheduleId();
+
+        LocalDate getScheduledDate();
+    }
 }
