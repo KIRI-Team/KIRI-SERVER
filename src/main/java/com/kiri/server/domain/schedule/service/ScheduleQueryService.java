@@ -16,6 +16,8 @@ import com.kiri.server.domain.review.policy.RepresentativePhotoPolicy;
 import com.kiri.server.domain.review.repository.ReviewPhotoRepository;
 import com.kiri.server.domain.schedule.converter.ScheduleConverter;
 import com.kiri.server.domain.schedule.dto.ScheduleReqDTO;
+import com.kiri.server.domain.mission.converter.MissionConverter;
+import com.kiri.server.domain.mission.dto.MissionResDTO;
 import com.kiri.server.domain.schedule.dto.ScheduleResDTO;
 import com.kiri.server.domain.schedule.entity.Schedule;
 import com.kiri.server.domain.schedule.entity.ScheduleCondition;
@@ -176,7 +178,7 @@ public class ScheduleQueryService {
     }
 
     @Transactional(readOnly = true)
-    public List<ScheduleResDTO.NearbyItem> getNearby(Long memberId, Long scheduleId) {
+    public List<MissionResDTO.NearbyItem> getNearby(Long memberId, Long scheduleId) {
         Member member = memberRepository.findById(memberId)
                 .orElseThrow(() -> new MemberException(MemberErrorCode.NOT_FOUND));
         Family family = member.getFamily();
@@ -204,7 +206,7 @@ public class ScheduleQueryService {
                         candidate -> tasteScore.applyAsDouble(candidate.mission())
                                 + conditionScore(candidate.mission(), candidate.distanceKm(), conditions))
                 .stream()
-                .map(candidate -> ScheduleConverter.toNearbyItem(candidate.mission(),
+                .map(candidate -> MissionConverter.toNearbyItem(candidate.mission(),
                         nearbyReason(candidate.mission(), candidate.distanceKm(), likedCategories, conditions)))
                 .toList();
     }

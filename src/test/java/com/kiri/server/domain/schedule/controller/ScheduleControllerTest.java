@@ -2,6 +2,7 @@ package com.kiri.server.domain.schedule.controller;
 
 import com.kiri.server.domain.mission.enums.WalkingLevel;
 import com.kiri.server.domain.schedule.dto.ScheduleReqDTO;
+import com.kiri.server.domain.mission.dto.MissionResDTO;
 import com.kiri.server.domain.schedule.dto.ScheduleResDTO;
 import com.kiri.server.domain.schedule.enums.CalendarMyStatus;
 import com.kiri.server.domain.schedule.enums.ConditionType;
@@ -263,7 +264,7 @@ class ScheduleControllerTest {
     @DisplayName("로그인 회원 ID와 경로의 일정 ID로 조회해 SCHEDULE200_8과 추천 장소 목록을 반환한다.")
     void getNearby_success() throws Exception {
         given(scheduleQueryService.getNearby(MEMBER_ID, 118L)).willReturn(List.of(
-                ScheduleResDTO.NearbyItem.builder()
+                MissionResDTO.NearbyItem.builder()
                         .placeName("세빛섬")
                         .region("서울시 서초구")
                         .description("한강 위에서 야경을 보기 좋아요")

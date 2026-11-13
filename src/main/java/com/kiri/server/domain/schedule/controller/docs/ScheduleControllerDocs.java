@@ -1,6 +1,7 @@
 package com.kiri.server.domain.schedule.controller.docs;
 
 import com.kiri.server.domain.schedule.dto.ScheduleReqDTO;
+import com.kiri.server.domain.mission.dto.MissionResDTO;
 import com.kiri.server.domain.schedule.dto.ScheduleResDTO;
 import com.kiri.server.global.apiPayload.ApiResponse;
 import io.swagger.v3.oas.annotations.Operation;
@@ -598,7 +599,7 @@ public interface ScheduleControllerDocs {
                     )
             )
     })
-    ApiResponse<List<ScheduleResDTO.NearbyItem>> getNearby(
+    ApiResponse<List<MissionResDTO.NearbyItem>> getNearby(
             @Parameter(hidden = true) Long memberId,
             @Parameter(description = "일정 ID", example = "118") Long scheduleId
     );

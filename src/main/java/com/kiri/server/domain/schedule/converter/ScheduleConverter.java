@@ -1,7 +1,6 @@
 package com.kiri.server.domain.schedule.converter;
 
 import com.kiri.server.domain.mission.entity.Mission;
-import com.kiri.server.domain.place.entity.Place;
 import com.kiri.server.domain.schedule.dto.ScheduleResDTO;
 import com.kiri.server.domain.schedule.entity.Schedule;
 import com.kiri.server.domain.schedule.entity.ScheduleCondition;
@@ -113,37 +112,12 @@ public class ScheduleConverter {
                 .build();
     }
 
-    public static ScheduleResDTO.NearbyItem toNearbyItem(Mission mission, String description) {
-        Place place = mission.getPlace();
-        return ScheduleResDTO.NearbyItem.builder()
-                .placeName(place.getName())
-                .region(toRegion(place.getAddress()))
-                .description(description)
-                .imageUrl(place.getImageUrl() != null ? place.getImageUrl() : mission.getImageUrl())
-                .price(mission.getPrice())
-                .build();
-    }
-
     public static ScheduleResDTO.UpcomingHome toUpcomingHome(ScheduleResDTO.UpcomingCard responseRequired,
                                                              ScheduleResDTO.UpcomingCard upcoming) {
         return ScheduleResDTO.UpcomingHome.builder()
                 .responseRequired(responseRequired)
                 .upcoming(upcoming)
                 .build();
-    }
-
-    private static String toRegion(String address) {
-        if (address == null || address.isBlank()) {
-            return null;
-        }
-        String[] tokens = address.trim().split("\\s+");
-        String province = tokens[0]
-                .replaceFirst("(특별자치시|특별시|광역시)$", "시")
-                .replaceFirst("특별자치도$", "도");
-        if (tokens.length < 2 || !tokens[1].matches(".+[시군구]$")) {
-            return province;
-        }
-        return province + " " + tokens[1];
     }
 
     public static ScheduleResDTO.Detail toDetail(Schedule schedule, List<ScheduleParticipant> participants,
