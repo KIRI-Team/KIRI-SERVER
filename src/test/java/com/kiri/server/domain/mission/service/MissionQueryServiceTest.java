@@ -449,12 +449,16 @@ class MissionQueryServiceTest {
     }
 
     private com.kiri.server.domain.review.repository.ReviewRepository.MissionRating rating(Double average, long count) {
-        com.kiri.server.domain.review.repository.ReviewRepository.MissionRating rating =
-                mock(com.kiri.server.domain.review.repository.ReviewRepository.MissionRating.class);
-        given(rating.getReviewCount()).willReturn(count);
-        if (count > 0) {
-            given(rating.getAverageRating()).willReturn(average);
-        }
-        return rating;
+        return new com.kiri.server.domain.review.repository.ReviewRepository.MissionRating() {
+            @Override
+            public Double getAverageRating() {
+                return average;
+            }
+
+            @Override
+            public long getReviewCount() {
+                return count;
+            }
+        };
     }
 }
