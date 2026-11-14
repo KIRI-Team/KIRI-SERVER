@@ -26,6 +26,26 @@ class EssentialPlannerTest {
     }
 
     @Test
+    @DisplayName("'~지참' 앞에 쉼표로 나열된 물품을 각각 읽는다.")
+    void officialItems_list() {
+        assertThat(EssentialPlanner.officialItems("신분증, 입장권을 지참하세요.")).containsExactly("신분증", "입장권");
+    }
+
+    @Test
+    @DisplayName("지참 금지·불필요 안내의 물품은 준비물로 보지 않는다.")
+    void officialItems_skipsProhibited() {
+        assertThat(EssentialPlanner.officialItems("카메라 지참 금지")).isEmpty();
+        assertThat(EssentialPlanner.officialItems("돗자리는 지참하지 않아도 됩니다.")).isEmpty();
+    }
+
+    @Test
+    @DisplayName("한 글자 물품은 담고, '꼭' 같은 기능어는 담지 않는다.")
+    void officialItems_oneLetter() {
+        assertThat(EssentialPlanner.officialItems("물을 지참하세요.")).containsExactly("물");
+        assertThat(EssentialPlanner.officialItems("꼭 지참하세요.")).isEmpty();
+    }
+
+    @Test
     @DisplayName("할인·무료 같은 혜택 조건 문장의 지참 물품은 혜택 항목으로 따로 읽는다.")
     void benefitItems() {
         assertThat(EssentialPlanner.officialItems("신분증 지참 시 입장료 할인")).isEmpty();
