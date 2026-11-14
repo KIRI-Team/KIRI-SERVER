@@ -73,7 +73,6 @@ public class NearbyMissionFinder {
         double deltaLambda = Math.toRadians(place.getLongitude().doubleValue() - base.getLongitude().doubleValue());
         double a = Math.pow(Math.sin(deltaPhi / 2), 2)
                 + Math.cos(phi1) * Math.cos(phi2) * Math.pow(Math.sin(deltaLambda / 2), 2);
-        double km = 2 * EARTH_RADIUS_KM * Math.asin(Math.sqrt(a));
-        return Math.round(km * 10) / 10.0;
+        return 2 * EARTH_RADIUS_KM * Math.asin(Math.sqrt(a));
     }
 }

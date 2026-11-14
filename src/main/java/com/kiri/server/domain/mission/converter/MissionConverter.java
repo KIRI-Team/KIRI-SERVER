@@ -158,7 +158,7 @@ public class MissionConverter {
                 .description(description)
                 .imageUrl(place.getImageUrl() != null ? place.getImageUrl() : mission.getImageUrl())
                 .price(mission.getPrice())
-                .distance(distance)
+                .distance(Math.round(distance * 10) / 10.0)
                 .build();
     }
 
