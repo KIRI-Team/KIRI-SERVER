@@ -82,13 +82,16 @@ class MissionQueryServiceTest {
     @Mock
     private com.kiri.server.domain.pick.repository.KiriPickRepository kiriPickRepository;
 
+    @Mock
+    private com.kiri.server.domain.review.repository.ReviewRepository reviewRepository;
+
     private MissionQueryService missionQueryService;
 
     @BeforeEach
     void setUp() {
         missionQueryService = new MissionQueryService(missionRepository, missionFeedRepository,
                 missionChecklistItemRepository, externalRecordRepository, memberRepository, bucketItemRepository,
-                kiriPickRepository, new NearbyMissionFinder(missionRepository), CLOCK);
+                kiriPickRepository, reviewRepository, new NearbyMissionFinder(missionRepository), CLOCK);
     }
 
     @Test
@@ -248,6 +251,7 @@ class MissionQueryServiceTest {
         given(record.getSourceUrl()).willReturn("https://korean.visitkorea.or.kr/detail");
         given(externalRecordRepository.findFirstByMissionAndSourceUrlIsNotNullOrderByIdAsc(mission))
                 .willReturn(Optional.of(record));
+        given(reviewRepository.findMissionRating(10L)).willReturn(rating(4.3333, 3L));
 
         MissionResDTO.Detail detail = missionQueryService.getDetail(MEMBER_ID, 10L);
 
@@ -262,7 +266,31 @@ class MissionQueryServiceTest {
         assertThat(detail)
                 .extracting(MissionResDTO.Detail::bucketSaved, MissionResDTO.Detail::bucketState,
                         MissionResDTO.Detail::averageRating, MissionResDTO.Detail::reviewCount)
-                .containsExactly(false, BucketSaveState.NONE, null, 0);
+                .containsExactly(false, BucketSaveState.NONE, 4.3, 3);
+    }
+
+    @Test
+    @DisplayName("별점을 남긴 전체 사용자 평균을 소수 첫째 자리로 내리고, 별점이 없으면 평균은 null·개수는 0이다.")
+    void getDetail_rating() {
+        Mission rated = mission(10L, MissionStatus.ACTIVE);
+        given(missionRepository.findWithPlaceById(10L)).willReturn(Optional.of(rated));
+        given(missionChecklistItemRepository.findAllByMissionOrderByItemTypeAscDisplayOrderAsc(rated)).willReturn(List.of());
+        given(externalRecordRepository.findFirstByMissionAndSourceUrlIsNotNullOrderByIdAsc(rated)).willReturn(Optional.empty());
+        given(reviewRepository.findMissionRating(10L)).willReturn(rating(3.75, 4L));
+
+        MissionResDTO.Detail ratedDetail = missionQueryService.getDetail(MEMBER_ID, 10L);
+        assertThat(ratedDetail).extracting(MissionResDTO.Detail::averageRating, MissionResDTO.Detail::reviewCount)
+                .containsExactly(3.8, 4);
+
+        given(reviewRepository.findMissionRating(20L)).willReturn(rating(null, 0L));
+        Mission unrated = mission(20L, MissionStatus.ACTIVE);
+        given(missionRepository.findWithPlaceById(20L)).willReturn(Optional.of(unrated));
+        given(missionChecklistItemRepository.findAllByMissionOrderByItemTypeAscDisplayOrderAsc(unrated)).willReturn(List.of());
+        given(externalRecordRepository.findFirstByMissionAndSourceUrlIsNotNullOrderByIdAsc(unrated)).willReturn(Optional.empty());
+
+        MissionResDTO.Detail unratedDetail = missionQueryService.getDetail(MEMBER_ID, 20L);
+        assertThat(unratedDetail).extracting(MissionResDTO.Detail::averageRating, MissionResDTO.Detail::reviewCount)
+                .containsExactly(null, 0);
     }
 
     @Test
@@ -276,6 +304,7 @@ class MissionQueryServiceTest {
         given(missionRepository.findWithPlaceById(10L)).willReturn(Optional.of(mission));
         given(missionChecklistItemRepository.findAllByMissionOrderByItemTypeAscDisplayOrderAsc(mission)).willReturn(List.of());
         given(externalRecordRepository.findFirstByMissionAndSourceUrlIsNotNullOrderByIdAsc(mission)).willReturn(Optional.empty());
+        given(reviewRepository.findMissionRating(10L)).willReturn(rating(null, 0L));
 
         MissionResDTO.Detail detail = missionQueryService.getDetail(MEMBER_ID, 10L);
 
@@ -295,6 +324,7 @@ class MissionQueryServiceTest {
         given(missionRepository.findWithPlaceById(10L)).willReturn(Optional.of(mission));
         given(missionChecklistItemRepository.findAllByMissionOrderByItemTypeAscDisplayOrderAsc(mission)).willReturn(List.of());
         given(externalRecordRepository.findFirstByMissionAndSourceUrlIsNotNullOrderByIdAsc(mission)).willReturn(Optional.empty());
+        given(reviewRepository.findMissionRating(10L)).willReturn(rating(null, 0L));
 
         MissionResDTO.Detail detail = missionQueryService.getDetail(MEMBER_ID, 10L);
 
@@ -309,6 +339,7 @@ class MissionQueryServiceTest {
         given(missionRepository.findWithPlaceById(10L)).willReturn(Optional.of(mission));
         given(missionChecklistItemRepository.findAllByMissionOrderByItemTypeAscDisplayOrderAsc(mission)).willReturn(List.of());
         given(externalRecordRepository.findFirstByMissionAndSourceUrlIsNotNullOrderByIdAsc(mission)).willReturn(Optional.empty());
+        given(reviewRepository.findMissionRating(10L)).willReturn(rating(null, 0L));
 
         assertThat(missionQueryService.getDetail(MEMBER_ID, 10L).status()).isEqualTo(MissionStatus.ENDED);
     }
@@ -322,6 +353,7 @@ class MissionQueryServiceTest {
         given(externalRecordRepository.findFirstByMissionAndSourceUrlIsNotNullOrderByIdAsc(mission)).willReturn(Optional.empty());
         given(bucketItemRepository.existsByMemberIdAndMissionIdAndStatusIn(MEMBER_ID, 10L, BucketStatus.ACTIVE_STATUSES))
                 .willReturn(true);
+        given(reviewRepository.findMissionRating(10L)).willReturn(rating(null, 0L));
 
         MissionResDTO.Detail detail = missionQueryService.getDetail(MEMBER_ID, 10L);
 
@@ -340,6 +372,7 @@ class MissionQueryServiceTest {
                 .willReturn(false);
         given(bucketItemRepository.existsByMemberIdAndMissionIdAndStatusIn(MEMBER_ID, 10L, List.of(BucketStatus.COMPLETED)))
                 .willReturn(true);
+        given(reviewRepository.findMissionRating(10L)).willReturn(rating(null, 0L));
 
         MissionResDTO.Detail detail = missionQueryService.getDetail(MEMBER_ID, 10L);
 
@@ -484,5 +517,19 @@ class MissionQueryServiceTest {
                 .title(title)
                 .displayOrder(order)
                 .build();
+    }
+
+    private com.kiri.server.domain.review.repository.ReviewRepository.MissionRating rating(Double average, long count) {
+        return new com.kiri.server.domain.review.repository.ReviewRepository.MissionRating() {
+            @Override
+            public Double getAverageRating() {
+                return average;
+            }
+
+            @Override
+            public long getReviewCount() {
+                return count;
+            }
+        };
     }
 }

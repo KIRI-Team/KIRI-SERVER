@@ -102,7 +102,7 @@ public class MissionConverter {
     }
 
     public static MissionResDTO.Detail toDetail(Mission mission, List<MissionChecklistItem> items, String sourceUrl,
-                                                BucketSaveState bucketState) {
+                                                BucketSaveState bucketState, Double averageRating, int reviewCount) {
         Place place = mission.getPlace();
         boolean usePlaceHours = mission.getOpeningTime() == null && mission.getClosingTime() == null;
         LocalTime openingTime = usePlaceHours ? place.getOpeningTime() : mission.getOpeningTime();
@@ -132,8 +132,8 @@ public class MissionConverter {
                 .steps(toChecklist(items, ItemType.STEP))
                 .bucketSaved(bucketState == BucketSaveState.SAVED)
                 .bucketState(bucketState)
-                .averageRating(null)
-                .reviewCount(0)
+                .averageRating(averageRating)
+                .reviewCount(reviewCount)
                 .build();
     }
 

@@ -216,7 +216,7 @@ public interface MissionControllerDocs {
                     - walkingLevel은 예상 걷기량으로 LOW(적음)·MEDIUM(보통)·HIGH(많음)이며, 판단할 정보가 없으면 null입니다.
                     - bucketState는 로그인한 회원 본인의 버킷 저장 상태입니다. NONE(저장 이력 없음, "버킷에 저장"), SAVED(SAVED·SCHEDULED 버킷 있음, "저장됨"), COMPLETED_ONLY(완료된 버킷만 있음, "다시 버킷에 저장")입니다.
                     - bucketSaved는 bucketState가 SAVED일 때만 true입니다. 가족이 없는 회원은 항상 NONE·false입니다.
-                    - averageRating·reviewCount는 리뷰 기능 연결 전까지 null·0입니다.
+                    - averageRating은 이 활동에 별점을 남긴 전체 사용자의 평균(소수 첫째 자리)이고, reviewCount는 그 별점 수입니다. 별점이 없으면 averageRating은 null, reviewCount는 0입니다.
                     """
     )
     @ApiResponses(value = {
@@ -264,8 +264,8 @@ public interface MissionControllerDocs {
                                         ],
                                         "bucketSaved": false,
                                         "bucketState": "NONE",
-                                        "averageRating": null,
-                                        "reviewCount": 0
+                                        "averageRating": 4.5,
+                                        "reviewCount": 12
                                       }
                                     }
                                     """)
