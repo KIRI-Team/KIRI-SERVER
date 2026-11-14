@@ -400,7 +400,7 @@ class MissionQueryServiceTest {
     @Test
     @DisplayName("미션 장소에서 1km 이내면 거리 문구, 아니면 미션 소개 문구를 담는다.")
     void getNearby_reason() {
-        Mission near = nearbyMission(11L, nearbyPlace(2L, "가까운 곳", 1.0), "가까운 곳 소개");
+        Mission near = nearbyMission(11L, nearbyPlace(2L, "가까운 곳", 0.9), "가까운 곳 소개");
         Mission far = nearbyMission(12L, nearbyPlace(3L, "먼 곳", 2.0), "먼 곳 소개");
         stubNearby(List.of(near, far));
 
