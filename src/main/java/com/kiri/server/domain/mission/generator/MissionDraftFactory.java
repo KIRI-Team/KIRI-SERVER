@@ -134,8 +134,8 @@ public class MissionDraftFactory {
                 .place(place)
                 .checklist(Stream.concat(
                         ChecklistPlanner.plan(category, content).stream(),
-                        EssentialPlanner.plan(content.overview(), walkingLevel, classification.indoorOutdoor(),
-                                estimate.durationMaxMinutes()).stream()).toList())
+                        EssentialPlanner.plan(content, walkingLevel, classification.indoorOutdoor()).stream())
+                        .toList())
                 .build();
     }
 
