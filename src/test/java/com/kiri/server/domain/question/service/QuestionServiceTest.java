@@ -257,6 +257,8 @@ class QuestionServiceTest {
                 .build();
         given(memberRepository.findById(MEMBER_ID)).willReturn(Optional.of(member));
         given(familyQuestionRepository.findById(FAMILY_QUESTION_ID)).willReturn(Optional.of(yesterdayQuestion));
+        given(familyQuestionRepository.findByIdForUpdate(FAMILY_QUESTION_ID))
+                .willReturn(Optional.of(yesterdayQuestion));
 
         assertThatThrownBy(() -> questionService.writeAnswer(MEMBER_ID, FAMILY_QUESTION_ID, WRITE_REQUEST))
                 .isInstanceOf(QuestionException.class)
@@ -264,6 +266,7 @@ class QuestionServiceTest {
                 .isEqualTo(QuestionErrorCode.ANSWER_PERIOD_EXPIRED);
         verify(memberAnswerRepository, never()).findByFamilyQuestionAndMember(any(), any());
         verify(notificationService, never()).cancelQuestionReminder(any(), any());
+        verify(notificationService, never()).createFamilyAnswerCompleteNotifications(any(), any());
     }
 
     @Test
@@ -273,6 +276,8 @@ class QuestionServiceTest {
         given(familyQuestionRepository.findById(FAMILY_QUESTION_ID)).willReturn(Optional.of(familyQuestion));
         given(memberAnswerRepository.findByFamilyQuestionAndMember(familyQuestion, member))
                 .willReturn(Optional.empty());
+        given(familyQuestionRepository.findByIdForUpdate(FAMILY_QUESTION_ID)).willReturn(Optional.of(familyQuestion));
+        given(familyQuestionRepository.findByIdForUpdate(FAMILY_QUESTION_ID)).willReturn(Optional.of(familyQuestion));
 
         questionService.writeAnswer(MEMBER_ID, FAMILY_QUESTION_ID, WRITE_REQUEST);
 
@@ -285,6 +290,8 @@ class QuestionServiceTest {
         assertThat(saved.getMember()).isEqualTo(member);
 
         verify(notificationService).cancelQuestionReminder(member, familyQuestion);
+
+        verify(notificationService).createFamilyAnswerCompleteNotifications(member, familyQuestion);
     }
 
     @Test
@@ -299,12 +306,14 @@ class QuestionServiceTest {
         given(familyQuestionRepository.findById(FAMILY_QUESTION_ID)).willReturn(Optional.of(familyQuestion));
         given(memberAnswerRepository.findByFamilyQuestionAndMember(familyQuestion, member))
                 .willReturn(Optional.of(existing));
+        given(familyQuestionRepository.findByIdForUpdate(FAMILY_QUESTION_ID)).willReturn(Optional.of(familyQuestion));
 
         questionService.writeAnswer(MEMBER_ID, FAMILY_QUESTION_ID, WRITE_REQUEST);
 
         assertThat(existing.getContent()).isEqualTo(WRITE_REQUEST.answer());
         verify(memberAnswerRepository, never()).save(any());
         verify(notificationService).cancelQuestionReminder(member, familyQuestion);
+        verify(notificationService, never()).createFamilyAnswerCompleteNotifications(any(), any());
     }
 
     @Test
@@ -314,6 +323,7 @@ class QuestionServiceTest {
         given(familyQuestionRepository.findById(FAMILY_QUESTION_ID)).willReturn(Optional.of(familyQuestion));
         given(memberAnswerRepository.findByFamilyQuestionAndMember(familyQuestion, member))
                 .willReturn(Optional.empty());
+        given(familyQuestionRepository.findByIdForUpdate(FAMILY_QUESTION_ID)).willReturn(Optional.of(familyQuestion));
         // 조회 시점엔 없었지만 다른 요청이 먼저 저장한 상황
         given(memberAnswerRepository.save(any(MemberAnswer.class))).willThrow(new DataIntegrityViolationException(
                 "could not execute statement",
@@ -324,6 +334,9 @@ class QuestionServiceTest {
                 .isInstanceOf(QuestionException.class)
                 .extracting("errorCode")
                 .isEqualTo(QuestionErrorCode.DUPLICATE_ANSWER_REQUEST);
+
+        verify(notificationService, never()).cancelQuestionReminder(any(), any());
+        verify(notificationService, never()).createFamilyAnswerCompleteNotifications(any(), any());
     }
 
     @Test
@@ -339,8 +352,13 @@ class QuestionServiceTest {
                 new PSQLException(new ServerErrorMessage(
                         "SERROR\0C23503\0Minsert or update violates foreign key constraint\0nfk_member_answer_member\0"))));
 
+        given(familyQuestionRepository.findByIdForUpdate(FAMILY_QUESTION_ID)).willReturn(Optional.of(familyQuestion));
+
         assertThatThrownBy(() -> questionService.writeAnswer(MEMBER_ID, FAMILY_QUESTION_ID, WRITE_REQUEST))
                 .isInstanceOf(DataIntegrityViolationException.class);
+
+        verify(notificationService, never()).cancelQuestionReminder(any(), any());
+        verify(notificationService, never()).createFamilyAnswerCompleteNotifications(any(), any());
     }
 
     @Test
