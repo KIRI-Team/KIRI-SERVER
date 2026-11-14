@@ -33,6 +33,7 @@ import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.tuple;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.lenient;
@@ -133,11 +134,46 @@ class ReviewQueryServiceTest {
         assertThat(first.reviewId()).isEqualTo(1L);
         assertThat(first.writer().nickname()).isEqualTo("김주연");
         assertThat(first.isMine()).isTrue();
-        assertThat(first.imageUrls()).containsExactly("url:review/1/a.jpg", "url:review/1/b.jpg");
+        assertThat(first.photos())
+                .extracting(ReviewResDTO.Photo::reviewPhotoId, ReviewResDTO.Photo::imageKey, ReviewResDTO.Photo::imageUrl)
+                .containsExactly(
+                        tuple(1L, "review/1/a.jpg", "url:review/1/a.jpg"),
+                        tuple(2L, "review/1/b.jpg", "url:review/1/b.jpg"));
 
         ReviewResDTO.Item second = result.reviews().get(1);
         assertThat(second.isMine()).isFalse();
-        assertThat(second.imageUrls()).containsExactly("url:review/2/a.jpg");
+        assertThat(second.photos()).extracting(ReviewResDTO.Photo::imageUrl).containsExactly("url:review/2/a.jpg");
+
+        assertThat(result.representativePhotoId()).isEqualTo(1L);
+    }
+
+    @Test
+    @DisplayName("지정한 대표사진이 있으면 그 사진 ID를, 사라졌으면 기본값 사진 ID를 내려준다")
+    void getScheduleReviewsRepresentativePhoto() {
+        Schedule schedule = Schedule.builder()
+                .id(scheduleId)
+                .family(family)
+                .status(ScheduleStatus.COMPLETED)
+                .build();
+        schedule.changeRepresentativePhoto(3L);
+
+        Review mine = review(1L, schedule, requester, "처음 가봤다");
+        Review others = review(2L, schedule, requester, "즐거웠다");
+        ReviewPhoto p1 = ReviewPhoto.builder().id(1L).review(mine).imageKey("review/1/a.jpg").displayOrder(1).build();
+        ReviewPhoto p3 = ReviewPhoto.builder().id(3L).review(others).imageKey("review/2/a.jpg").displayOrder(1).build();
+
+        when(memberRepository.findById(memberId)).thenReturn(Optional.of(requester));
+        when(scheduleRepository.findById(scheduleId)).thenReturn(Optional.of(schedule));
+        when(reviewRepository.findAllByScheduleIdWithWriter(scheduleId)).thenReturn(List.of(mine, others));
+        when(reviewPhotoRepository.findByReview_IdInOrderByReview_IdAscDisplayOrderAsc(anyList()))
+                .thenReturn(List.of(p1, p3));
+        when(imageUrlService.toUrl(anyString())).thenAnswer(inv -> "url:" + inv.getArgument(0));
+
+        assertThat(reviewQueryService.getScheduleReviews(memberId, scheduleId).representativePhotoId()).isEqualTo(3L);
+
+        schedule.changeRepresentativePhoto(99L);
+
+        assertThat(reviewQueryService.getScheduleReviews(memberId, scheduleId).representativePhotoId()).isEqualTo(1L);
     }
 
     @Test

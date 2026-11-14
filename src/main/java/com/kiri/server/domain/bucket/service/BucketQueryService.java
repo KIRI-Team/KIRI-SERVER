@@ -16,6 +16,8 @@ import com.kiri.server.domain.member.exception.code.MemberErrorCode;
 import com.kiri.server.domain.member.repository.MemberRepository;
 import com.kiri.server.domain.mission.entity.Mission;
 import com.kiri.server.domain.mission.enums.MissionStatus;
+import com.kiri.server.domain.schedule.enums.ScheduleStatus;
+import com.kiri.server.domain.schedule.repository.ScheduleRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
@@ -26,6 +28,7 @@ import java.time.LocalDate;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @Service
@@ -36,6 +39,7 @@ public class BucketQueryService {
 
     private final MemberRepository memberRepository;
     private final BucketItemRepository bucketItemRepository;
+    private final ScheduleRepository scheduleRepository;
     private final Clock clock;
 
     @Transactional(readOnly = true)
@@ -53,13 +57,29 @@ public class BucketQueryService {
         List<BucketItem> page = hasNext ? found.subList(0, size) : found;
 
         LocalDate today = LocalDate.now(clock);
+        Map<Long, ScheduleRepository.BucketSchedule> schedules = activeSchedules(page);
         List<BucketResDTO.FamilyBucketItem> items = page.stream()
-                .map(item -> BucketConverter.toFamilyBucketItem(item,
-                        isSchedulable(item, today), isDeletable(item, memberId)))
+                .map(item -> {
+                    ScheduleRepository.BucketSchedule schedule = schedules.get(item.getId());
+                    return BucketConverter.toFamilyBucketItem(item,
+                            isSchedulable(item, today), isDeletable(item, memberId),
+                            schedule == null ? null : schedule.getScheduleId(),
+                            schedule == null ? null : schedule.getScheduledDate());
+                })
                 .toList();
 
         return BucketConverter.toFamilyBuckets(saverCounts(family), items,
                 hasNext ? page.getLast().getId() : null, hasNext);
+    }
+
+    private Map<Long, ScheduleRepository.BucketSchedule> activeSchedules(List<BucketItem> page) {
+        List<Long> bucketItemIds = page.stream().map(BucketItem::getId).toList();
+        if (bucketItemIds.isEmpty()) {
+            return Map.of();
+        }
+        return scheduleRepository.findActiveByBucketItemIds(bucketItemIds, ScheduleStatus.ACTIVE_STATUSES).stream()
+                .collect(Collectors.toMap(ScheduleRepository.BucketSchedule::getBucketItemId,
+                        Function.identity(), (first, second) -> first));
     }
 
     private List<BucketItem> findPage(Long familyId, BucketReqDTO.FamilyBucketCondition condition, int limit) {

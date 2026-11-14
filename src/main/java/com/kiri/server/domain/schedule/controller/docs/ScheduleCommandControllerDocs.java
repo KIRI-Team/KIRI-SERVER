@@ -163,6 +163,134 @@ public interface ScheduleCommandControllerDocs {
     );
 
     @Operation(
+            summary = "주간 미션 일정 생성 API",
+            description = """
+                    # 주간 미션 일정 생성
+
+                    ## 요청 형식
+                    - 헤더: Authorization: Bearer {JWT 토큰}
+                    - Path: missionId (홈 주간 미션 카드에 배정된 미션 ID)
+                    - Body: 날짜·시간(필수), 초대할 가족 구성원 목록(제안자 제외, 1명 이상), 가족에게 한 줄(선택)
+
+                    홈 질문-미션 플립 카드의 주간 미션에서 '일정 잡기'로 진입합니다. 일반 미션과 같은 일정 작성 화면을 쓰되,
+                    사용자가 버킷을 따로 저장하지 않으며 일정 생성이 확정되는 시점에 버킷을 자동으로 만들거나 기존 미완료 버킷에 연결합니다.
+
+                    ## 규칙
+                    - missionId는 현재 가족에 배정된 이번 주 미션이어야 합니다. (아니면 409)
+                    - 자동 생성된 버킷의 저장자는 일정 제안자로 기록하며, 이후 상태·기록 정책은 일반 버킷과 동일합니다.
+                    - 제안자에게 같은 미션의 SAVED 버킷이 있으면 새로 만들지 않고 그 버킷에 연결합니다.
+                    - 같은 주간 미션에 이미 연결된 활성 일정이 있으면 중복 생성을 막습니다. (409)
+                    - 종료되었거나 수행할 수 없는 미션이면 일정을 만들 수 없습니다. (409)
+                    - 일정 작성 중 이탈하거나 생성에 실패하면 자동 버킷을 남기지 않습니다.
+                    - 제안자는 자동 수락(ACCEPTED), 선택한 구성원만 미응답(PENDING)으로 초대되며, 날짜·마감·확정 규칙은 일반 일정 생성과 동일합니다.
+                    """
+    )
+    @ApiResponses(value = {
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200",
+                    description = "생성 성공 (응답 본문의 code는 SCHEDULE201_1)",
+                    content = @Content(
+                            mediaType = "application/json",
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "isSuccess": true,
+                                      "code": "SCHEDULE201_1",
+                                      "message": "일정 생성 성공",
+                                      "result": {
+                                        "scheduleId": 100,
+                                        "bucketItemId": 77,
+                                        "scheduleDate": "2026-11-15",
+                                        "scheduleTime": "14:00",
+                                        "status": "PENDING_RESPONSE",
+                                        "responseDeadline": "2026-11-14T14:00:00",
+                                        "proposerId": 1,
+                                        "participantMemberIds": [2, 3]
+                                      }
+                                    }
+                                    """)
+                    )
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "400",
+                    description = "입력값 오류(날짜·시간 누락/지난 시각/운영기간 밖/초대 대상 오류)",
+                    content = @Content(
+                            mediaType = "application/json",
+                            examples = {
+                                    @ExampleObject(name = "지난 시각", value = """
+                                            {
+                                              "isSuccess": false,
+                                              "code": "SCHEDULE400_2",
+                                              "message": "지난 시각으로는 일정을 만들 수 없습니다.",
+                                              "result": null
+                                            }
+                                            """),
+                                    @ExampleObject(name = "초대 대상 오류", value = """
+                                            {
+                                              "isSuccess": false,
+                                              "code": "SCHEDULE400_4",
+                                              "message": "같은 가족 구성원만 초대할 수 있습니다.",
+                                              "result": null
+                                            }
+                                            """)
+                            }
+                    )
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "403",
+                    description = "가족공간 없음",
+                    content = @Content(
+                            mediaType = "application/json",
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "isSuccess": false,
+                                      "code": "SCHEDULE403_1",
+                                      "message": "가족 공간이 없습니다.",
+                                      "result": null
+                                    }
+                                    """)
+                    )
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "409",
+                    description = "배정 주간 미션 아님 / 수행 불가 미션 / 이미 연결된 활성 일정 존재",
+                    content = @Content(
+                            mediaType = "application/json",
+                            examples = {
+                                    @ExampleObject(name = "배정 주간 미션 아님", value = """
+                                            {
+                                              "isSuccess": false,
+                                              "code": "SCHEDULE409_8",
+                                              "message": "현재 가족에 배정된 주간 미션이 아닙니다.",
+                                              "result": null
+                                            }
+                                            """),
+                                    @ExampleObject(name = "수행할 수 없는 미션", value = """
+                                            {
+                                              "isSuccess": false,
+                                              "code": "SCHEDULE409_9",
+                                              "message": "종료되었거나 수행할 수 없는 주간 미션입니다.",
+                                              "result": null
+                                            }
+                                            """),
+                                    @ExampleObject(name = "이미 연결된 일정 존재", value = """
+                                            {
+                                              "isSuccess": false,
+                                              "code": "SCHEDULE409_10",
+                                              "message": "이미 연결된 일정이 있는 주간 미션입니다.",
+                                              "result": null
+                                            }
+                                            """)
+                            }
+                    )
+            )
+    })
+    ApiResponse<ScheduleResDTO.Created> createWeeklyMissionSchedule(
+            @Parameter(hidden = true) Long memberId,
+            @Parameter(description = "주간 미션 ID", example = "55") Long missionId,
+            @Valid ScheduleReqDTO.Create request
+    );
+
+    @Operation(
             summary = "일정 초대 수락/거절 API",
             description = """
                     # 일정 초대 수락/거절
@@ -484,5 +612,173 @@ public interface ScheduleCommandControllerDocs {
             @Parameter(hidden = true) Long memberId,
             @Parameter(description = "일정 ID", example = "100") Long scheduleId,
             @Valid ScheduleReqDTO.Update request
+    );
+
+    @Operation(
+            summary = "컨디션 커스텀 적용 API",
+            description = """
+                    # 컨디션 커스텀 적용
+
+                    ## 요청 형식
+                    - 헤더: Authorization: Bearer {JWT 토큰}
+                    - Path: scheduleId
+                    - Body: 적용할 컨디션 조건 목록(필수, 빈 배열 가능)
+
+                    컨디션 조정 화면에서 선택한 조건을 해당 일정에 저장합니다. 저장한 조건은 근처 놀거리 추천 정렬에 반영됩니다.
+
+                    ## 규칙
+                    - 요청한 목록으로 기존 조건을 덮어씁니다. 여러 개를 함께 선택할 수 있습니다.
+                    - 빈 배열을 보내면 모든 조건을 해제합니다. conditions 필드를 생략하거나 null로 보내면 400입니다.
+                    - 같은 조건을 중복으로 보내도 한 번만 저장됩니다.
+                    - 조건 값: REDUCE_STEPS 걸음 수 낮추기 / MORE_REST 휴식 시간 늘리기 / LOWER_BUDGET 예산 낮추기 / AVOID_CROWD 사람 많은 곳 피하기
+                    - 수락한 최종 참여자만 적용할 수 있습니다. (응답 대기·거절·재확인 필요·초대 안 됨은 403)
+                    - 확정(CONFIRMED)된 일정의 당일에만 적용할 수 있으며, 당일에는 시작 시각이 지나도 적용할 수 있습니다. (그 외 409)
+                    - 다른 가족의 일정은 존재하지 않는 일정과 같이 404로 응답합니다.
+                    """
+    )
+    @ApiResponses(value = {
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200",
+                    description = "적용 성공",
+                    content = @Content(
+                            mediaType = "application/json",
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "isSuccess": true,
+                                      "code": "SCHEDULE200_7",
+                                      "message": "컨디션 커스텀 적용 성공",
+                                      "result": null
+                                    }
+                                    """)
+                    )
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "400",
+                    description = "conditions 누락·null 원소(COMMON400_1) / 존재하지 않는 조건 값·JSON 형식 오류(COMMON400_1)",
+                    content = @Content(
+                            mediaType = "application/json",
+                            examples = {
+                                    @ExampleObject(name = "conditions 누락", value = """
+                                            {
+                                              "isSuccess": false,
+                                              "code": "COMMON400_1",
+                                              "message": "잘못된 요청입니다.",
+                                              "result": { "conditions": "conditions는 필수입니다." }
+                                            }
+                                            """),
+                                    @ExampleObject(name = "존재하지 않는 조건 값", value = """
+                                            {
+                                              "isSuccess": false,
+                                              "code": "COMMON400_1",
+                                              "message": "잘못된 요청입니다.",
+                                              "result": null
+                                            }
+                                            """)
+                            }
+                    )
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "401",
+                    description = "인증 실패 - 토큰 미삽입(COMMON401_1) / 유효하지 않은 토큰(AUTH401_1) / 토큰 만료(AUTH401_2)",
+                    content = @Content(
+                            mediaType = "application/json",
+                            examples = {
+                                    @ExampleObject(name = "토큰 미삽입", value = """
+                                            {
+                                              "isSuccess": false,
+                                              "code": "COMMON401_1",
+                                              "message": "인증이 필요합니다.",
+                                              "result": null
+                                            }
+                                            """),
+                                    @ExampleObject(name = "유효하지 않은 토큰", value = """
+                                            {
+                                              "isSuccess": false,
+                                              "code": "AUTH401_1",
+                                              "message": "유효하지 않은 토큰입니다.",
+                                              "result": null
+                                            }
+                                            """),
+                                    @ExampleObject(name = "토큰 만료", value = """
+                                            {
+                                              "isSuccess": false,
+                                              "code": "AUTH401_2",
+                                              "message": "토큰이 만료되었습니다",
+                                              "result": null
+                                            }
+                                            """)
+                            }
+                    )
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "403",
+                    description = "가족공간이 없는 회원(SCHEDULE403_1) / 약속의 최종 참여자가 아님(SCHEDULE403_5)",
+                    content = @Content(
+                            mediaType = "application/json",
+                            examples = {
+                                    @ExampleObject(name = "가족공간 없음", value = """
+                                            {
+                                              "isSuccess": false,
+                                              "code": "SCHEDULE403_1",
+                                              "message": "가족 공간이 없습니다.",
+                                              "result": null
+                                            }
+                                            """),
+                                    @ExampleObject(name = "최종 참여자 아님", value = """
+                                            {
+                                              "isSuccess": false,
+                                              "code": "SCHEDULE403_5",
+                                              "message": "약속에 참여하는 가족만 이용할 수 있습니다.",
+                                              "result": null
+                                            }
+                                            """)
+                            }
+                    )
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "404",
+                    description = "토큰의 회원이 없음(MEMBER404_1) / 없거나 다른 가족의 일정(SCHEDULE404_2)",
+                    content = @Content(
+                            mediaType = "application/json",
+                            examples = {
+                                    @ExampleObject(name = "회원 없음", value = """
+                                            {
+                                              "isSuccess": false,
+                                              "code": "MEMBER404_1",
+                                              "message": "존재하지 않는 회원입니다.",
+                                              "result": null
+                                            }
+                                            """),
+                                    @ExampleObject(name = "일정 없음", value = """
+                                            {
+                                              "isSuccess": false,
+                                              "code": "SCHEDULE404_2",
+                                              "message": "존재하지 않는 일정입니다.",
+                                              "result": null
+                                            }
+                                            """)
+                            }
+                    )
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "409",
+                    description = "컨디션을 변경할 수 없는 일정(확정되지 않았거나 일정 당일이 아님)(SCHEDULE409_5)",
+                    content = @Content(
+                            mediaType = "application/json",
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "isSuccess": false,
+                                      "code": "SCHEDULE409_5",
+                                      "message": "일정 당일에만 컨디션을 변경할 수 있습니다.",
+                                      "result": null
+                                    }
+                                    """)
+                    )
+            )
+    })
+    ApiResponse<Void> updateConditions(
+            @Parameter(hidden = true) Long memberId,
+            @Parameter(description = "일정 ID", example = "118") Long scheduleId,
+            @Valid ScheduleReqDTO.UpdateConditions request
     );
 }

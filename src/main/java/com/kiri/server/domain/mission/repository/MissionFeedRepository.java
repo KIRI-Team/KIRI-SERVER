@@ -7,6 +7,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDate;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -29,6 +30,12 @@ public class MissionFeedRepository {
 
     public List<Long> findFeedIds(MissionReqDTO.FeedCondition condition, BaseLocation base,
                                   LocalDate today, int limit) {
+        return findFeedIds(condition, base, today, limit, null, null);
+    }
+
+    // includeOnly: 이 미션들 중에서만 고른다(끼리 픽 상단). exclude: 이 미션들은 뺀다(상단에 이미 나온 픽).
+    public List<Long> findFeedIds(MissionReqDTO.FeedCondition condition, BaseLocation base, LocalDate today, int limit,
+                                  Collection<Long> includeOnly, Collection<Long> exclude) {
         StringBuilder sql = new StringBuilder("""
                 SELECT m.mission_id
                   FROM mission m
@@ -38,6 +45,17 @@ public class MissionFeedRepository {
                 """);
         Map<String, Object> params = new HashMap<>();
         params.put("today", today);
+        if (includeOnly != null) {
+            if (includeOnly.isEmpty()) {
+                return List.of();
+            }
+            sql.append(" AND m.mission_id IN (:includeOnly)");
+            params.put("includeOnly", includeOnly);
+        }
+        if (exclude != null && !exclude.isEmpty()) {
+            sql.append(" AND m.mission_id NOT IN (:exclude)");
+            params.put("exclude", exclude);
+        }
 
         if (condition.category() != null) {
             sql.append(" AND m.category = :category");

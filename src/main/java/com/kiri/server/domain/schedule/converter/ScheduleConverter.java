@@ -1,9 +1,12 @@
 package com.kiri.server.domain.schedule.converter;
 
+import com.kiri.server.domain.mission.entity.Mission;
 import com.kiri.server.domain.schedule.dto.ScheduleResDTO;
 import com.kiri.server.domain.schedule.entity.Schedule;
+import com.kiri.server.domain.schedule.entity.ScheduleCondition;
 import com.kiri.server.domain.schedule.entity.ScheduleParticipant;
 import com.kiri.server.domain.schedule.enums.CalendarMyStatus;
+import com.kiri.server.domain.schedule.enums.ConditionType;
 import com.kiri.server.domain.schedule.enums.ParticipantStatus;
 import com.kiri.server.domain.schedule.enums.ScheduleDetailStatus;
 import com.kiri.server.domain.schedule.enums.UpcomingCardType;
@@ -15,6 +18,13 @@ import java.time.temporal.ChronoUnit;
 import java.util.List;
 
 public class ScheduleConverter {
+
+    public static ScheduleCondition toScheduleCondition(Schedule schedule, ConditionType conditionType) {
+        return ScheduleCondition.builder()
+                .schedule(schedule)
+                .conditionType(conditionType)
+                .build();
+    }
 
     public static ScheduleResDTO.Created toCreated(Schedule schedule, List<Long> participantMemberIds) {
         return ScheduleResDTO.Created.builder()
@@ -65,13 +75,15 @@ public class ScheduleConverter {
                 .build();
     }
 
-    public static ScheduleResDTO.CalendarItem toCalendarItem(Schedule schedule, ScheduleParticipant myParticipant) {
+    public static ScheduleResDTO.CalendarItem toCalendarItem(
+            Schedule schedule, ScheduleParticipant myParticipant, String reviewImageUrl) {
         return ScheduleResDTO.CalendarItem.builder()
                 .scheduleId(schedule.getId())
                 .date(schedule.getScheduleDate())
                 .time(schedule.getScheduleTime())
                 .status(schedule.getStatus())
                 .myStatus(toMyStatus(myParticipant))
+                .reviewImageUrl(reviewImageUrl)
                 .build();
     }
 
@@ -89,6 +101,17 @@ public class ScheduleConverter {
                 .build();
     }
 
+    public static ScheduleResDTO.Conditions toConditions(Schedule schedule, List<ConditionType> conditions) {
+        Mission mission = schedule.getBucketItem().getMission();
+        return ScheduleResDTO.Conditions.builder()
+                .missionTitle(mission.getTitle())
+                .walkingLevel(mission.getWalkingLevel())
+                .durationMinMinutes(mission.getDurationMinMinutes())
+                .durationMaxMinutes(mission.getDurationMaxMinutes())
+                .conditions(conditions)
+                .build();
+    }
+
     public static ScheduleResDTO.UpcomingHome toUpcomingHome(ScheduleResDTO.UpcomingCard responseRequired,
                                                              ScheduleResDTO.UpcomingCard upcoming) {
         return ScheduleResDTO.UpcomingHome.builder()
@@ -100,11 +123,19 @@ public class ScheduleConverter {
     public static ScheduleResDTO.Detail toDetail(Schedule schedule, List<ScheduleParticipant> participants,
                                                  LocalDate today) {
         return ScheduleResDTO.Detail.builder()
+                .missionId(resolveMissionId(schedule))
                 .date(schedule.getScheduleDate())
                 .time(schedule.getScheduleTime())
                 .status(toDetailStatus(schedule, today))
                 .participants(participants.stream().map(ScheduleConverter::toParticipantItem).toList())
                 .build();
+    }
+
+    private static Long resolveMissionId(Schedule schedule) {
+        if (schedule.getBucketItem() == null || schedule.getBucketItem().getMission() == null) {
+            return null;
+        }
+        return schedule.getBucketItem().getMission().getId();
     }
 
     private static ScheduleResDTO.ParticipantItem toParticipantItem(ScheduleParticipant participant) {

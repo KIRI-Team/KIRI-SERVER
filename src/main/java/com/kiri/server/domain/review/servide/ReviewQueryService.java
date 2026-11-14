@@ -11,6 +11,7 @@ import com.kiri.server.domain.review.dto.ReviewResDTO;
 import com.kiri.server.domain.review.entity.Review;
 import com.kiri.server.domain.review.exception.ReviewException;
 import com.kiri.server.domain.review.exception.code.ReviewErrorCode;
+import com.kiri.server.domain.review.policy.RepresentativePhotoPolicy;
 import com.kiri.server.domain.review.repository.ReviewPhotoRepository;
 import com.kiri.server.domain.review.repository.ReviewRepository;
 import com.kiri.server.domain.schedule.entity.Schedule;
@@ -53,26 +54,35 @@ public class ReviewQueryService {
 
         List<Review> reviews = reviewRepository.findAllByScheduleIdWithWriter(scheduleId);
         if (reviews.isEmpty()) {
-            return ReviewConverter.toScheduleReviews(scheduleId, List.of());
+            return ReviewConverter.toScheduleReviews(scheduleId, null, List.of());
         }
 
         List<Long> reviewIds = reviews.stream().map(Review::getId).toList();
-        Map<Long, List<String>> imageUrlsByReview = reviewPhotoRepository
+        Map<Long, List<ReviewResDTO.Photo>> photosByReview = reviewPhotoRepository
                 .findByReview_IdInOrderByReview_IdAscDisplayOrderAsc(reviewIds).stream()
                 .collect(Collectors.groupingBy(
                         photo -> photo.getReview().getId(),
                         LinkedHashMap::new,
-                        Collectors.mapping(photo -> imageUrlService.toUrl(photo.getImageKey()), Collectors.toList())
+                        Collectors.mapping(
+                                photo -> ReviewConverter.toPhoto(photo, imageUrlService.toUrl(photo.getImageKey())),
+                                Collectors.toList())
                 ));
 
         List<ReviewResDTO.Item> items = reviews.stream()
                 .map(review -> ReviewConverter.toItem(
                         review,
-                        imageUrlsByReview.getOrDefault(review.getId(), List.of()),
+                        photosByReview.getOrDefault(review.getId(), List.of()),
                         isMine(review, memberId)))
                 .toList();
 
-        return ReviewConverter.toScheduleReviews(scheduleId, items);
+        List<ReviewResDTO.Photo> photosInDefaultOrder = items.stream()
+                .flatMap(item -> item.photos().stream())
+                .toList();
+        ReviewResDTO.Photo representative = RepresentativePhotoPolicy.select(
+                schedule.getRepresentativeReviewPhotoId(), photosInDefaultOrder, ReviewResDTO.Photo::reviewPhotoId);
+
+        return ReviewConverter.toScheduleReviews(
+                scheduleId, representative == null ? null : representative.reviewPhotoId(), items);
     }
 
     private boolean isMine(Review review, Long memberId) {

@@ -75,6 +75,21 @@ class TourApiSyncServiceTest {
     }
 
     @Test
+    @DisplayName("관리자가 수집을 중단했으면 증분 수집과 전체 점검 모두 잠금을 잡지 않고 건너뛴다.")
+    void sync_adminPaused() {
+        given(externalSyncStateService.isAdminPaused(SOURCE)).willReturn(true);
+
+        SyncResult sync = service("key", 240, 900).sync();
+        SyncResult fullCheck = service("key", 240, 900).fullCheck();
+
+        assertThat(sync.completed()).isFalse();
+        assertThat(sync.error()).isEqualTo(TourApiSyncService.ADMIN_PAUSED);
+        assertThat(fullCheck.error()).isEqualTo(TourApiSyncService.ADMIN_PAUSED);
+        verify(externalSyncStateService, never()).tryLock(any(), any());
+        verifyNoInteractions(tourApiClient, externalRecordSyncService);
+    }
+
+    @Test
     @DisplayName("다른 수집이 실행 중이면 건너뛰고 잠금도 풀지 않는다.")
     void sync_locked() {
         given(externalSyncStateService.tryLock(SOURCE, NOW)).willReturn(false);

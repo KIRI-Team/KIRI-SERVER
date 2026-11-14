@@ -37,6 +37,7 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.tuple;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verifyNoInteractions;
 
@@ -55,6 +56,9 @@ class BucketQueryServiceTest {
     @Mock
     private BucketItemRepository bucketItemRepository;
 
+    @Mock
+    private com.kiri.server.domain.schedule.repository.ScheduleRepository scheduleRepository;
+
     private BucketQueryService bucketQueryService;
 
     private Family family;
@@ -63,7 +67,7 @@ class BucketQueryServiceTest {
 
     @BeforeEach
     void setUp() {
-        bucketQueryService = new BucketQueryService(memberRepository, bucketItemRepository, CLOCK);
+        bucketQueryService = new BucketQueryService(memberRepository, bucketItemRepository, scheduleRepository, CLOCK);
         family = Family.builder().id(FAMILY_ID).name("끼리네").build();
         mom = member(MEMBER_ID, "끼리엄마", FamilyRole.MOTHER);
         dad = member(2L, "끼리아빠", FamilyRole.FATHER);
@@ -170,6 +174,27 @@ class BucketQueryServiceTest {
         BucketResDTO.MissionSummary noImageSummary = result.bucketItems().getLast().mission();
         assertThat(noImageSummary.imageUrl()).isNull();
         assertThat(noImageSummary.imageSource()).isNull();
+    }
+
+    @Test
+    @DisplayName("연결된 활성 일정이 있는 버킷은 그 일정 ID·날짜를 담고, 없는 버킷은 null로 내려준다.")
+    void getFamilyBuckets_scheduleLinked() {
+        givenFamily(List.of(mom, dad), List.of());
+        given(bucketItemRepository.findByFamilyIdAndIdLessThanOrderByIdDesc(FAMILY_ID, Long.MAX_VALUE, PageRequest.of(0, 21)))
+                .willReturn(List.of(
+                        item(40L, dad, BucketStatus.SCHEDULED, mission(MissionStatus.ACTIVE, null)),
+                        item(30L, mom, BucketStatus.SAVED, mission(MissionStatus.ACTIVE, null))));
+        given(scheduleRepository.findActiveByBucketItemIds(any(), any()))
+                .willReturn(List.of(bucketSchedule(40L, 77L, LocalDate.of(2026, 11, 20))));
+
+        BucketResDTO.FamilyBuckets result = bucketQueryService.getFamilyBuckets(MEMBER_ID, condition(null, null, null));
+
+        assertThat(result.bucketItems().getFirst())
+                .extracting(BucketResDTO.FamilyBucketItem::scheduleId, BucketResDTO.FamilyBucketItem::scheduledDate)
+                .containsExactly(77L, LocalDate.of(2026, 11, 20));
+        assertThat(result.bucketItems().getLast())
+                .extracting(BucketResDTO.FamilyBucketItem::scheduleId, BucketResDTO.FamilyBucketItem::scheduledDate)
+                .containsExactly(null, null);
     }
 
     @Test
@@ -311,6 +336,26 @@ class BucketQueryServiceTest {
                 .imageUrl("https://tong.visitkorea.or.kr/cms/resource/00/0000000_image2_1.jpg")
                 .imageSource("한국관광공사 (공공누리 제1유형)")
                 .build();
+    }
+
+    private com.kiri.server.domain.schedule.repository.ScheduleRepository.BucketSchedule bucketSchedule(
+            Long bucketItemId, Long scheduleId, LocalDate scheduledDate) {
+        return new com.kiri.server.domain.schedule.repository.ScheduleRepository.BucketSchedule() {
+            @Override
+            public Long getBucketItemId() {
+                return bucketItemId;
+            }
+
+            @Override
+            public Long getScheduleId() {
+                return scheduleId;
+            }
+
+            @Override
+            public LocalDate getScheduledDate() {
+                return scheduledDate;
+            }
+        };
     }
 
     private SaverBucketCount count(Long memberId, Long bucketCount) {

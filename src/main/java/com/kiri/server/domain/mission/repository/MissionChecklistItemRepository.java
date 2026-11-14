@@ -2,6 +2,7 @@ package com.kiri.server.domain.mission.repository;
 
 import com.kiri.server.domain.mission.entity.Mission;
 import com.kiri.server.domain.mission.entity.MissionChecklistItem;
+import com.kiri.server.domain.mission.enums.ItemType;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -14,6 +15,8 @@ import java.util.List;
 public interface MissionChecklistItemRepository extends JpaRepository<MissionChecklistItem, Long> {
 
     List<MissionChecklistItem> findAllByMissionOrderByItemTypeAscDisplayOrderAsc(Mission mission);
+
+    List<MissionChecklistItem> findAllByMissionAndItemTypeOrderByDisplayOrderAsc(Mission mission, ItemType itemType);
 
     @Modifying(flushAutomatically = true)
     @Query("DELETE FROM MissionChecklistItem i WHERE i.mission = :mission")

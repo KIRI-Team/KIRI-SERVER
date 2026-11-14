@@ -1,5 +1,6 @@
 package com.kiri.server.domain.schedule.service;
 
+import com.kiri.server.domain.bucket.converter.BucketConverter;
 import com.kiri.server.domain.bucket.entity.BucketItem;
 import com.kiri.server.domain.bucket.enums.BucketStatus;
 import com.kiri.server.domain.bucket.repository.BucketItemRepository;
@@ -8,29 +9,32 @@ import com.kiri.server.domain.member.entity.Member;
 import com.kiri.server.domain.member.exception.MemberException;
 import com.kiri.server.domain.member.exception.code.MemberErrorCode;
 import com.kiri.server.domain.member.repository.MemberRepository;
+import com.kiri.server.domain.mission.entity.FamilyMissionRecommendation;
 import com.kiri.server.domain.mission.entity.Mission;
+import com.kiri.server.domain.mission.enums.MissionStatus;
 import com.kiri.server.domain.mission.enums.MissionType;
+import com.kiri.server.domain.mission.repository.FamilyMissionRecommendationRepository;
 import com.kiri.server.domain.schedule.converter.ScheduleConverter;
 import com.kiri.server.domain.schedule.dto.ScheduleReqDTO;
 import com.kiri.server.domain.schedule.dto.ScheduleResDTO;
 import com.kiri.server.domain.schedule.entity.Schedule;
+import com.kiri.server.domain.schedule.entity.ScheduleCondition;
 import com.kiri.server.domain.schedule.entity.ScheduleParticipant;
+import com.kiri.server.domain.schedule.enums.ConditionType;
 import com.kiri.server.domain.schedule.enums.ParticipantStatus;
 import com.kiri.server.domain.schedule.enums.ScheduleStatus;
 import com.kiri.server.domain.schedule.exception.ScheduleException;
 import com.kiri.server.domain.schedule.exception.code.ScheduleErrorCode;
+import com.kiri.server.domain.schedule.repository.ScheduleConditionRepository;
 import com.kiri.server.domain.schedule.repository.ScheduleParticipantRepository;
 import com.kiri.server.domain.schedule.repository.ScheduleRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.Clock;
-import java.time.Duration;
-import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.time.LocalTime;
+import java.time.*;
 import java.util.ArrayList;
+import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -47,6 +51,8 @@ public class ScheduleCommandService {
     private final BucketItemRepository bucketItemRepository;
     private final ScheduleRepository scheduleRepository;
     private final ScheduleParticipantRepository scheduleParticipantRepository;
+    private final ScheduleConditionRepository scheduleConditionRepository;
+    private final FamilyMissionRecommendationRepository familyMissionRecommendationRepository;
     private final Clock clock;
 
     @Transactional
@@ -63,8 +69,45 @@ public class ScheduleCommandService {
         if (bucketItem.getFamily() == null || !bucketItem.getFamily().getId().equals(family.getId())) {
             throw new ScheduleException(ScheduleErrorCode.BUCKET_FORBIDDEN);
         }
+
+        return createScheduleForBucket(proposer, family, bucketItem, request);
+    }
+
+    @Transactional
+    public ScheduleResDTO.Created createFromWeeklyMission(Long memberId, Long missionId, ScheduleReqDTO.Create request) {
+        Member proposer = memberRepository.findById(memberId)
+                .orElseThrow(() -> new MemberException(MemberErrorCode.NOT_FOUND));
+        Family family = proposer.getFamily();
+        if (family == null) {
+            throw new ScheduleException(ScheduleErrorCode.FAMILY_REQUIRED);
+        }
+
+        LocalDateTime now = LocalDateTime.now(ZoneId.of("Asia/Seoul"));
+
+        FamilyMissionRecommendation recommendation = familyMissionRecommendationRepository
+                .findFirstByFamilyIdAndStartedAtLessThanEqualAndEndedAtGreaterThanOrderByStartedAtDesc(family.getId(), now, now)
+                .orElseThrow(() -> new ScheduleException(ScheduleErrorCode.NOT_ASSIGNED_WEEKLY_MISSION));
+        Mission mission = recommendation.getMission();
+        if (mission == null || !mission.getId().equals(missionId)) {
+            throw new ScheduleException(ScheduleErrorCode.NOT_ASSIGNED_WEEKLY_MISSION);
+        }
+        if (!isMissionSchedulable(mission, LocalDate.now(clock))) {
+            throw new ScheduleException(ScheduleErrorCode.WEEKLY_MISSION_NOT_AVAILABLE);
+        }
+        if (scheduleRepository.existsByFamily_IdAndBucketItem_Mission_IdAndStatusIn(
+                family.getId(), missionId, ScheduleStatus.ACTIVE_STATUSES)) {
+            throw new ScheduleException(ScheduleErrorCode.WEEKLY_SCHEDULE_ALREADY_EXISTS);
+        }
+
+        BucketItem bucketItem = resolveWeeklyBucket(proposer, family, mission);
+
+        return createScheduleForBucket(proposer, family, bucketItem, request);
+    }
+
+    private ScheduleResDTO.Created createScheduleForBucket(Member proposer, Family family, BucketItem bucketItem,
+                                                          ScheduleReqDTO.Create request) {
         if (bucketItem.getStatus() != BucketStatus.SAVED
-                || scheduleRepository.existsByBucketItem_IdAndStatusIn(bucketItemId, ScheduleStatus.ACTIVE_STATUSES)) {
+                || scheduleRepository.existsByBucketItem_IdAndStatusIn(bucketItem.getId(), ScheduleStatus.ACTIVE_STATUSES)) {
             throw new ScheduleException(ScheduleErrorCode.BUCKET_NOT_SCHEDULABLE);
         }
 
@@ -90,6 +133,19 @@ public class ScheduleCommandService {
         return ScheduleConverter.toCreated(schedule, participantMemberIds);
     }
 
+    private BucketItem resolveWeeklyBucket(Member proposer, Family family, Mission mission) {
+        return bucketItemRepository
+                .findFirstByMember_IdAndMission_IdAndStatus(proposer.getId(), mission.getId(), BucketStatus.SAVED)
+                .flatMap(found -> bucketItemRepository.findByIdForUpdate(found.getId()))
+                .orElseGet(() -> bucketItemRepository.save(
+                        BucketConverter.toBucketItem(family, proposer, mission, LocalDateTime.now(clock))));
+    }
+
+    private boolean isMissionSchedulable(Mission mission, LocalDate today) {
+        return mission.getStatus() == MissionStatus.ACTIVE
+                && (mission.getEndDate() == null || !mission.getEndDate().isBefore(today));
+    }
+
     @Transactional
     public ScheduleResDTO.Cancelled cancel(Long memberId, Long scheduleId) {
         if (!memberRepository.existsById(memberId)) {
@@ -112,6 +168,48 @@ public class ScheduleCommandService {
         }
 
         return ScheduleConverter.toCancelled(schedule);
+    }
+
+    @Transactional
+    public void updateConditions(Long memberId, Long scheduleId, ScheduleReqDTO.UpdateConditions request) {
+        Member member = memberRepository.findById(memberId)
+                .orElseThrow(() -> new MemberException(MemberErrorCode.NOT_FOUND));
+        Family family = member.getFamily();
+        if (family == null) {
+            throw new ScheduleException(ScheduleErrorCode.FAMILY_REQUIRED);
+        }
+
+        Schedule schedule = scheduleRepository.findByIdForUpdate(scheduleId)
+                .filter(found -> found.getFamily().getId().equals(family.getId()))
+                .orElseThrow(() -> new ScheduleException(ScheduleErrorCode.SCHEDULE_NOT_FOUND));
+        if (!scheduleParticipantRepository.existsBySchedule_IdAndMember_IdAndStatusAndReconfirmRequiredFalse(
+                scheduleId, memberId, ParticipantStatus.ACCEPTED)) {
+            throw new ScheduleException(ScheduleErrorCode.NOT_FINAL_PARTICIPANT);
+        }
+
+        if (schedule.getStatus() != ScheduleStatus.CONFIRMED
+                || !schedule.getScheduleDate().isEqual(LocalDate.now(clock))) {
+            throw new ScheduleException(ScheduleErrorCode.CONDITION_NOT_EDITABLE);
+        }
+
+        Set<ConditionType> requested = request.conditions().isEmpty()
+                ? EnumSet.noneOf(ConditionType.class)
+                : EnumSet.copyOf(request.conditions());
+        List<ScheduleCondition> existing = scheduleConditionRepository.findBySchedule_Id(scheduleId);
+        Set<ConditionType> existingTypes = existing.stream()
+                .map(ScheduleCondition::getConditionType)
+                .collect(Collectors.toSet());
+
+        List<ScheduleCondition> toDelete = existing.stream()
+                .filter(condition -> !requested.contains(condition.getConditionType()))
+                .toList();
+        List<ScheduleCondition> toSave = requested.stream()
+                .filter(type -> !existingTypes.contains(type))
+                .map(type -> ScheduleConverter.toScheduleCondition(schedule, type))
+                .toList();
+
+        scheduleConditionRepository.deleteAll(toDelete);
+        scheduleConditionRepository.saveAll(toSave);
     }
 
     @Transactional

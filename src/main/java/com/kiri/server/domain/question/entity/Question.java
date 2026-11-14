@@ -45,4 +45,18 @@ public class Question extends BaseEntity {
     @Enumerated(EnumType.STRING)
     @Column(name = "taste_type", length = 20)
     private TasteType tasteType;
+
+    public void update(String content, Integer fixedDay, TasteType tasteType) {
+        this.content = content;
+        this.fixedDay = fixedDay;
+        this.tasteType = tasteType;
+    }
+
+    public void activate() {
+        this.isActive = true;
+    }
+
+    public void deactivate() {
+        this.isActive = false;
+    }
 }

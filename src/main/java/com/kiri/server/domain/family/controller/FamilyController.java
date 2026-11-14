@@ -70,4 +70,63 @@ public class FamilyController implements FamilyControllerDocs {
         BaseSuccessCode code = FamilySuccessCode.NAME_UPDATED;
         return ApiResponse.onSuccess(code, familyService.updateFamilyName(memberId, familyId, dto));
     }
+
+    @Override
+    @PutMapping("/{familyId}/address")
+    public ApiResponse<FamilyResDTO.UpdateAddress> updateFamilyAddress(
+            @AuthenticationPrincipal Long memberId,
+            @PathVariable Long familyId,
+            @Valid @RequestBody FamilyReqDTO.UpdateAddress dto
+    ) {
+        BaseSuccessCode code = FamilySuccessCode.ADDRESS_UPDATED;
+        return ApiResponse.onSuccess(code, familyService.updateFamilyAddress(memberId, familyId, dto));
+    }
+
+    @Override
+    @GetMapping("/me/id")
+    public ApiResponse<FamilyResDTO.Id> getFamilyId(
+            @AuthenticationPrincipal Long memberId
+    ) {
+        BaseSuccessCode code = FamilySuccessCode.FAMILY_ID_SUCCESS;
+        return ApiResponse.onSuccess(code, familyService.getFamilyId(memberId));
+    }
+
+    @Override
+    @PostMapping("/join/code")
+    public ApiResponse<FamilyResDTO.Join> joinFamily(
+            @AuthenticationPrincipal Long memberId,
+            @Valid @RequestBody FamilyReqDTO.Join dto
+    ) {
+        BaseSuccessCode code = FamilySuccessCode.FAMILY_JOINED;
+        return ApiResponse.onSuccess(code, familyService.joinFamily(memberId, dto));
+    }
+
+    @Override
+    @GetMapping("/invite/{inviteToken}")
+    public ApiResponse<FamilyResDTO.InviteTokenInfo> getInviteTokenInfo(
+            @PathVariable String inviteToken
+    ) {
+        BaseSuccessCode code = FamilySuccessCode.FAMILY_INVITE_TOKEN_INFO_SUCCESS;
+        return ApiResponse.onSuccess(code, familyService.getInviteTokenInfo(inviteToken));
+    }
+
+    @Override
+    @PostMapping("/join/{inviteToken}")
+    public ApiResponse<FamilyResDTO.Join> joinFamilyByToken(
+            @AuthenticationPrincipal Long memberId,
+            @PathVariable String inviteToken
+    ) {
+        BaseSuccessCode code = FamilySuccessCode.FAMILY_JOINED;
+        return ApiResponse.onSuccess(code, familyService.joinFamilyByToken(memberId, inviteToken));
+    }
+
+    @Override
+    @GetMapping("/{familyId}")
+    public ApiResponse<FamilyResDTO.FamilyInfo> getFamilyInfo(
+            @AuthenticationPrincipal Long memberId,
+            @PathVariable Long familyId
+    ) {
+        BaseSuccessCode code = FamilySuccessCode.FAMILY_INFO_SUCCESS;
+        return ApiResponse.onSuccess(code, familyService.getFamilyInfo(memberId, familyId));
+    }
 }

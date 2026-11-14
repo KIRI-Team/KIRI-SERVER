@@ -75,7 +75,18 @@ public class MissionConverter {
     }
 
     public static MissionResDTO.FeedItem toFeedItem(Mission mission, Double distance) {
+        return toFeedItem(mission, distance, null);
+    }
+
+    public static MissionResDTO.FeedItem toFeedItem(Mission mission, Double distance,
+                                                    com.kiri.server.domain.pick.entity.KiriPick pick) {
         return MissionResDTO.FeedItem.builder()
+                .kiriPick(pick == null ? null : MissionResDTO.KiriPickInfo.builder()
+                        .kiriPickId(pick.getId())
+                        .headline(pick.getHeadline())
+                        .description(pick.getDescription())
+                        .imageUrl(pick.displayImageUrl())
+                        .build())
                 .missionId(mission.getId())
                 .title(mission.getTitle())
                 .imageUrl(mission.getImageUrl())
@@ -91,7 +102,7 @@ public class MissionConverter {
     }
 
     public static MissionResDTO.Detail toDetail(Mission mission, List<MissionChecklistItem> items, String sourceUrl,
-                                                BucketSaveState bucketState) {
+                                                BucketSaveState bucketState, Double averageRating, int reviewCount) {
         Place place = mission.getPlace();
         boolean usePlaceHours = mission.getOpeningTime() == null && mission.getClosingTime() == null;
         LocalTime openingTime = usePlaceHours ? place.getOpeningTime() : mission.getOpeningTime();
@@ -117,12 +128,11 @@ public class MissionConverter {
                 .walkingLevel(mission.getWalkingLevel())
                 .sourceUrl(sourceUrl)
                 .place(toPlaceInfo(place))
-                .prepareItems(toChecklist(items, ItemType.PREPARE))
                 .steps(toChecklist(items, ItemType.STEP))
                 .bucketSaved(bucketState == BucketSaveState.SAVED)
                 .bucketState(bucketState)
-                .averageRating(null)
-                .reviewCount(0)
+                .averageRating(averageRating)
+                .reviewCount(reviewCount)
                 .build();
     }
 
@@ -136,6 +146,40 @@ public class MissionConverter {
                 .recommendationReason(mission.getRecommendationReason())
                 .score(score)
                 .build();
+    }
+
+    public static MissionResDTO.NearbyItem toNearbyItem(Mission mission, double distance, String description) {
+        Place place = mission.getPlace();
+        return MissionResDTO.NearbyItem.builder()
+                .missionId(mission.getId())
+                .placeName(place.getName())
+                .region(toRegion(place.getAddress()))
+                .description(description)
+                .imageUrl(place.getImageUrl() != null ? place.getImageUrl() : mission.getImageUrl())
+                .price(mission.getPrice())
+                .distance(Math.round(distance * 10) / 10.0)
+                .build();
+    }
+
+    public static List<MissionResDTO.ChecklistItem> toEssentials(List<MissionChecklistItem> items, int limit) {
+        return items.stream()
+                .limit(limit)
+                .map(MissionConverter::toChecklistItem)
+                .toList();
+    }
+
+    private static String toRegion(String address) {
+        if (address == null || address.isBlank()) {
+            return null;
+        }
+        String[] tokens = address.trim().split("\\s+");
+        String province = tokens[0]
+                .replaceFirst("(특별자치시|특별시|광역시)$", "시")
+                .replaceFirst("특별자치도$", "도");
+        if (tokens.length < 2 || !tokens[1].matches(".+[시군구]$")) {
+            return province;
+        }
+        return province + " " + tokens[1];
     }
 
     private static MissionResDTO.PlaceInfo toPlaceInfo(Place place) {
@@ -152,11 +196,15 @@ public class MissionConverter {
         return items.stream()
                 .filter(item -> item.getItemType() == itemType)
                 .sorted(Comparator.comparing(MissionChecklistItem::getDisplayOrder))
-                .map(item -> MissionResDTO.ChecklistItem.builder()
-                        .title(item.getTitle())
-                        .description(item.getDescription())
-                        .build())
+                .map(MissionConverter::toChecklistItem)
                 .toList();
+    }
+
+    private static MissionResDTO.ChecklistItem toChecklistItem(MissionChecklistItem item) {
+        return MissionResDTO.ChecklistItem.builder()
+                .title(item.getTitle())
+                .description(item.getDescription())
+                .build();
     }
 
     private static String imageSource(Mission mission) {

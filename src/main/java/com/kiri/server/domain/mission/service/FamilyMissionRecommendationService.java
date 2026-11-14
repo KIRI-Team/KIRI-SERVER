@@ -21,15 +21,19 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.DayOfWeek;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.temporal.TemporalAdjusters;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Map;
-import java.util.function.Function;
-import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
 public class FamilyMissionRecommendationService {
+
+    private static final ZoneId SEOUL_ZONE = ZoneId.of("Asia/Seoul");
 
     private final FamilyMissionRecommendationRepository familyMissionRecommendationRepository;
     private final FamilyRepository familyRepository;
@@ -40,33 +44,24 @@ public class FamilyMissionRecommendationService {
     public void saveRecommendations(Long familyId, List<MissionResDTO.Recommendation> recommendations) {
         Family family = familyRepository.findById(familyId).orElseThrow(() -> new FamilyException(FamilyErrorCode.NOT_FOUND));
 
-        familyMissionRecommendationRepository.deleteAllByFamilyId(familyId);
-
         if (recommendations == null || recommendations.isEmpty()) {
             return;
         }
 
-        List<MissionResDTO.Recommendation> sortedRecommendations = recommendations.stream().sorted(Comparator.comparing(MissionResDTO.Recommendation::score).reversed().thenComparing(MissionResDTO.Recommendation::missionId)).toList();
+        LocalDateTime startedAt = LocalDate.now(SEOUL_ZONE).with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY)).atStartOfDay();
+        LocalDateTime endedAt = startedAt.plusWeeks(1);
 
-        List<Long> missionIds = sortedRecommendations.stream().map(MissionResDTO.Recommendation::missionId).toList();
-
-        Map<Long, Mission> missionMap = missionRepository.findAllById(missionIds).stream().collect(Collectors.toMap(Mission::getId, Function.identity()));
-
-        List<FamilyMissionRecommendation> entities = new java.util.ArrayList<>();
-
-        for (int i = 0; i < sortedRecommendations.size(); i++) {
-            MissionResDTO.Recommendation recommendation = sortedRecommendations.get(i);
-
-            Mission mission = missionMap.get(recommendation.missionId());
-
-            if (mission == null) {
-                throw new MissionException(MissionErrorCode.NOT_FOUND);
-            }
-
-            entities.add(FamilyMissionRecommendationConverter.toFamilyMissionRecommendation(family, mission, recommendation.score(), i + 1));
+        if (familyMissionRecommendationRepository.existsByFamilyIdAndStartedAt(familyId, startedAt)) {
+            return;
         }
 
-        familyMissionRecommendationRepository.saveAll(entities);
+        MissionResDTO.Recommendation recommendation = recommendations.stream().min(Comparator.comparing(MissionResDTO.Recommendation::score, Comparator.reverseOrder()).thenComparing(MissionResDTO.Recommendation::missionId)).orElseThrow();
+
+        Mission mission = missionRepository.findById(recommendation.missionId()).orElseThrow(() -> new MissionException(MissionErrorCode.NOT_FOUND));
+
+        FamilyMissionRecommendation entity = FamilyMissionRecommendationConverter.toFamilyMissionRecommendation(family, mission, recommendation.score(), 1, startedAt, endedAt);
+
+        familyMissionRecommendationRepository.save(entity);
     }
 
     @Transactional(readOnly = true)
@@ -83,7 +78,9 @@ public class FamilyMissionRecommendationService {
     }
 
     private MissionResDTO.Recommendation getRecommendationsByFamilyId(Long familyId) {
-        return familyMissionRecommendationRepository.findFirstByFamilyIdOrderByRecommendationRankAsc(familyId).map(recommendation -> MissionConverter.toRecommendation(recommendation.getMission(), recommendation.getRecommendationScore())).orElse(null);
+        LocalDateTime now = LocalDateTime.now(SEOUL_ZONE);
+
+        return familyMissionRecommendationRepository.findFirstByFamilyIdAndStartedAtLessThanEqualAndEndedAtGreaterThanOrderByStartedAtDesc(familyId, now, now).map(recommendation -> MissionConverter.toRecommendation(recommendation.getMission(), recommendation.getRecommendationScore())).orElse(null);
     }
 
 }

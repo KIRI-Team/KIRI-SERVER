@@ -41,4 +41,10 @@ public class Review extends BaseEntity {
     @Column(name = "is_rejoin_intended")
     @Builder.Default
     private Boolean isRejoinIntended = false;
+
+    public void update(String content, Integer starRating, Boolean isRejoinIntended) {
+        this.content = content;
+        this.starRating = starRating;
+        this.isRejoinIntended = isRejoinIntended;
+    }
 }

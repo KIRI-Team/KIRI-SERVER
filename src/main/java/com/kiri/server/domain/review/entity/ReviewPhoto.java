@@ -26,4 +26,8 @@ public class ReviewPhoto extends BaseEntity {
 
     @Column(name = "display_order")
     private Integer displayOrder;
+
+    public void changeDisplayOrder(Integer displayOrder) {
+        this.displayOrder = displayOrder;
+    }
 }

@@ -1,7 +1,14 @@
 package com.kiri.server.domain.schedule.repository;
 
+import com.kiri.server.domain.bucket.entity.BucketItem;
+import com.kiri.server.domain.bucket.enums.BucketStatus;
 import com.kiri.server.domain.family.entity.Family;
 import com.kiri.server.domain.member.entity.Member;
+import com.kiri.server.domain.mission.entity.Mission;
+import com.kiri.server.domain.mission.enums.Category;
+import com.kiri.server.domain.mission.enums.MissionType;
+import com.kiri.server.domain.place.entity.Place;
+import com.kiri.server.domain.place.enums.PlaceType;
 import com.kiri.server.domain.schedule.entity.Schedule;
 import com.kiri.server.domain.schedule.entity.ScheduleParticipant;
 import com.kiri.server.domain.schedule.enums.ParticipantStatus;
@@ -16,11 +23,14 @@ import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabas
 import org.springframework.boot.jpa.test.autoconfigure.TestEntityManager;
 import org.springframework.context.annotation.Import;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.tuple;
 
 @DataJpaTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
@@ -84,6 +94,30 @@ class ScheduleRepositoryTest {
         assertThat(result.get(0).getStatus()).isEqualTo(ParticipantStatus.ACCEPTED);
     }
 
+    @Test
+    @DisplayName("버킷 ID 목록으로 활성 일정(대기·확정)만 조회하고, 취소·완료 일정은 제외한다.")
+    void findActiveByBucketItemIds() {
+        Place place = persistPlace();
+        Mission mission = persistMission(place);
+        BucketItem scheduled = persistBucketItem(family, mission, BucketStatus.SCHEDULED);
+        BucketItem saved = persistBucketItem(family, mission, BucketStatus.SAVED);
+        BucketItem completed = persistBucketItem(family, mission, BucketStatus.COMPLETED);
+        Schedule active = persistScheduleForBucket(scheduled, LocalDate.of(2026, 11, 20), ScheduleStatus.CONFIRMED);
+        persistScheduleForBucket(scheduled, LocalDate.of(2026, 9, 1), ScheduleStatus.CANCELLED);
+        persistScheduleForBucket(completed, LocalDate.of(2026, 10, 1), ScheduleStatus.COMPLETED);
+        em.flush();
+        em.clear();
+
+        List<ScheduleRepository.BucketSchedule> result = scheduleRepository.findActiveByBucketItemIds(
+                List.of(scheduled.getId(), saved.getId(), completed.getId()), ScheduleStatus.ACTIVE_STATUSES);
+
+        assertThat(result)
+                .extracting(ScheduleRepository.BucketSchedule::getBucketItemId,
+                        ScheduleRepository.BucketSchedule::getScheduleId,
+                        ScheduleRepository.BucketSchedule::getScheduledDate)
+                .containsExactly(tuple(scheduled.getId(), active.getId(), LocalDate.of(2026, 11, 20)));
+    }
+
     private Member persistMember(String nickname) {
         return em.persist(Member.builder().nickname(nickname).build());
     }
@@ -107,6 +141,44 @@ class ScheduleRepositoryTest {
                 .member(member)
                 .status(status)
                 .reconfirmRequired(reconfirm)
+                .build());
+    }
+
+    private Place persistPlace() {
+        return em.persist(Place.builder()
+                .name("여의도 한강공원")
+                .placeType(PlaceType.TOURIST_SPOT)
+                .latitude(new BigDecimal("37.5284000"))
+                .longitude(new BigDecimal("126.9326000"))
+                .build());
+    }
+
+    private Mission persistMission(Place place) {
+        return em.persist(Mission.builder()
+                .place(place)
+                .title("미술관 관람하기")
+                .description("설명")
+                .category(Category.EXHIBITION)
+                .missionType(MissionType.PERMANENT)
+                .build());
+    }
+
+    private BucketItem persistBucketItem(Family family, Mission mission, BucketStatus status) {
+        return em.persist(BucketItem.builder()
+                .family(family)
+                .mission(mission)
+                .status(status)
+                .savedAt(LocalDateTime.of(2026, 10, 1, 10, 0))
+                .build());
+    }
+
+    private Schedule persistScheduleForBucket(BucketItem bucketItem, LocalDate date, ScheduleStatus status) {
+        return em.persist(Schedule.builder()
+                .family(bucketItem.getFamily())
+                .bucketItem(bucketItem)
+                .scheduleDate(date)
+                .scheduleTime(LocalTime.of(10, 0))
+                .status(status)
                 .build());
     }
 }

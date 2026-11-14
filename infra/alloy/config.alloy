@@ -60,3 +60,64 @@ prometheus.remote_write "grafana_cloud" {
 		env = sys.env("DEPLOY_ENV"),
 	}
 }
+
+// 4. Grafana Cloud Loki로 전송
+discovery.docker "app" {
+	host = "unix:///var/run/docker.sock"
+
+	filter {
+		name   = "name"
+		values = ["^/kiri-(server|nginx)$"]
+	}
+}
+
+discovery.relabel "app_logs" {
+	targets = []
+
+	rule {
+		source_labels = ["__meta_docker_container_name"]
+		regex         = "/(.*)"
+		target_label  = "app"
+	}
+}
+
+loki.source.docker "app" {
+	host          = "unix:///var/run/docker.sock"
+	targets       = discovery.docker.app.targets
+	relabel_rules = discovery.relabel.app_logs.rules
+	forward_to    = [loki.process.app.receiver]
+}
+
+loki.process "app" {
+	stage.json {
+		expressions = {
+			level   = "level",
+			traceId = "traceId",
+		}
+	}
+
+	stage.labels {
+		values = {level = ""}
+	}
+
+	stage.structured_metadata {
+		values = {traceId = ""}
+	}
+
+	forward_to = [loki.write.grafana_cloud.receiver]
+}
+
+loki.write "grafana_cloud" {
+	endpoint {
+		url = sys.env("GRAFANA_LOKI_URL")
+
+		basic_auth {
+			username = sys.env("GRAFANA_LOKI_USER")
+			password = sys.env("GRAFANA_CLOUD_TOKEN")
+		}
+	}
+
+	external_labels = {
+		env = sys.env("DEPLOY_ENV"),
+	}
+}

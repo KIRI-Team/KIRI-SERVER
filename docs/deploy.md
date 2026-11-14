@@ -6,7 +6,7 @@
 |---|---|
 | develop/main으로 PR을 열거나 커밋을 추가할 때 | 테스트 (`CI`) |
 | develop에 머지될 때 | 테스트 → dev 서버 자동 배포 (`Deploy dev`) |
-| prod 배포 | 현재 미구성 (prod 인프라 구성 후 main에서 수동 실행) |
+| prod 배포 | main에서 수동 실행 (`Deploy prod`) |
 
 > `infra/terraform/**`, `*.md`만 바뀐 경우에는 테스트와 배포를 건너뜁니다.
 
@@ -24,6 +24,15 @@ develop 머지
 - 배포 중 30~60초 정도 dev 서버 요청이 실패할 수 있습니다. (무중단 배포 아님)
 - dev 서버 주소: `https://kiri-dev.halo-app.co.kr`
 - Swagger: `https://kiri-dev.halo-app.co.kr/swagger-ui/index.html` (basic auth 계정은 [infra/README.md](../infra/README.md#값-조회-parameter-store)에서 조회)
+
+prod 배포:
+
+1. develop → main PR 머지
+2. GitHub Actions › `Deploy prod` › **Run workflow** (branch: `main`)
+3. 테스트 → 이미지 빌드 후 ECR push (태그: `prod-<commit sha>`) → 이후는 dev와 동일
+
+- prod 서버 주소: `https://kiri.halo-app.co.kr` (외부에는 `/api/**`, `/actuator/health`만 공개)
+- 아래 확인·실패·롤백 방법은 prod도 같습니다. (`Deploy dev` → `Deploy prod`, `/kiri/dev` → `/kiri/prod`)
 
 ## 배포 결과 확인
 
@@ -59,20 +68,20 @@ nginx 단계에서 실패하면 앱은 새 버전으로 떠 있고 nginx는 배�
 
 ## 환경변수 추가
 
-앱에 새 환경변수가 필요하면 Parameter Store `/kiri/dev/` 아래에 추가합니다. 다음 배포부터 컨테이너에 주입됩니다.
+앱에 새 환경변수가 필요하면 `infra/terraform/modules/app_parameters/main.tf`에 이름을 추가하고 환경별로 `terraform apply`한 뒤, 아래 명령으로 값을 입력합니다. 다음 배포부터 컨테이너에 주입됩니다.
 
 PowerShell:
 
 ```powershell
 $value = Read-Host "값 입력"
-aws ssm put-parameter --name /kiri/dev/<변수명> --type SecureString --value $value --profile kiri --region ap-northeast-2
+aws ssm put-parameter --name /kiri/dev/<변수명> --type SecureString --value $value --overwrite --profile kiri --region ap-northeast-2
 ```
 
 - 값을 명령에 직접 쓰지 않고 `Read-Host`로 입력받습니다. 직접 쓰면 명령 히스토리에 시크릿이 남습니다.
 - 이름의 마지막 부분이 그대로 환경변수 이름이 됩니다. (`/kiri/dev/API_KEY` → `API_KEY`)
 - `/kiri/dev/` **바로 아래**에 만들어야 합니다. 하위 경로(예: `/kiri/dev/nginx/...`)는 앱에 주입되지 않습니다.
 - 값은 **한 줄**이어야 합니다.
-- 이미 있는 값을 바꿀 때는 `--overwrite`를 붙이고 재배포합니다.
+- 이미 있는 값을 바꾼 뒤에는 재배포합니다.
 - Git Bash에서는 `/kiri/...`가 Windows 경로로 바뀌어 실패하므로 명령 앞에 `MSYS_NO_PATHCONV=1`을 붙입니다.
 
 ## 참고: 구성
@@ -81,7 +90,7 @@ aws ssm put-parameter --name /kiri/dev/<변수명> --type SecureString --value $
 |---|---|
 | `.github/workflows/ci.yml` | PR 테스트 |
 | `.github/workflows/deploy-dev.yml` | develop 머지 시 dev 배포 |
-| `.github/workflows/deploy-prod.yml` | prod 수동 배포 (미구성) |
+| `.github/workflows/deploy-prod.yml` | prod 수동 배포 |
 | `.github/workflows/_test.yml`, `_deploy.yml` | 공통 테스트, 공통 배포 단계 |
 | `scripts/deploy/ssm-deploy.sh` | Actions에서 EC2로 배포 명령 전송 |
 | `scripts/deploy/deploy.sh` | EC2에서 컨테이너 교체, 헬스체크, 롤백, nginx 설정·인증서 반영 |
@@ -89,5 +98,5 @@ aws ssm put-parameter --name /kiri/dev/<변수명> --type SecureString --value $
 
 - AWS 인증은 GitHub OIDC를 사용합니다. (Access Key 없음)
 - dev 배포는 GitHub Environment `dev`에서 develop 브랜치만 허용합니다.
-- prod는 private 레포 요금제상 승인자(Required reviewers) 기능을 쓸 수 없어, main에서 수동 실행하는 방식으로 운영합니다.
+- prod 배포는 GitHub Environment `prod`에서 main 브랜치만 허용하며, 자동 배포 없이 수동 실행합니다.
 - 인프라와 최초 설정은 [infra/README.md](../infra/README.md)를 참고합니다.

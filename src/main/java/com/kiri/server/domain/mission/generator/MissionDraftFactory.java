@@ -5,6 +5,7 @@ import com.kiri.server.domain.external.converter.SourceTextParser.TimeRange;
 import com.kiri.server.domain.external.dto.NormalizedContent;
 import com.kiri.server.domain.external.enums.ReviewReason;
 import com.kiri.server.domain.mission.enums.Category;
+import com.kiri.server.domain.mission.enums.ItemType;
 import com.kiri.server.domain.mission.enums.MissionType;
 import com.kiri.server.domain.mission.enums.WalkingLevel;
 import com.kiri.server.domain.mission.generator.ActivityEstimator.Estimate;
@@ -19,6 +20,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.Map;
 import java.util.Optional;
 import java.util.regex.Pattern;
+import java.util.stream.Stream;
 
 @Component
 public class MissionDraftFactory {
@@ -75,7 +77,8 @@ public class MissionDraftFactory {
         if (draft.title().length() > MAX_TITLE_LENGTH || draft.place().name().length() > MAX_TITLE_LENGTH) {
             return new DraftResult.ReviewRequired(ReviewReason.TITLE_INVALID);
         }
-        if (draft.checklist().size() < ChecklistPlanner.MIN_STEPS) {
+        long steps = draft.checklist().stream().filter(item -> item.itemType() == ItemType.STEP).count();
+        if (steps < ChecklistPlanner.MIN_STEPS) {
             return new DraftResult.ReviewRequired(ReviewReason.ACTIVITY_SHORTAGE);
         }
         return new DraftResult.Ready(draft);
@@ -129,7 +132,10 @@ public class MissionDraftFactory {
                 .imageUrl(content.imageUrl())
                 .imageSource(imageSource(content))
                 .place(place)
-                .checklist(ChecklistPlanner.plan(category, content))
+                .checklist(Stream.concat(
+                        ChecklistPlanner.plan(category, content).stream(),
+                        EssentialPlanner.plan(content, walkingLevel, classification.indoorOutdoor()).stream())
+                        .toList())
                 .build();
     }
 

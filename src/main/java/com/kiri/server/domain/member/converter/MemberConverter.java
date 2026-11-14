@@ -1,5 +1,6 @@
 package com.kiri.server.domain.member.converter;
 
+import com.kiri.server.domain.family.entity.Family;
 import com.kiri.server.domain.member.dto.MemberResDTO;
 import com.kiri.server.domain.member.entity.Member;
 import com.kiri.server.domain.member.enums.FamilyRole;
@@ -53,6 +54,16 @@ public class MemberConverter {
     public static MemberResDTO.SelectFamilyRole toFamilyRoleResponse(FamilyRole familyRole) {
         return MemberResDTO.SelectFamilyRole.builder()
                 .familyRole(familyRole)
+                .build();
+    }
+
+    public static MemberResDTO.MyInfo toMyInfo(Member member, String characterImageUrl, Family family) {
+        return MemberResDTO.MyInfo.builder()
+                .memberId(member.getId())
+                .nickname(member.getNickname())
+                .familyRole(member.getFamilyRole())
+                .characterImageUrl(characterImageUrl)
+                .familyName(family == null ? null : family.getName())
                 .build();
     }
 }

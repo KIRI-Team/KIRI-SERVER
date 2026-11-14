@@ -1,5 +1,7 @@
 package com.kiri.server.domain.family.service;
 
+import com.kiri.server.domain.character.entity.Character;
+import com.kiri.server.domain.character.repository.CharacterRepository;
 import com.kiri.server.domain.family.converter.FamilyConverter;
 import com.kiri.server.domain.family.dto.FamilyReqDTO;
 import com.kiri.server.domain.family.dto.FamilyResDTO;
@@ -9,11 +11,11 @@ import com.kiri.server.domain.family.exception.FamilyException;
 import com.kiri.server.domain.family.exception.code.FamilyErrorCode;
 import com.kiri.server.domain.family.repository.FamilyRepository;
 import com.kiri.server.domain.member.entity.Member;
+import com.kiri.server.domain.member.enums.FamilyRole;
 import com.kiri.server.domain.member.exception.MemberException;
 import com.kiri.server.domain.member.exception.code.MemberErrorCode;
 import com.kiri.server.domain.member.repository.MemberRepository;
 import com.kiri.server.global.apiPayload.exception.ProjectException;
-import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
@@ -21,8 +23,11 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.security.SecureRandom;
 import java.time.LocalDateTime;
-import java.util.Optional;
+import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -31,6 +36,7 @@ public class FamilyService {
     private final FamilyRepository familyRepository;
     private final MemberRepository memberRepository;
     private final ApplicationEventPublisher eventPublisher;
+    private final CharacterRepository characterRepository;
 
     @Transactional
     public FamilyResDTO.Create createFamily(Long memberId, FamilyReqDTO.Create dto) {
@@ -49,7 +55,6 @@ public class FamilyService {
 
         familyRepository.save(family);
 
-        member.assignFamily(family);
         member.joinFamily(family);
 
         eventPublisher.publishEvent(new FamilyCreatedEvent(family.getId()));
@@ -177,7 +182,107 @@ public class FamilyService {
         return FamilyConverter.toUpdateNameResponse(family);
     }
 
+    @Transactional
+    public FamilyResDTO.UpdateAddress updateFamilyAddress(Long memberId, Long familyId, FamilyReqDTO.UpdateAddress request) {
+        Member member = memberRepository.findById(memberId)
+                .orElseThrow(() -> new MemberException(MemberErrorCode.NOT_FOUND));
+
+        Family family = familyRepository.findById(familyId)
+                .orElseThrow(() -> new FamilyException(FamilyErrorCode.NOT_FOUND));
+
+        if (member.getFamily() == null || !family.getId().equals(member.getFamily().getId())) {
+            throw new FamilyException(FamilyErrorCode.FORBIDDEN);
+        }
+
+        family.updateAddress(request.postalCode(), request.address(), request.detailAddress(), request.regionCode(), request.latitude(), request.longitude());
+
+        return FamilyConverter.toUpdateAddressResponse(family);
+    }
+
     private String normalizeFamilyName(String name) {
         return name.trim().replaceAll("\\s+", " ");
+    }
+
+    @Transactional(readOnly = true)
+    public FamilyResDTO.Id getFamilyId(Long memberId) {
+        Family family = familyRepository.findByMemberId(memberId)
+                .orElseThrow(() -> new FamilyException(FamilyErrorCode.NOT_FOUND));
+
+        return FamilyConverter.toId(family);
+    }
+
+    @Transactional
+    public FamilyResDTO.Join joinFamily(Long memberId, FamilyReqDTO.Join request) {
+
+        Member member = memberRepository.findByIdForUpdate(memberId).orElseThrow(() -> new MemberException(MemberErrorCode.NOT_FOUND));
+
+        if (member.getFamily() != null) {
+            throw new FamilyException(FamilyErrorCode.ALREADY_JOINED);
+        }
+
+        Family family = familyRepository.findByInviteCode(request.inviteCode()).orElseThrow(() -> new FamilyException(FamilyErrorCode.INVALID_INVITE_CODE));
+
+        if (family.getInviteExpiresAt() == null || !LocalDateTime.now().isBefore(family.getInviteExpiresAt())) {
+            throw new FamilyException(FamilyErrorCode.EXPIRED_INVITE_CODE);
+        }
+
+        member.joinFamily(family);
+
+        return FamilyConverter.toJoinResponse(family);
+    }
+
+    @Transactional(readOnly = true)
+    public FamilyResDTO.InviteTokenInfo getInviteTokenInfo(String inviteToken) {
+        Family family = familyRepository.findByInviteToken(inviteToken).orElseThrow(() -> new FamilyException(FamilyErrorCode.INVALID_INVITE_TOKEN));
+
+        if (family.getInviteExpiresAt() == null || !LocalDateTime.now().isBefore(family.getInviteExpiresAt())) {
+            throw new FamilyException(FamilyErrorCode.EXPIRED_INVITE_TOKEN);
+        }
+
+        return FamilyConverter.toInviteTokenInfoResponse(family);
+    }
+
+    @Transactional
+    public FamilyResDTO.Join joinFamilyByToken(Long memberId, String inviteToken) {
+        Member member = memberRepository.findByIdForUpdate(memberId).orElseThrow(() -> new MemberException(MemberErrorCode.NOT_FOUND));
+
+        if (member.getFamily() != null) {
+            throw new FamilyException(FamilyErrorCode.ALREADY_JOINED);
+        }
+
+        Family family = familyRepository.findByInviteToken(inviteToken).orElseThrow(() -> new FamilyException(FamilyErrorCode.INVALID_INVITE_TOKEN));
+
+        if (family.getInviteExpiresAt() == null || !LocalDateTime.now().isBefore(family.getInviteExpiresAt())) {
+            throw new FamilyException(FamilyErrorCode.EXPIRED_INVITE_TOKEN);
+        }
+
+        member.joinFamily(family);
+
+        return FamilyConverter.toJoinResponse(family);
+    }
+
+    @Transactional(readOnly = true)
+    public FamilyResDTO.FamilyInfo getFamilyInfo(Long memberId, Long familyId) {
+        Member member = memberRepository.findById(memberId).orElseThrow(() -> new MemberException(MemberErrorCode.NOT_FOUND));
+
+        Family family = familyRepository.findById(familyId).orElseThrow(() -> new FamilyException(FamilyErrorCode.NOT_FOUND));
+
+        if (member.getFamily() == null || !family.getId().equals(member.getFamily().getId())) {
+            throw new FamilyException(FamilyErrorCode.FORBIDDEN);
+        }
+
+        Map<FamilyRole, Character> characterMap = characterRepository.findAll().stream().collect(Collectors.toMap(Character::getRole, Function.identity()));
+
+        List<FamilyResDTO.FamilyMemberInfo> members =
+                memberRepository.findAllByFamilyAndDeletedAtIsNull(family)
+                        .stream()
+                        .map(familyMember -> {
+                            Character character = characterMap.get(familyMember.getFamilyRole());
+                            String characterImageUrl = character == null ? null : character.getImageUrl();
+                            return FamilyConverter.toFamilyMemberInfo(familyMember, characterImageUrl);
+                        })
+                        .toList();
+
+        return FamilyConverter.toFamilyInfoResponse(family, members);
     }
 }

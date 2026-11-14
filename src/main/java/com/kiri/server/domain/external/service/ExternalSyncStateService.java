@@ -20,7 +20,7 @@ public class ExternalSyncStateService {
 
     private static final DateTimeFormatter CURSOR_FORMAT = DateTimeFormatter.BASIC_ISO_DATE;
     private static final int MAX_INCREMENTAL_DAYS = 30;
-    private static final Duration LOCK_TIMEOUT = Duration.ofHours(3);
+    public static final Duration LOCK_TIMEOUT = Duration.ofHours(3);
 
     private final ExternalSyncStateRepository externalSyncStateRepository;
 
@@ -55,6 +55,18 @@ public class ExternalSyncStateService {
         return externalSyncStateRepository.findByExternalSource(source)
                 .map(ExternalSyncState::hasCompletedSync)
                 .orElse(false);
+    }
+
+    @Transactional(readOnly = true)
+    public boolean isAdminPaused(ExternalSource source) {
+        return externalSyncStateRepository.findByExternalSource(source)
+                .map(ExternalSyncState::isAdminPaused)
+                .orElse(false);
+    }
+
+    @Transactional
+    public ExternalSyncState getOrCreateState(ExternalSource source) {
+        return getOrCreate(source);
     }
 
     @Transactional(readOnly = true)

@@ -69,8 +69,8 @@ class BucketItemRepositoryTest {
         dad = memberRepository.save(Member.builder().nickname("버킷아빠").build());
         daughter = memberRepository.save(Member.builder().nickname("버킷딸").build());
         family = familyRepository.save(Family.builder().owner(dad).name("버킷테스트가족").build());
-        dad.assignFamily(family);
-        daughter.assignFamily(family);
+        dad.joinFamily(family);
+        daughter.joinFamily(family);
 
         Place place = placeRepository.save(Place.builder()
                 .name("여의도 한강공원")
@@ -264,7 +264,7 @@ class BucketItemRepositoryTest {
     private void saveOtherFamilyItem() {
         Member neighbor = memberRepository.save(Member.builder().nickname("버킷옆집아빠").build());
         Family otherFamily = familyRepository.save(Family.builder().owner(neighbor).name("버킷옆집가족").build());
-        neighbor.assignFamily(otherFamily);
+        neighbor.joinFamily(otherFamily);
         bucketItemRepository.saveAndFlush(BucketItem.builder()
                 .family(otherFamily)
                 .member(neighbor)

@@ -13,6 +13,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -34,6 +35,18 @@ public class ScheduleCommandController implements ScheduleCommandControllerDocs 
         return ApiResponse.onSuccess(
                 ScheduleSuccessCode.CREATE_SUCCESS,
                 scheduleCommandService.create(memberId, bucketItemId, request)
+        );
+    }
+
+    @PostMapping("/missions/{missionId}/schedules")
+    public ApiResponse<ScheduleResDTO.Created> createWeeklyMissionSchedule(
+            @AuthenticationPrincipal Long memberId,
+            @PathVariable Long missionId,
+            @Valid @RequestBody ScheduleReqDTO.Create request
+    ) {
+        return ApiResponse.onSuccess(
+                ScheduleSuccessCode.CREATE_SUCCESS,
+                scheduleCommandService.createFromWeeklyMission(memberId, missionId, request)
         );
     }
 
@@ -70,5 +83,15 @@ public class ScheduleCommandController implements ScheduleCommandControllerDocs 
                 ScheduleSuccessCode.UPDATE_SUCCESS,
                 scheduleCommandService.update(memberId, scheduleId, request)
         );
+    }
+
+    @PutMapping("/schedules/{scheduleId}/conditions")
+    public ApiResponse<Void> updateConditions(
+            @AuthenticationPrincipal Long memberId,
+            @PathVariable Long scheduleId,
+            @Valid @RequestBody ScheduleReqDTO.UpdateConditions request
+    ) {
+        scheduleCommandService.updateConditions(memberId, scheduleId, request);
+        return ApiResponse.onSuccess(ScheduleSuccessCode.CONDITION_UPDATE_SUCCESS);
     }
 }

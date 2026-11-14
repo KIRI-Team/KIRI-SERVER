@@ -24,9 +24,22 @@ public interface ScheduleRepository extends JpaRepository<Schedule, Long> {
 
     boolean existsByBucketItem_IdAndStatusIn(Long bucketItemId, Collection<ScheduleStatus> statuses);
 
+    boolean existsByFamily_IdAndBucketItem_Mission_IdAndStatusIn(Long familyId, Long missionId,
+                                                                Collection<ScheduleStatus> statuses);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT s FROM Schedule s WHERE s.id = :id")
     Optional<Schedule> findByIdForUpdate(@Param("id") Long id);
+
+    @Query("""
+            SELECT s FROM Schedule s
+            JOIN FETCH s.bucketItem bi
+            JOIN FETCH bi.mission
+            WHERE s.id = :scheduleId
+              AND s.family.id = :familyId
+            """)
+    Optional<Schedule> findWithMissionByIdAndFamilyId(@Param("scheduleId") Long scheduleId,
+                                                      @Param("familyId") Long familyId);
 
     @Query("SELECT s.id FROM Schedule s WHERE s.status = :status AND s.responseDeadline < :now")
     List<Long> findIdsByStatusAndDeadlineBefore(@Param("status") ScheduleStatus status, @Param("now") LocalDateTime now);
@@ -67,4 +80,23 @@ public interface ScheduleRepository extends JpaRepository<Schedule, Long> {
                                          @Param("acceptedStatus") ParticipantStatus acceptedStatus,
                                          @Param("startDate") LocalDate startDate,
                                          @Param("endDate") LocalDate endDate);
+
+    @Query("""
+            SELECT bi.id AS bucketItemId, s.id AS scheduleId, s.scheduleDate AS scheduledDate
+            FROM Schedule s
+            JOIN s.bucketItem bi
+            WHERE bi.id IN :bucketItemIds
+              AND s.status IN :statuses
+            """)
+    List<BucketSchedule> findActiveByBucketItemIds(@Param("bucketItemIds") Collection<Long> bucketItemIds,
+                                                   @Param("statuses") Collection<ScheduleStatus> statuses);
+
+    interface BucketSchedule {
+
+        Long getBucketItemId();
+
+        Long getScheduleId();
+
+        LocalDate getScheduledDate();
+    }
 }

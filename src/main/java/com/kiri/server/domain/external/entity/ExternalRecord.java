@@ -118,9 +118,17 @@ public class ExternalRecord extends BaseEntity {
     }
 
     public void markReviewRequired(ReviewReason reviewReason) {
+        // 이미 검수 대기였으면 처음 들어온 시각을 유지해 대기시간이 초기화되지 않게 한다.
+        if (processStatus != ProcessStatus.REVIEW_REQUIRED || reviewRequestedAt == null) {
+            this.reviewRequestedAt = LocalDateTime.now();
+        }
         this.processStatus = ProcessStatus.REVIEW_REQUIRED;
         this.reviewReason = reviewReason;
     }
+
+    // 검수 대기 시작 시각
+    @Column(name = "review_requested_at")
+    private LocalDateTime reviewRequestedAt;
 
     public void markIgnored(ReviewReason reason) {
         this.processStatus = ProcessStatus.IGNORED;

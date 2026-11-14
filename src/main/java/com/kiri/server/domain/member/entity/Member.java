@@ -1,5 +1,6 @@
 package com.kiri.server.domain.member.entity;
 
+import com.kiri.server.domain.character.entity.Character;
 import com.kiri.server.domain.family.entity.Family;
 import com.kiri.server.domain.member.enums.FamilyRole;
 import com.kiri.server.domain.member.enums.SocialProvider;
@@ -47,6 +48,10 @@ public class Member extends BaseEntity {
     @JoinColumn(name = "family_id")
     private Family family;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "character_id")
+    private Character character;
+
     @Column(name = "nickname", unique = true, length=20)
     private String nickname;
 
@@ -73,15 +78,21 @@ public class Member extends BaseEntity {
     @Column(name = "family_joined_at")
     private LocalDateTime familyJoinedAt;
 
+    // 테스트 계정은 KPI와 집계에서 제외한다.
+    @Builder.Default
+    @Column(name = "is_test", nullable = false)
+    private Boolean isTest = false;
+
+    public void markTest(boolean isTest) {
+        this.isTest = isTest;
+    }
+
     public void updateRefreshTokenToHash(String refreshTokenHash) {
         this.refreshTokenHash = refreshTokenHash;
     }
 
-    public void assignFamily(Family family) {
-        this.family = family;
-    }
-
     public void joinFamily(Family family) {
+        this.family = family;
         this.familyJoinedAt = LocalDateTime.now();
     }
 

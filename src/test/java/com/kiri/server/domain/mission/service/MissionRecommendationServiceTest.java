@@ -1,6 +1,5 @@
 package com.kiri.server.domain.mission.service;
 
-import com.kiri.server.domain.bucket.repository.BucketItemRepository;
 import com.kiri.server.domain.family.entity.Family;
 import com.kiri.server.domain.family.repository.FamilyRepository;
 import com.kiri.server.domain.member.entity.Member;
@@ -8,12 +7,9 @@ import com.kiri.server.domain.member.repository.MemberRepository;
 import com.kiri.server.domain.mission.dto.MissionResDTO;
 import com.kiri.server.domain.mission.entity.Mission;
 import com.kiri.server.domain.mission.repository.MissionRepository;
-import com.kiri.server.domain.question.repository.MemberAnswerRepository;
-import com.kiri.server.domain.review.repository.ReviewRepository;
-import com.kiri.server.domain.taste.caculator.FamilyTasteScoreCalculator;
 import com.kiri.server.domain.taste.caculator.GeneralScoreCalculator;
 import com.kiri.server.domain.taste.caculator.MissionScoreCalculator;
-import com.kiri.server.domain.taste.repository.MemberTasteRepository;
+import com.kiri.server.domain.taste.service.FamilyTasteScoreService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -26,6 +22,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -44,23 +41,10 @@ class MissionRecommendationServiceTest {
     private MissionRepository missionRepository;
 
     @Mock
-    private MemberTasteRepository memberTasteRepository;
-
-    @Mock
-    private MemberAnswerRepository memberAnswerRepository;
-
-
-    @Mock
-    private BucketItemRepository bucketItemRepository;
-
-    @Mock
-    private ReviewRepository reviewRepository;
-
-    @Mock
     private FamilyRepository familyRepository;
 
     @Mock
-    private FamilyTasteScoreCalculator familyTasteScoreCalculator;
+    private FamilyTasteScoreService familyTasteScoreService;
 
     @Mock
     private GeneralScoreCalculator generalScoreCalculator;
@@ -139,7 +123,7 @@ class MissionRecommendationServiceTest {
 
         assertTrue(result.isEmpty());
 
-        verify(familyTasteScoreCalculator, never()).calculate(anyList());
+        verify(familyTasteScoreService, never()).calculate(anyCollection(), anyList(), any(LocalDate.class));
 
         verify(missionScoreCalculator, never()).calculate(any(BigDecimal.class), any(BigDecimal.class));
     }
@@ -148,14 +132,6 @@ class MissionRecommendationServiceTest {
         when(memberRepository.findAllByFamilyAndDeletedAtIsNull(family)).thenReturn(List.of(member));
 
         when(member.getId()).thenReturn(MEMBER_ID);
-
-        when(memberTasteRepository.findAllWithCategoriesByMemberIdIn(anyList())).thenReturn(List.of());
-
-        when(memberAnswerRepository.findAllByMember_IdIn(anyList())).thenReturn(List.of());
-
-        when(bucketItemRepository.findAllByMember_IdIn(anyList())).thenReturn(List.of());
-
-        when(reviewRepository.findAllCompletedReviewsByMemberIds(anyList())).thenReturn(List.of());
 
         when(missionRepository.findAllRecommendableMissions(any(LocalDate.class))).thenReturn(missions);
 
@@ -166,7 +142,7 @@ class MissionRecommendationServiceTest {
         when(family.getLatitude()).thenReturn(new BigDecimal("37.0"));
         when(family.getLongitude()).thenReturn(new BigDecimal("127.0"));
 
-        when(familyTasteScoreCalculator.calculate(anyList())).thenReturn(BigDecimal.ZERO);
+        when(familyTasteScoreService.calculate(anyCollection(), anyList(), any(LocalDate.class))).thenReturn(Map.of());
 
         when(generalScoreCalculator.calculate(any(BigDecimal.class), any(BigDecimal.class), any(BigDecimal.class), any(BigDecimal.class), any(LocalDateTime.class), any(LocalDateTime.class)
         )).thenAnswer(invocation -> {

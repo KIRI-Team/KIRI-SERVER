@@ -5,6 +5,7 @@ import com.kiri.server.domain.family.entity.Family;
 import com.kiri.server.domain.member.entity.Member;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 public class FamilyConverter {
 
@@ -40,6 +41,55 @@ public class FamilyConverter {
         return FamilyResDTO.UpdateName.builder()
                 .familyId(family.getId())
                 .name(family.getName())
+                .build();
+    }
+
+    public static FamilyResDTO.UpdateAddress toUpdateAddressResponse(Family family) {
+        return FamilyResDTO.UpdateAddress.builder()
+                .familyId(family.getId())
+                .postalCode(family.getPostalCode())
+                .address(family.getAddress())
+                .detailAddress(family.getDetailAddress())
+                .regionCode(family.getRegionCode())
+                .latitude(family.getLatitude())
+                .longitude(family.getLongitude())
+                .build();
+    }
+
+    public static FamilyResDTO.Id toId(Family family) {
+        return new FamilyResDTO.Id(family.getId());
+    }
+
+    public static FamilyResDTO.Join toJoinResponse(Family family) {
+        return FamilyResDTO.Join.builder()
+                .familyId(family.getId())
+                .familyName(family.getName())
+                .build();
+    }
+
+    public static FamilyResDTO.InviteTokenInfo toInviteTokenInfoResponse(Family family) {
+        return FamilyResDTO.InviteTokenInfo.builder()
+                .familyId(family.getId())
+                .familyName(family.getName())
+                .build();
+    }
+
+    public static FamilyResDTO.FamilyInfo toFamilyInfoResponse(Family family, List<FamilyResDTO.FamilyMemberInfo> members) {
+        return FamilyResDTO.FamilyInfo.builder()
+                .familyId(family.getId())
+                .familyName(family.getName())
+                .ownerMemberId(family.getOwner().getId())
+                .memberCount(members.size())
+                .members(members)
+                .build();
+    }
+
+    public static FamilyResDTO.FamilyMemberInfo toFamilyMemberInfo(Member member, String characterImageUrl) {
+        return FamilyResDTO.FamilyMemberInfo.builder()
+                .memberId(member.getId())
+                .nickname(member.getNickname())
+                .familyRole(member.getFamilyRole())
+                .characterImageUrl(characterImageUrl)
                 .build();
     }
 }

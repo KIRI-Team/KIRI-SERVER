@@ -1,0 +1,3 @@
+-- 테스트 계정·가족 표시. KPI와 집계에서 기본 제외한다.
+ALTER TABLE member ADD COLUMN is_test BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE family ADD COLUMN is_test BOOLEAN NOT NULL DEFAULT FALSE;

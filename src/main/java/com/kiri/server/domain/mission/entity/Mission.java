@@ -3,6 +3,8 @@ package com.kiri.server.domain.mission.entity;
 import com.kiri.server.domain.mission.enums.CancelSource;
 import com.kiri.server.domain.mission.enums.Category;
 import com.kiri.server.domain.mission.enums.IndoorOutdoor;
+import com.kiri.server.domain.mission.enums.LockedField;
+import com.kiri.server.domain.mission.enums.MissionOrigin;
 import com.kiri.server.domain.mission.enums.MissionStatus;
 import com.kiri.server.domain.mission.enums.MissionType;
 import com.kiri.server.domain.mission.enums.WalkingLevel;
@@ -25,9 +27,17 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.time.LocalDate;
 import java.time.LocalTime;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.EnumSet;
+import java.util.List;
+import java.util.Objects;
+import java.util.Set;
 
 @Entity
 @Getter
@@ -118,25 +128,197 @@ public class Mission extends BaseEntity {
     @Column(name = "cancel_reason", length = 255)
     private String cancelReason;
 
+    // 운영자가 고친 필드(LockedField 이름). 외부 재수집(updateContent)이 덮어쓰지 않는다.
+    @Builder.Default
+    @JdbcTypeCode(SqlTypes.ARRAY)
+    @Column(name = "locked_fields", columnDefinition = "text[]", nullable = false)
+    private List<String> lockedFields = new ArrayList<>();
+
+    @Builder.Default
+    @Enumerated(EnumType.STRING)
+    @Column(name = "origin", length = 20, nullable = false)
+    private MissionOrigin origin = MissionOrigin.EXTERNAL;
+
+    @Column(name = "reservation_url", length = 500)
+    private String reservationUrl;
+
     public void updateContent(MissionDraft draft, Place place) {
-        this.place = place;
-        if (!Boolean.TRUE.equals(titleEdited)) {
+        if (!isLocked(LockedField.PLACE)) {
+            this.place = place;
+        }
+        if (!isLocked(LockedField.TITLE)) {
             this.title = draft.title();
         }
-        this.description = draft.description();
-        this.category = draft.category();
-        this.missionType = draft.missionType();
-        this.imageUrl = draft.imageUrl();
-        this.imageSource = draft.imageSource();
-        this.durationMinMinutes = draft.durationMinMinutes();
-        this.durationMaxMinutes = draft.durationMaxMinutes();
-        this.price = draft.price();
-        this.walkingLevel = draft.walkingLevel();
-        this.indoorOutdoor = draft.indoorOutdoor();
-        this.startDate = draft.startDate();
-        this.endDate = draft.endDate();
-        this.openingTime = draft.openingTime();
-        this.closingTime = draft.closingTime();
+        if (!isLocked(LockedField.DESCRIPTION)) {
+            this.description = draft.description();
+        }
+        if (!isLocked(LockedField.CATEGORY)) {
+            this.category = draft.category();
+        }
+        if (!isLocked(LockedField.MISSION_TYPE)) {
+            this.missionType = draft.missionType();
+        }
+        if (!isLocked(LockedField.IMAGE)) {
+            this.imageUrl = draft.imageUrl();
+            this.imageSource = draft.imageSource();
+        }
+        if (!isLocked(LockedField.DURATION)) {
+            this.durationMinMinutes = draft.durationMinMinutes();
+            this.durationMaxMinutes = draft.durationMaxMinutes();
+        }
+        if (!isLocked(LockedField.PRICE)) {
+            this.price = draft.price();
+        }
+        if (!isLocked(LockedField.WALKING_LEVEL)) {
+            this.walkingLevel = draft.walkingLevel();
+        }
+        if (!isLocked(LockedField.INDOOR_OUTDOOR)) {
+            this.indoorOutdoor = draft.indoorOutdoor();
+        }
+        if (!isLocked(LockedField.PERIOD)) {
+            this.startDate = draft.startDate();
+            this.endDate = draft.endDate();
+        }
+        if (!isLocked(LockedField.OPENING_TIME)) {
+            this.openingTime = draft.openingTime();
+        }
+        if (!isLocked(LockedField.CLOSING_TIME)) {
+            this.closingTime = draft.closingTime();
+        }
+    }
+
+    // ===== 운영자 편집 =====
+
+    public static Mission createManual(MissionContent content, Place place) {
+        Mission mission = Mission.builder()
+                .place(place)
+                .status(MissionStatus.DRAFT)
+                .origin(MissionOrigin.MANUAL)
+                .title(content.title())
+                .description(content.description())
+                .category(content.category())
+                .missionType(content.missionType())
+                .build();
+        mission.applyContent(content);
+        return mission;
+    }
+
+    public static Mission createApproved(MissionContent content, Place place) {
+        Mission mission = Mission.builder()
+                .place(place)
+                .status(MissionStatus.ACTIVE)
+                .origin(MissionOrigin.EXTERNAL)
+                .title(content.title())
+                .description(content.description())
+                .category(content.category())
+                .missionType(content.missionType())
+                .build();
+        mission.applyContent(content);
+        return mission;
+    }
+
+    // 운영자가 넣은 값을 반영하고, 실제로 바뀐 필드를 돌려준다.
+    public Set<LockedField> applyAdminContent(MissionContent content, Place newPlace) {
+        Set<LockedField> changed = diff(content);
+        if (newPlace != null && !Objects.equals(place == null ? null : place.getId(), newPlace.getId())) {
+            changed.add(LockedField.PLACE);
+            this.place = newPlace;
+        }
+        applyContent(content);
+        return changed;
+    }
+
+    public Set<LockedField> diff(MissionContent c) {
+        Set<LockedField> changed = EnumSet.noneOf(LockedField.class);
+        if (!Objects.equals(title, c.title())) changed.add(LockedField.TITLE);
+        if (!Objects.equals(description, c.description())) changed.add(LockedField.DESCRIPTION);
+        if (category != c.category()) changed.add(LockedField.CATEGORY);
+        if (missionType != c.missionType()) changed.add(LockedField.MISSION_TYPE);
+        if (indoorOutdoor != c.indoorOutdoor()) changed.add(LockedField.INDOOR_OUTDOOR);
+        if (!Objects.equals(startDate, c.startDate()) || !Objects.equals(endDate, c.endDate())) changed.add(LockedField.PERIOD);
+        if (!Objects.equals(openingTime, c.openingTime())) changed.add(LockedField.OPENING_TIME);
+        if (!Objects.equals(closingTime, c.closingTime())) changed.add(LockedField.CLOSING_TIME);
+        if (!Objects.equals(price, c.price())) changed.add(LockedField.PRICE);
+        if (!Objects.equals(durationMinMinutes, c.durationMinMinutes())
+                || !Objects.equals(durationMaxMinutes, c.durationMaxMinutes())) changed.add(LockedField.DURATION);
+        if (walkingLevel != c.walkingLevel()) changed.add(LockedField.WALKING_LEVEL);
+        if (!Objects.equals(imageUrl, c.imageUrl())) changed.add(LockedField.IMAGE);
+        if (!Objects.equals(reservationUrl, c.reservationUrl())) changed.add(LockedField.RESERVATION_URL);
+        return changed;
+    }
+
+    private void applyContent(MissionContent c) {
+        this.title = c.title();
+        this.description = c.description();
+        this.category = c.category();
+        this.missionType = c.missionType();
+        this.indoorOutdoor = c.indoorOutdoor();
+        this.startDate = c.startDate();
+        this.endDate = c.endDate();
+        this.openingTime = c.openingTime();
+        this.closingTime = c.closingTime();
+        this.price = c.price();
+        this.durationMinMinutes = c.durationMinMinutes();
+        this.durationMaxMinutes = c.durationMaxMinutes();
+        this.walkingLevel = c.walkingLevel();
+        this.imageUrl = c.imageUrl();
+        this.imageSource = c.imageUrl() == null ? null : c.imageSource();
+        this.reservationUrl = c.reservationUrl();
+    }
+
+    public boolean isLocked(LockedField field) {
+        if (field == LockedField.TITLE && Boolean.TRUE.equals(titleEdited)) {
+            return true;
+        }
+        if (field == LockedField.CHECKLIST && Boolean.TRUE.equals(checklistEdited)) {
+            return true;
+        }
+        return lockedFields != null && lockedFields.contains(field.name());
+    }
+
+    public void lock(Collection<LockedField> fields) {
+        List<String> next = new ArrayList<>(lockedFields == null ? List.of() : lockedFields);
+        fields.stream().map(Enum::name).filter(name -> !next.contains(name)).forEach(next::add);
+        this.lockedFields = next;
+    }
+
+    public void unlock(LockedField field) {
+        List<String> next = new ArrayList<>(lockedFields == null ? List.of() : lockedFields);
+        next.remove(field.name());
+        this.lockedFields = next;
+        if (field == LockedField.TITLE) {
+            this.titleEdited = false;
+        }
+        if (field == LockedField.CHECKLIST) {
+            this.checklistEdited = false;
+        }
+    }
+
+    // 초안 공개. 기간이 이미 지났으면 바로 종료로 간다.
+    public void publishDraft(LocalDate today) {
+        if (status == MissionStatus.DRAFT) {
+            this.status = MissionStatus.ACTIVE;
+        }
+        endIfPeriodOver(today);
+    }
+
+    // 공개 대기(CHECK_REQUIRED) 미션을 운영자가 공개한다.
+    public void publishFromCheck(LocalDate today) {
+        restoreFromCheck();
+        endIfPeriodOver(today);
+    }
+
+    public void hide() {
+        if (status != MissionStatus.CANCELLED) {
+            this.status = MissionStatus.HIDDEN;
+        }
+    }
+
+    public void restore(LocalDate today) {
+        if (status == MissionStatus.HIDDEN) {
+            this.status = MissionStatus.ACTIVE;
+            endIfPeriodOver(today);
+        }
     }
 
     public void reactivate(LocalDate today) {
@@ -147,7 +329,7 @@ public class Mission extends BaseEntity {
     }
 
     public boolean isChecklistLocked() {
-        return Boolean.TRUE.equals(checklistEdited);
+        return isLocked(LockedField.CHECKLIST);
     }
 
     public void cancelByExternal(String reason) {

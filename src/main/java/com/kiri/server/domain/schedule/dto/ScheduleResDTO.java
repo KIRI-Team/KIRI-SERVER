@@ -1,7 +1,10 @@
 package com.kiri.server.domain.schedule.dto;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import com.fasterxml.jackson.annotation.JsonFormat;
+import com.kiri.server.domain.mission.enums.WalkingLevel;
 import com.kiri.server.domain.schedule.enums.CalendarMyStatus;
+import com.kiri.server.domain.schedule.enums.ConditionType;
 import com.kiri.server.domain.schedule.enums.ParticipantStatus;
 import com.kiri.server.domain.schedule.enums.ScheduleDetailStatus;
 import com.kiri.server.domain.schedule.enums.ScheduleStatus;
@@ -31,7 +34,8 @@ public class ScheduleResDTO {
             @JsonFormat(pattern = "HH:mm")
             LocalTime time,
             ScheduleStatus status,
-            CalendarMyStatus myStatus
+            CalendarMyStatus myStatus,
+            String reviewImageUrl
     ) {
     }
 
@@ -105,7 +109,19 @@ public class ScheduleResDTO {
     }
 
     @Builder
+    public record Conditions(
+            String missionTitle,
+            WalkingLevel walkingLevel,
+            Integer durationMinMinutes,
+            Integer durationMaxMinutes,
+            List<ConditionType> conditions
+    ) {
+    }
+
+    @Builder
+    @Schema(name = "ScheduleDetailResponse", description = "일정 상세 조회 응답")
     public record Detail(
+            Long missionId,
             @JsonFormat(pattern = "yyyy-MM-dd")
             LocalDate date,
             @JsonFormat(pattern = "HH:mm")

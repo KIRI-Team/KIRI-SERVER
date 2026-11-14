@@ -20,6 +20,8 @@ public interface BucketItemRepository extends JpaRepository<BucketItem, Long> {
 
     boolean existsByMemberIdAndMissionIdAndStatusIn(Long memberId, Long missionId, Collection<BucketStatus> statuses);
 
+    Optional<BucketItem> findFirstByMember_IdAndMission_IdAndStatus(Long memberId, Long missionId, BucketStatus status);
+
     @EntityGraph(attributePaths = {"mission", "member"})
     List<BucketItem> findByFamilyIdAndIdLessThanOrderByIdDesc(Long familyId, Long cursor, Pageable pageable);
 

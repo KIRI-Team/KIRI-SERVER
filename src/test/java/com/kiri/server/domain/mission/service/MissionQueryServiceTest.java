@@ -46,6 +46,7 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyDouble;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
@@ -78,12 +79,19 @@ class MissionQueryServiceTest {
     @Mock
     private BucketItemRepository bucketItemRepository;
 
+    @Mock
+    private com.kiri.server.domain.pick.repository.KiriPickRepository kiriPickRepository;
+
+    @Mock
+    private com.kiri.server.domain.review.repository.ReviewRepository reviewRepository;
+
     private MissionQueryService missionQueryService;
 
     @BeforeEach
     void setUp() {
         missionQueryService = new MissionQueryService(missionRepository, missionFeedRepository,
-                missionChecklistItemRepository, externalRecordRepository, memberRepository, bucketItemRepository, CLOCK);
+                missionChecklistItemRepository, externalRecordRepository, memberRepository, bucketItemRepository,
+                kiriPickRepository, reviewRepository, new NearbyMissionFinder(missionRepository), CLOCK);
     }
 
     @Test
@@ -231,7 +239,7 @@ class MissionQueryServiceTest {
     }
 
     @Test
-    @DisplayName("상세는 미션 운영시간이 없으면 장소 운영시간을 쓰고, 준비물과 단계를 나눠 순서대로 담는다.")
+    @DisplayName("상세는 미션 운영시간이 없으면 장소 운영시간을 쓰고, 단계를 순서대로 담는다.")
     void getDetail_success() {
         Mission mission = mission(10L, MissionStatus.ACTIVE);
         given(missionRepository.findWithPlaceById(10L)).willReturn(Optional.of(mission));
@@ -243,12 +251,12 @@ class MissionQueryServiceTest {
         given(record.getSourceUrl()).willReturn("https://korean.visitkorea.or.kr/detail");
         given(externalRecordRepository.findFirstByMissionAndSourceUrlIsNotNullOrderByIdAsc(mission))
                 .willReturn(Optional.of(record));
+        given(reviewRepository.findMissionRating(10L)).willReturn(rating(4.3333, 3L));
 
         MissionResDTO.Detail detail = missionQueryService.getDetail(MEMBER_ID, 10L);
 
         assertThat(detail.openingTime()).isEqualTo(LocalTime.of(10, 0));
         assertThat(detail.closingTime()).isEqualTo(LocalTime.of(18, 0));
-        assertThat(detail.prepareItems()).extracting(MissionResDTO.ChecklistItem::title).containsExactly("사전 예약");
         assertThat(detail.steps()).extracting(MissionResDTO.ChecklistItem::title)
                 .containsExactly("상설 전시 관람하기", "기획 전시 관람하기");
         assertThat(detail.sourceUrl()).isEqualTo("https://korean.visitkorea.or.kr/detail");
@@ -257,7 +265,31 @@ class MissionQueryServiceTest {
         assertThat(detail)
                 .extracting(MissionResDTO.Detail::bucketSaved, MissionResDTO.Detail::bucketState,
                         MissionResDTO.Detail::averageRating, MissionResDTO.Detail::reviewCount)
-                .containsExactly(false, BucketSaveState.NONE, null, 0);
+                .containsExactly(false, BucketSaveState.NONE, 4.3, 3);
+    }
+
+    @Test
+    @DisplayName("별점을 남긴 전체 사용자 평균을 소수 첫째 자리로 내리고, 별점이 없으면 평균은 null·개수는 0이다.")
+    void getDetail_rating() {
+        Mission rated = mission(10L, MissionStatus.ACTIVE);
+        given(missionRepository.findWithPlaceById(10L)).willReturn(Optional.of(rated));
+        given(missionChecklistItemRepository.findAllByMissionOrderByItemTypeAscDisplayOrderAsc(rated)).willReturn(List.of());
+        given(externalRecordRepository.findFirstByMissionAndSourceUrlIsNotNullOrderByIdAsc(rated)).willReturn(Optional.empty());
+        given(reviewRepository.findMissionRating(10L)).willReturn(rating(3.75, 4L));
+
+        MissionResDTO.Detail ratedDetail = missionQueryService.getDetail(MEMBER_ID, 10L);
+        assertThat(ratedDetail).extracting(MissionResDTO.Detail::averageRating, MissionResDTO.Detail::reviewCount)
+                .containsExactly(3.8, 4);
+
+        given(reviewRepository.findMissionRating(20L)).willReturn(rating(null, 0L));
+        Mission unrated = mission(20L, MissionStatus.ACTIVE);
+        given(missionRepository.findWithPlaceById(20L)).willReturn(Optional.of(unrated));
+        given(missionChecklistItemRepository.findAllByMissionOrderByItemTypeAscDisplayOrderAsc(unrated)).willReturn(List.of());
+        given(externalRecordRepository.findFirstByMissionAndSourceUrlIsNotNullOrderByIdAsc(unrated)).willReturn(Optional.empty());
+
+        MissionResDTO.Detail unratedDetail = missionQueryService.getDetail(MEMBER_ID, 20L);
+        assertThat(unratedDetail).extracting(MissionResDTO.Detail::averageRating, MissionResDTO.Detail::reviewCount)
+                .containsExactly(null, 0);
     }
 
     @Test
@@ -271,6 +303,7 @@ class MissionQueryServiceTest {
         given(missionRepository.findWithPlaceById(10L)).willReturn(Optional.of(mission));
         given(missionChecklistItemRepository.findAllByMissionOrderByItemTypeAscDisplayOrderAsc(mission)).willReturn(List.of());
         given(externalRecordRepository.findFirstByMissionAndSourceUrlIsNotNullOrderByIdAsc(mission)).willReturn(Optional.empty());
+        given(reviewRepository.findMissionRating(10L)).willReturn(rating(null, 0L));
 
         MissionResDTO.Detail detail = missionQueryService.getDetail(MEMBER_ID, 10L);
 
@@ -290,6 +323,7 @@ class MissionQueryServiceTest {
         given(missionRepository.findWithPlaceById(10L)).willReturn(Optional.of(mission));
         given(missionChecklistItemRepository.findAllByMissionOrderByItemTypeAscDisplayOrderAsc(mission)).willReturn(List.of());
         given(externalRecordRepository.findFirstByMissionAndSourceUrlIsNotNullOrderByIdAsc(mission)).willReturn(Optional.empty());
+        given(reviewRepository.findMissionRating(10L)).willReturn(rating(null, 0L));
 
         MissionResDTO.Detail detail = missionQueryService.getDetail(MEMBER_ID, 10L);
 
@@ -304,6 +338,7 @@ class MissionQueryServiceTest {
         given(missionRepository.findWithPlaceById(10L)).willReturn(Optional.of(mission));
         given(missionChecklistItemRepository.findAllByMissionOrderByItemTypeAscDisplayOrderAsc(mission)).willReturn(List.of());
         given(externalRecordRepository.findFirstByMissionAndSourceUrlIsNotNullOrderByIdAsc(mission)).willReturn(Optional.empty());
+        given(reviewRepository.findMissionRating(10L)).willReturn(rating(null, 0L));
 
         assertThat(missionQueryService.getDetail(MEMBER_ID, 10L).status()).isEqualTo(MissionStatus.ENDED);
     }
@@ -317,6 +352,7 @@ class MissionQueryServiceTest {
         given(externalRecordRepository.findFirstByMissionAndSourceUrlIsNotNullOrderByIdAsc(mission)).willReturn(Optional.empty());
         given(bucketItemRepository.existsByMemberIdAndMissionIdAndStatusIn(MEMBER_ID, 10L, BucketStatus.ACTIVE_STATUSES))
                 .willReturn(true);
+        given(reviewRepository.findMissionRating(10L)).willReturn(rating(null, 0L));
 
         MissionResDTO.Detail detail = missionQueryService.getDetail(MEMBER_ID, 10L);
 
@@ -335,6 +371,7 @@ class MissionQueryServiceTest {
                 .willReturn(false);
         given(bucketItemRepository.existsByMemberIdAndMissionIdAndStatusIn(MEMBER_ID, 10L, List.of(BucketStatus.COMPLETED)))
                 .willReturn(true);
+        given(reviewRepository.findMissionRating(10L)).willReturn(rating(null, 0L));
 
         MissionResDTO.Detail detail = missionQueryService.getDetail(MEMBER_ID, 10L);
 
@@ -366,6 +403,106 @@ class MissionQueryServiceTest {
         assertThatThrownBy(() -> missionQueryService.getDetail(MEMBER_ID, 99L))
                 .isInstanceOf(MissionException.class)
                 .extracting("errorCode").isEqualTo(MissionErrorCode.NOT_FOUND);
+    }
+
+    @Test
+    @DisplayName("근처 놀거리는 오늘 운영 중인 후보를 가까운 순으로 담는다.")
+    void getNearby_sortsByDistance() {
+        Mission far = nearbyMission(11L, nearbyPlace(2L, "먼 곳", 3.0), "먼 곳 소개");
+        Mission near = nearbyMission(12L, nearbyPlace(3L, "가까운 곳", 0.5), "가까운 곳 소개");
+        stubNearby(List.of(far, near));
+
+        List<MissionResDTO.NearbyItem> result = missionQueryService.getNearby(1L);
+
+        assertThat(result).extracting(MissionResDTO.NearbyItem::missionId).containsExactly(12L, 11L);
+        assertThat(result).extracting(MissionResDTO.NearbyItem::distance).containsExactly(0.5, 3.0);
+    }
+
+    @Test
+    @DisplayName("같은 장소에 미션이 여러 개면 미션 ID가 가장 작은 미션 하나만 담는다.")
+    void getNearby_dedupsByPlace() {
+        Place sevitseom = nearbyPlace(2L, "세빛섬", 2.0);
+        stubNearby(List.of(nearbyMission(22L, sevitseom, "행사"), nearbyMission(21L, sevitseom, "상설")));
+
+        List<MissionResDTO.NearbyItem> result = missionQueryService.getNearby(1L);
+
+        assertThat(result).extracting(MissionResDTO.NearbyItem::missionId).containsExactly(21L);
+    }
+
+    @Test
+    @DisplayName("미션 장소에서 1km 이내면 거리 문구, 아니면 미션 소개 문구를 담는다.")
+    void getNearby_reason() {
+        Mission near = nearbyMission(11L, nearbyPlace(2L, "가까운 곳", 0.9), "가까운 곳 소개");
+        Mission far = nearbyMission(12L, nearbyPlace(3L, "먼 곳", 2.0), "먼 곳 소개");
+        stubNearby(List.of(near, far));
+
+        List<MissionResDTO.NearbyItem> result = missionQueryService.getNearby(1L);
+
+        assertThat(result).extracting(MissionResDTO.NearbyItem::description)
+                .containsExactly("미션 장소에서 가까운 곳이에요", "먼 곳 소개");
+    }
+
+    @Test
+    @DisplayName("근처 놀거리 기준 미션이 노출할 수 없는 상태면 MISSION404_1을 던진다.")
+    void getNearby_notVisible() {
+        given(missionRepository.findWithPlaceById(1L)).willReturn(Optional.of(mission(1L, MissionStatus.HIDDEN)));
+
+        assertThatThrownBy(() -> missionQueryService.getNearby(1L))
+                .isInstanceOf(MissionException.class)
+                .extracting("errorCode").isEqualTo(MissionErrorCode.NOT_FOUND);
+        verify(missionRepository, never()).findAllWithPlaceByIdIn(any());
+    }
+
+    @Test
+    @DisplayName("맞춤템은 저장된 순서대로 최대 4개까지만 담는다.")
+    void getEssentials_limit() {
+        Mission mission = mission(10L, MissionStatus.ACTIVE);
+        given(missionRepository.findWithPlaceById(10L)).willReturn(Optional.of(mission));
+        given(missionChecklistItemRepository.findAllByMissionAndItemTypeOrderByDisplayOrderAsc(mission, ItemType.PREPARE))
+                .willReturn(List.of(
+                        item(mission, ItemType.PREPARE, "신분증", 1),
+                        item(mission, ItemType.PREPARE, "수건", 2),
+                        item(mission, ItemType.PREPARE, "여벌옷", 3),
+                        item(mission, ItemType.PREPARE, "편한 신발", 4),
+                        item(mission, ItemType.PREPARE, "물", 5)));
+
+        List<MissionResDTO.ChecklistItem> result = missionQueryService.getEssentials(10L);
+
+        assertThat(result).extracting(MissionResDTO.ChecklistItem::title)
+                .containsExactly("신분증", "수건", "여벌옷", "편한 신발");
+    }
+
+    @Test
+    @DisplayName("맞춤템 기준 미션이 노출할 수 없는 상태면 MISSION404_1을 던진다.")
+    void getEssentials_notVisible() {
+        given(missionRepository.findWithPlaceById(1L)).willReturn(Optional.of(mission(1L, MissionStatus.HIDDEN)));
+
+        assertThatThrownBy(() -> missionQueryService.getEssentials(1L))
+                .isInstanceOf(MissionException.class)
+                .extracting("errorCode").isEqualTo(MissionErrorCode.NOT_FOUND);
+        verifyNoInteractions(missionChecklistItemRepository);
+    }
+
+    private void stubNearby(List<Mission> candidates) {
+        given(missionRepository.findWithPlaceById(1L)).willReturn(Optional.of(mission(1L, MissionStatus.ACTIVE)));
+        List<Long> ids = candidates.stream().map(Mission::getId).toList();
+        given(missionRepository.findNearbyIds(anyDouble(), anyDouble(), anyDouble(), anyDouble(), anyDouble(),
+                anyDouble(), anyDouble(), eq(1L), eq(TODAY))).willReturn(ids);
+        given(missionRepository.findAllWithPlaceByIdIn(ids)).willReturn(candidates);
+    }
+
+    // 기준 장소(서울숲)에서 북쪽으로 kmNorth만큼 떨어진 장소
+    private Place nearbyPlace(Long id, String name, double kmNorth) {
+        return Place.builder()
+                .id(id)
+                .name(name)
+                .latitude(new BigDecimal("37.5444000").add(BigDecimal.valueOf(kmNorth * 0.009)))
+                .longitude(new BigDecimal("127.0374000"))
+                .build();
+    }
+
+    private Mission nearbyMission(Long id, Place place, String description) {
+        return Mission.builder().id(id).place(place).description(description).status(MissionStatus.ACTIVE).build();
     }
 
     private Member member(Family family) {
@@ -409,5 +546,19 @@ class MissionQueryServiceTest {
                 .title(title)
                 .displayOrder(order)
                 .build();
+    }
+
+    private com.kiri.server.domain.review.repository.ReviewRepository.MissionRating rating(Double average, long count) {
+        return new com.kiri.server.domain.review.repository.ReviewRepository.MissionRating() {
+            @Override
+            public Double getAverageRating() {
+                return average;
+            }
+
+            @Override
+            public long getReviewCount() {
+                return count;
+            }
+        };
     }
 }

@@ -88,6 +88,23 @@ public class ExternalSyncState extends BaseEntity {
     @Column(name = "last_full_check_at")
     private LocalDateTime lastFullCheckAt;
 
+    // 관리자가 중단한 출처. 호출 예산 소진으로 생기는 SyncStatus.PAUSED와는 별개다.
+    @Builder.Default
+    @Column(name = "admin_paused", nullable = false)
+    private Boolean adminPaused = false;
+
+    public boolean isAdminPaused() {
+        return Boolean.TRUE.equals(adminPaused);
+    }
+
+    public void pauseByAdmin() {
+        this.adminPaused = true;
+    }
+
+    public void resumeByAdmin() {
+        this.adminPaused = false;
+    }
+
     public boolean hasCompletedSync() {
         return lastCursor != null;
     }

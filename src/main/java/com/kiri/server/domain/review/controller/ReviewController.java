@@ -42,4 +42,39 @@ public class ReviewController implements ReviewControllerDocs {
                 ReviewSuccessCode.REVIEW_LIST,
                 reviewQueryService.getScheduleReviews(memberId, scheduleId));
     }
+
+    @Override
+    @PutMapping("/{scheduleId}/reviews/{reviewId}")
+    public ApiResponse<ReviewResDTO.Create> updateReview(
+            @AuthenticationPrincipal Long memberId,
+            @PathVariable Long scheduleId,
+            @PathVariable Long reviewId,
+            @Valid @RequestBody ReviewReqDTO.Create dto
+    ) {
+        BaseSuccessCode code = ReviewSuccessCode.REVIEW_UPDATED;
+        return ApiResponse.onSuccess(code, reviewService.updateReview(memberId, scheduleId, reviewId, dto));
+    }
+
+    @Override
+    @PatchMapping("/{scheduleId}/representative-photo")
+    public ApiResponse<ReviewResDTO.RepresentativePhoto> changeRepresentativePhoto(
+            @AuthenticationPrincipal Long memberId,
+            @PathVariable Long scheduleId,
+            @Valid @RequestBody ReviewReqDTO.RepresentativePhoto dto
+    ) {
+        BaseSuccessCode code = ReviewSuccessCode.REPRESENTATIVE_PHOTO_CHANGED;
+        return ApiResponse.onSuccess(code, reviewService.changeRepresentativePhoto(memberId, scheduleId, dto.reviewPhotoId()));
+    }
+
+    @Override
+    @DeleteMapping("/{scheduleId}/reviews/{reviewId}")
+    public ApiResponse<Void> deleteReview(
+            @AuthenticationPrincipal Long memberId,
+            @PathVariable Long scheduleId,
+            @PathVariable Long reviewId
+    ) {
+        reviewService.deleteReview(memberId, scheduleId, reviewId);
+        BaseSuccessCode code = ReviewSuccessCode.REVIEW_DELETED;
+        return ApiResponse.onSuccess(code);
+    }
 }

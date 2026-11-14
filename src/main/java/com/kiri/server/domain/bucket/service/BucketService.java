@@ -17,6 +17,7 @@ import com.kiri.server.domain.mission.enums.MissionStatus;
 import com.kiri.server.domain.mission.exception.MissionException;
 import com.kiri.server.domain.mission.exception.code.MissionErrorCode;
 import com.kiri.server.domain.mission.repository.MissionRepository;
+import com.kiri.server.domain.pick.repository.KiriPickRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -35,10 +36,17 @@ public class BucketService {
     private final MemberRepository memberRepository;
     private final MissionRepository missionRepository;
     private final BucketItemRepository bucketItemRepository;
+    private final KiriPickRepository kiriPickRepository;
     private final Clock clock;
 
     @Transactional
     public BucketResDTO.Saved saveBucket(Long memberId, Long missionId) {
+        return saveBucket(memberId, missionId, null);
+    }
+
+    // kiriPickId: 끼리 픽 카드에서 저장했을 때의 픽. 해당 미션의 픽이 아니면 출처를 남기지 않고 저장한다.
+    @Transactional
+    public BucketResDTO.Saved saveBucket(Long memberId, Long missionId, Long kiriPickId) {
         Member member = memberRepository.findByIdForUpdate(memberId)
                 .orElseThrow(() -> new MemberException(MemberErrorCode.NOT_FOUND));
         Family family = member.getFamily();
@@ -59,6 +67,11 @@ public class BucketService {
 
         BucketItem item = bucketItemRepository.save(
                 BucketConverter.toBucketItem(family, member, mission, LocalDateTime.now(clock)));
+        if (kiriPickId != null) {
+            kiriPickRepository.findById(kiriPickId)
+                    .filter(pick -> pick.getMission().getId().equals(missionId))
+                    .ifPresent(pick -> item.attributeToKiriPick(pick.getId()));
+        }
 
         return BucketConverter.toSaved(item);
     }

@@ -1,5 +1,17 @@
 package com.kiri.server.domain.review.servide;
 
+import com.kiri.server.domain.bucket.entity.BucketItem;
+import com.kiri.server.domain.bucket.enums.BucketStatus;
+import com.kiri.server.domain.family.entity.Family;
+import com.kiri.server.domain.image.event.ImageDeletedEvent;
+import com.kiri.server.domain.image.exception.ImageException;
+import com.kiri.server.domain.image.exception.code.ImageErrorCode;
+import com.kiri.server.domain.image.service.ImageService;
+import com.kiri.server.domain.member.entity.Member;
+import com.kiri.server.domain.member.repository.MemberRepository;
+import com.kiri.server.domain.mission.entity.FamilyMissionRecommendation;
+import com.kiri.server.domain.mission.entity.Mission;
+import com.kiri.server.domain.mission.repository.FamilyMissionRecommendationRepository;
 import com.kiri.server.domain.review.dto.ReviewReqDTO;
 import com.kiri.server.domain.review.dto.ReviewResDTO;
 import com.kiri.server.domain.review.entity.Review;
@@ -20,9 +32,11 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.LocalDate;
@@ -49,6 +63,18 @@ class ReviewServiceTest {
 
     @Mock
     private ScheduleParticipantRepository scheduleParticipantRepository;
+
+    @Mock
+    private ImageService imageService;
+
+    @Mock
+    private FamilyMissionRecommendationRepository familyMissionRecommendationRepository;
+
+    @Mock
+    private ApplicationEventPublisher eventPublisher;
+
+    @Mock
+    private MemberRepository memberRepository;
 
     @InjectMocks
     private ReviewService reviewService;
@@ -190,6 +216,60 @@ class ReviewServiceTest {
     }
 
     @Test
+    @DisplayName("확정된 이미지 key를 리뷰 사진에 저장한다")
+    void createReviewSavesConfirmedImageKey() {
+        ReviewReqDTO.Create request = createRequest();
+
+        when(scheduleRepository.findByIdForUpdate(scheduleId)).thenReturn(Optional.of(schedule));
+        when(scheduleParticipantRepository.findBySchedule_IdAndMember_IdForUpdate(scheduleId, memberId)).thenReturn(Optional.of(scheduleParticipant));
+        when(reviewRepository.existsBySchedule_IdAndScheduleParticipant_Id(scheduleId, scheduleParticipantId)).thenReturn(false);
+        when(imageService.confirmUpload(memberId, "review/1/image-1.jpg")).thenReturn("user/original/1/image-1.jpg");
+        when(imageService.confirmUpload(memberId, "review/1/image-2.jpg")).thenReturn("user/original/1/image-2.jpg");
+
+        reviewService.createReview(memberId, scheduleId, request);
+
+        ArgumentCaptor<ReviewPhoto> captor = ArgumentCaptor.forClass(ReviewPhoto.class);
+        verify(reviewPhotoRepository, times(2)).save(captor.capture());
+        assertThat(captor.getAllValues())
+                .extracting(ReviewPhoto::getImageKey)
+                .containsExactly("user/original/1/image-1.jpg", "user/original/1/image-2.jpg");
+    }
+
+    @Test
+    @DisplayName("이미지 확정에 실패하면 리뷰를 작성할 수 없다")
+    void createReviewWithImageConfirmFailure() {
+        ReviewReqDTO.Create request = createRequest();
+
+        when(scheduleRepository.findByIdForUpdate(scheduleId)).thenReturn(Optional.of(schedule));
+        when(scheduleParticipantRepository.findBySchedule_IdAndMember_IdForUpdate(scheduleId, memberId)).thenReturn(Optional.of(scheduleParticipant));
+        when(reviewRepository.existsBySchedule_IdAndScheduleParticipant_Id(scheduleId, scheduleParticipantId)).thenReturn(false);
+        when(imageService.confirmUpload(memberId, "review/1/image-1.jpg"))
+                .thenThrow(new ImageException(ImageErrorCode.IMAGE_NOT_UPLOADED));
+
+        assertThatThrownBy(() -> reviewService.createReview(memberId, scheduleId, request))
+                .isInstanceOf(ImageException.class)
+                .extracting("errorCode")
+                .isEqualTo(ImageErrorCode.IMAGE_NOT_UPLOADED);
+
+        verify(reviewPhotoRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("이미지 키가 중복되면 리뷰를 작성할 수 없다")
+    void createReviewWithDuplicateImageKeys() {
+        ReviewReqDTO.Create request = new ReviewReqDTO.Create("내용", 5, true,
+                List.of("pending/user/1/a.jpg", "pending/user/1/a.jpg"));
+
+        assertThatThrownBy(() -> reviewService.createReview(memberId, scheduleId, request))
+                .isInstanceOf(ImageException.class)
+                .extracting("errorCode")
+                .isEqualTo(ImageErrorCode.INVALID_IMAGE_KEY);
+
+        verify(reviewRepository, never()).save(any());
+        verify(imageService, never()).confirmUpload(anyLong(), anyString());
+    }
+
+    @Test
     @DisplayName("이미 OMPLETED인 일정도 다른 참여자가 리뷰를 작성할 수 있다")
     void createReviewOnCompletedSchedule() {
         schedule.complete(LocalDateTime.now());
@@ -214,5 +294,362 @@ class ReviewServiceTest {
 
         verify(reviewRepository).save(any(Review.class));
         verify(reviewPhotoRepository, times(2)).save(any(ReviewPhoto.class));
+    }
+
+    private Schedule scheduleWithBucket(BucketItem bucketItem) {
+        return Schedule.builder()
+                .id(scheduleId)
+                .bucketItem(bucketItem)
+                .scheduleDate(LocalDate.now())
+                .scheduleTime(LocalTime.now())
+                .status(ScheduleStatus.CONFIRMED)
+                .build();
+    }
+
+    private void stubCreateFlow(Schedule target, ScheduleParticipant participant) {
+        when(scheduleRepository.findByIdForUpdate(scheduleId)).thenReturn(Optional.of(target));
+        when(scheduleParticipantRepository.findBySchedule_IdAndMember_IdForUpdate(scheduleId, memberId)).thenReturn(Optional.of(participant));
+        when(reviewRepository.existsBySchedule_IdAndScheduleParticipant_Id(scheduleId, scheduleParticipantId)).thenReturn(false);
+        when(reviewRepository.save(any(Review.class))).thenAnswer(invocation -> {
+            Review review = invocation.getArgument(0);
+            ReflectionTestUtils.setField(review, "id", 1L);
+            return review;
+        });
+    }
+
+    @Test
+    @DisplayName("첫 리뷰로 일정이 완료되면 연결된 버킷도 COMPLETED로 변경된다")
+    void createReviewCompletesLinkedBucket() {
+        Mission mission = Mission.builder().id(500L).build();
+        BucketItem bucketItem = BucketItem.builder()
+                .id(700L).family(Family.builder().id(1L).build()).mission(mission)
+                .status(BucketStatus.SCHEDULED).build();
+        Schedule target = scheduleWithBucket(bucketItem);
+        ScheduleParticipant participant = ScheduleParticipant.builder()
+                .id(scheduleParticipantId).schedule(target).status(ParticipantStatus.ACCEPTED).build();
+        stubCreateFlow(target, participant);
+
+        reviewService.createReview(memberId, scheduleId, createRequest());
+
+        assertThat(bucketItem.getStatus()).isEqualTo(BucketStatus.COMPLETED);
+        assertThat(bucketItem.getCompletedAt()).isNotNull();
+    }
+
+    @Test
+    @DisplayName("주간 미션으로 완료된 버킷이면 이번 주 추천 행의 completed_at을 기록한다")
+    void createReviewCompletesWeeklyRecommendation() {
+        Mission mission = Mission.builder().id(500L).build();
+        BucketItem bucketItem = BucketItem.builder()
+                .id(700L).family(Family.builder().id(1L).build()).mission(mission)
+                .status(BucketStatus.SCHEDULED).build();
+        FamilyMissionRecommendation recommendation = FamilyMissionRecommendation.builder()
+                .id(900L).mission(mission).build();
+        Schedule target = scheduleWithBucket(bucketItem);
+        ScheduleParticipant participant = ScheduleParticipant.builder()
+                .id(scheduleParticipantId).schedule(target).status(ParticipantStatus.ACCEPTED).build();
+        stubCreateFlow(target, participant);
+        when(familyMissionRecommendationRepository
+                .findFirstByFamilyIdAndStartedAtLessThanEqualAndEndedAtGreaterThanOrderByStartedAtDesc(anyLong(), any(), any()))
+                .thenReturn(Optional.of(recommendation));
+
+        reviewService.createReview(memberId, scheduleId, createRequest());
+
+        assertThat(bucketItem.getStatus()).isEqualTo(BucketStatus.COMPLETED);
+        assertThat(recommendation.getCompletedAt()).isNotNull();
+    }
+
+    @Test
+    @DisplayName("이번 주 추천이 이미 완료 상태면 다시 기록하지 않는다")
+    void doesNotRecompleteAlreadyCompletedRecommendation() {
+        LocalDateTime firstCompletedAt = LocalDateTime.now().minusHours(1);
+        Mission mission = Mission.builder().id(500L).build();
+        BucketItem bucketItem = BucketItem.builder()
+                .id(700L).family(Family.builder().id(1L).build()).mission(mission)
+                .status(BucketStatus.SCHEDULED).build();
+        FamilyMissionRecommendation recommendation = FamilyMissionRecommendation.builder()
+                .id(900L).mission(mission).completedAt(firstCompletedAt).build();
+        Schedule target = scheduleWithBucket(bucketItem);
+        ScheduleParticipant participant = ScheduleParticipant.builder()
+                .id(scheduleParticipantId).schedule(target).status(ParticipantStatus.ACCEPTED).build();
+        stubCreateFlow(target, participant);
+        when(familyMissionRecommendationRepository
+                .findFirstByFamilyIdAndStartedAtLessThanEqualAndEndedAtGreaterThanOrderByStartedAtDesc(anyLong(), any(), any()))
+                .thenReturn(Optional.of(recommendation));
+
+        reviewService.createReview(memberId, scheduleId, createRequest());
+
+        assertThat(recommendation.getCompletedAt()).isEqualTo(firstCompletedAt);
+    }
+
+    @Test
+    @DisplayName("완료된 버킷의 미션이 이번 주 추천 미션과 다르면 추천을 완료하지 않는다")
+    void doesNotCompleteRecommendationWhenMissionDiffers() {
+        BucketItem bucketItem = BucketItem.builder()
+                .id(700L).family(Family.builder().id(1L).build())
+                .mission(Mission.builder().id(500L).build())
+                .status(BucketStatus.SCHEDULED).build();
+        FamilyMissionRecommendation recommendation = FamilyMissionRecommendation.builder()
+                .id(900L).mission(Mission.builder().id(999L).build()).build();
+        Schedule target = scheduleWithBucket(bucketItem);
+        ScheduleParticipant participant = ScheduleParticipant.builder()
+                .id(scheduleParticipantId).schedule(target).status(ParticipantStatus.ACCEPTED).build();
+        stubCreateFlow(target, participant);
+        when(familyMissionRecommendationRepository
+                .findFirstByFamilyIdAndStartedAtLessThanEqualAndEndedAtGreaterThanOrderByStartedAtDesc(anyLong(), any(), any()))
+                .thenReturn(Optional.of(recommendation));
+
+        reviewService.createReview(memberId, scheduleId, createRequest());
+
+        assertThat(bucketItem.getStatus()).isEqualTo(BucketStatus.COMPLETED);
+        assertThat(recommendation.getCompletedAt()).isNull();
+    }
+
+    private final Long reviewId = 1L;
+    private final Family family = Family.builder().id(1L).build();
+
+    private Review reviewWrittenBy(Long writerId) {
+        Member writer = Member.builder().id(writerId).family(family).build();
+        Schedule familySchedule = Schedule.builder().id(scheduleId).family(family).build();
+        ScheduleParticipant participant = ScheduleParticipant.builder()
+                .id(scheduleParticipantId).schedule(familySchedule).member(writer).build();
+        return Review.builder()
+                .id(reviewId).schedule(familySchedule).scheduleParticipant(participant)
+                .content("기존 내용").starRating(3).isRejoinIntended(false)
+                .build();
+    }
+
+    private ReviewPhoto photo(Long id, Review review, String key, int order) {
+        return ReviewPhoto.builder().id(id).review(review).imageKey(key).displayOrder(order).build();
+    }
+
+    @Test
+    @DisplayName("리뷰 수정 시 유지한 사진은 순서만 바꾸고, 새 키는 확정하고, 빠진 사진은 삭제한다")
+    void updateReview() {
+        Review review = reviewWrittenBy(memberId);
+        ReviewPhoto keptA = photo(1L, review, "user/original/1/a.jpg", 1);
+        ReviewPhoto removedB = photo(2L, review, "user/original/1/b.jpg", 2);
+        ReviewPhoto keptC = photo(3L, review, "user/original/1/c.jpg", 3);
+        ReviewReqDTO.Create request = new ReviewReqDTO.Create("수정한 내용", 5, true,
+                List.of("user/original/1/c.jpg", "pending/user/1/d.jpg", "user/original/1/a.jpg"));
+
+        when(reviewRepository.findByIdAndScheduleIdWithWriter(reviewId, scheduleId)).thenReturn(Optional.of(review));
+        when(reviewPhotoRepository.findByReview_Id(reviewId)).thenReturn(List.of(keptA, removedB, keptC));
+        when(imageService.confirmUpload(memberId, "pending/user/1/d.jpg")).thenReturn("user/original/1/d.jpg");
+
+        reviewService.updateReview(memberId, scheduleId, reviewId, request);
+
+        assertThat(review.getContent()).isEqualTo("수정한 내용");
+        assertThat(review.getStarRating()).isEqualTo(5);
+        assertThat(review.getIsRejoinIntended()).isTrue();
+
+        assertThat(keptC.getDisplayOrder()).isEqualTo(1);
+        assertThat(keptA.getDisplayOrder()).isEqualTo(3);
+
+        ArgumentCaptor<ReviewPhoto> saved = ArgumentCaptor.forClass(ReviewPhoto.class);
+        verify(reviewPhotoRepository).save(saved.capture());
+        assertThat(saved.getValue().getImageKey()).isEqualTo("user/original/1/d.jpg");
+        assertThat(saved.getValue().getDisplayOrder()).isEqualTo(2);
+
+        verify(reviewPhotoRepository).deleteAll(List.of(removedB));
+        verify(eventPublisher).publishEvent(new ImageDeletedEvent(List.of("user/original/1/b.jpg")));
+    }
+
+    @Test
+    @DisplayName("이미지 키가 중복되면 리뷰를 수정할 수 없다")
+    void updateReviewWithDuplicateImageKeys() {
+        ReviewReqDTO.Create request = new ReviewReqDTO.Create("수정한 내용", 5, true,
+                List.of("pending/user/1/a.jpg", "pending/user/1/a.jpg"));
+
+        assertThatThrownBy(() -> reviewService.updateReview(memberId, scheduleId, reviewId, request))
+                .isInstanceOf(ImageException.class)
+                .extracting("errorCode")
+                .isEqualTo(ImageErrorCode.INVALID_IMAGE_KEY);
+
+        verify(imageService, never()).confirmUpload(anyLong(), anyString());
+        verify(reviewPhotoRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("존재하지 않거나 해당 일정의 리뷰가 아니면 수정할 수 없다")
+    void updateReviewNotFound() {
+        when(reviewRepository.findByIdAndScheduleIdWithWriter(reviewId, scheduleId)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> reviewService.updateReview(memberId, scheduleId, reviewId, createRequest()))
+                .isInstanceOf(ReviewException.class)
+                .extracting("errorCode")
+                .isEqualTo(ReviewErrorCode.REVIEW_NOT_FOUND);
+    }
+
+    @Test
+    @DisplayName("같은 가족이라도 본인이 작성한 리뷰가 아니면 수정할 수 없다")
+    void updateReviewByFamilyNonWriter() {
+        Long familyMemberId = 2L;
+        when(reviewRepository.findByIdAndScheduleIdWithWriter(reviewId, scheduleId)).thenReturn(Optional.of(reviewWrittenBy(memberId)));
+        when(memberRepository.findById(familyMemberId))
+                .thenReturn(Optional.of(Member.builder().id(familyMemberId).family(family).build()));
+
+        assertThatThrownBy(() -> reviewService.updateReview(familyMemberId, scheduleId, reviewId, createRequest()))
+                .isInstanceOf(ReviewException.class)
+                .extracting("errorCode")
+                .isEqualTo(ReviewErrorCode.NOT_REVIEW_WRITER);
+    }
+
+    @Test
+    @DisplayName("다른 가족의 리뷰는 수정할 수 없다")
+    void updateReviewByOtherFamily() {
+        Long outsiderId = 3L;
+        when(reviewRepository.findByIdAndScheduleIdWithWriter(reviewId, scheduleId)).thenReturn(Optional.of(reviewWrittenBy(memberId)));
+        when(memberRepository.findById(outsiderId))
+                .thenReturn(Optional.of(Member.builder().id(outsiderId).family(Family.builder().id(2L).build()).build()));
+
+        assertThatThrownBy(() -> reviewService.updateReview(outsiderId, scheduleId, reviewId, createRequest()))
+                .isInstanceOf(ReviewException.class)
+                .extracting("errorCode")
+                .isEqualTo(ReviewErrorCode.FORBIDDEN_FAMILY);
+    }
+
+    @Test
+    @DisplayName("리뷰를 삭제하면 사진과 리뷰를 지우고 커밋 후 S3 삭제 이벤트를 발행한다")
+    void deleteReview() {
+        Review review = reviewWrittenBy(memberId);
+        List<ReviewPhoto> photos = List.of(
+                photo(1L, review, "user/original/1/a.jpg", 1),
+                photo(2L, review, "user/original/1/b.jpg", 2));
+
+        when(reviewRepository.findByIdAndScheduleIdWithWriter(reviewId, scheduleId)).thenReturn(Optional.of(review));
+        when(reviewPhotoRepository.findByReview_Id(reviewId)).thenReturn(photos);
+
+        reviewService.deleteReview(memberId, scheduleId, reviewId);
+
+        verify(reviewPhotoRepository).deleteAll(photos);
+        verify(reviewRepository).delete(review);
+        verify(eventPublisher).publishEvent(new ImageDeletedEvent(List.of("user/original/1/a.jpg", "user/original/1/b.jpg")));
+    }
+
+    @Test
+    @DisplayName("대표사진이 속한 리뷰를 삭제하면 일정의 대표사진 지정이 해제된다")
+    void deleteReviewClearsRepresentativePhoto() {
+        Review review = reviewWrittenBy(memberId);
+        review.getSchedule().changeRepresentativePhoto(2L);
+        List<ReviewPhoto> photos = List.of(
+                photo(1L, review, "user/original/1/a.jpg", 1),
+                photo(2L, review, "user/original/1/b.jpg", 2));
+
+        when(reviewRepository.findByIdAndScheduleIdWithWriter(reviewId, scheduleId)).thenReturn(Optional.of(review));
+        when(reviewPhotoRepository.findByReview_Id(reviewId)).thenReturn(photos);
+
+        reviewService.deleteReview(memberId, scheduleId, reviewId);
+
+        assertThat(review.getSchedule().getRepresentativeReviewPhotoId()).isNull();
+    }
+
+    @Test
+    @DisplayName("다른 리뷰의 사진이 대표사진이면 리뷰를 삭제해도 대표사진은 유지된다")
+    void deleteReviewKeepsOtherRepresentativePhoto() {
+        Review review = reviewWrittenBy(memberId);
+        review.getSchedule().changeRepresentativePhoto(99L);
+        List<ReviewPhoto> photos = List.of(photo(1L, review, "user/original/1/a.jpg", 1));
+
+        when(reviewRepository.findByIdAndScheduleIdWithWriter(reviewId, scheduleId)).thenReturn(Optional.of(review));
+        when(reviewPhotoRepository.findByReview_Id(reviewId)).thenReturn(photos);
+
+        reviewService.deleteReview(memberId, scheduleId, reviewId);
+
+        assertThat(review.getSchedule().getRepresentativeReviewPhotoId()).isEqualTo(99L);
+    }
+
+    @Test
+    @DisplayName("리뷰 수정으로 대표사진이 빠지면 일정의 대표사진 지정이 해제된다")
+    void updateReviewClearsRepresentativePhotoWhenRemoved() {
+        Review review = reviewWrittenBy(memberId);
+        review.getSchedule().changeRepresentativePhoto(2L);
+        ReviewPhoto keptA = photo(1L, review, "user/original/1/a.jpg", 1);
+        ReviewPhoto removedB = photo(2L, review, "user/original/1/b.jpg", 2);
+        ReviewReqDTO.Create request = new ReviewReqDTO.Create("수정한 내용", 5, true, List.of("user/original/1/a.jpg"));
+
+        when(reviewRepository.findByIdAndScheduleIdWithWriter(reviewId, scheduleId)).thenReturn(Optional.of(review));
+        when(reviewPhotoRepository.findByReview_Id(reviewId)).thenReturn(List.of(keptA, removedB));
+
+        reviewService.updateReview(memberId, scheduleId, reviewId, request);
+
+        assertThat(review.getSchedule().getRepresentativeReviewPhotoId()).isNull();
+    }
+
+    @Test
+    @DisplayName("같은 가족 구성원이면 작성자가 아니어도 해당 일정의 리뷰 사진을 대표사진으로 지정한다")
+    void changeRepresentativePhoto() {
+        Long familyMemberId = 2L;
+        Review review = reviewWrittenBy(memberId);
+        Schedule target = review.getSchedule();
+        ReviewPhoto photo = photo(5L, review, "user/original/1/a.jpg", 1);
+
+        when(memberRepository.findById(familyMemberId))
+                .thenReturn(Optional.of(Member.builder().id(familyMemberId).family(family).build()));
+        when(scheduleRepository.findById(scheduleId)).thenReturn(Optional.of(target));
+        when(reviewPhotoRepository.findByIdAndScheduleId(5L, scheduleId)).thenReturn(Optional.of(photo));
+
+        ReviewResDTO.RepresentativePhoto result = reviewService.changeRepresentativePhoto(familyMemberId, scheduleId, 5L);
+
+        assertThat(target.getRepresentativeReviewPhotoId()).isEqualTo(5L);
+        assertThat(result.scheduleId()).isEqualTo(scheduleId);
+        assertThat(result.representativePhotoId()).isEqualTo(5L);
+    }
+
+    @Test
+    @DisplayName("해당 일정의 리뷰 사진이 아니면 대표사진으로 지정할 수 없다")
+    void changeRepresentativePhotoNotFound() {
+        Schedule target = reviewWrittenBy(memberId).getSchedule();
+
+        when(memberRepository.findById(memberId))
+                .thenReturn(Optional.of(Member.builder().id(memberId).family(family).build()));
+        when(scheduleRepository.findById(scheduleId)).thenReturn(Optional.of(target));
+        when(reviewPhotoRepository.findByIdAndScheduleId(5L, scheduleId)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> reviewService.changeRepresentativePhoto(memberId, scheduleId, 5L))
+                .isInstanceOf(ReviewException.class)
+                .extracting("errorCode")
+                .isEqualTo(ReviewErrorCode.REVIEW_PHOTO_NOT_FOUND);
+        assertThat(target.getRepresentativeReviewPhotoId()).isNull();
+    }
+
+    @Test
+    @DisplayName("다른 가족의 일정은 대표사진을 변경할 수 없다")
+    void changeRepresentativePhotoByOtherFamily() {
+        Long outsiderId = 3L;
+        Schedule target = reviewWrittenBy(memberId).getSchedule();
+
+        when(memberRepository.findById(outsiderId))
+                .thenReturn(Optional.of(Member.builder().id(outsiderId).family(Family.builder().id(2L).build()).build()));
+        when(scheduleRepository.findById(scheduleId)).thenReturn(Optional.of(target));
+
+        assertThatThrownBy(() -> reviewService.changeRepresentativePhoto(outsiderId, scheduleId, 5L))
+                .isInstanceOf(ReviewException.class)
+                .extracting("errorCode")
+                .isEqualTo(ReviewErrorCode.FORBIDDEN_FAMILY);
+        verify(reviewPhotoRepository, never()).findByIdAndScheduleId(anyLong(), anyLong());
+    }
+
+    @Test
+    @DisplayName("가족 공간이 없으면 대표사진을 변경할 수 없다")
+    void changeRepresentativePhotoWithoutFamily() {
+        when(memberRepository.findById(memberId)).thenReturn(Optional.of(Member.builder().id(memberId).build()));
+
+        assertThatThrownBy(() -> reviewService.changeRepresentativePhoto(memberId, scheduleId, 5L))
+                .isInstanceOf(ReviewException.class)
+                .extracting("errorCode")
+                .isEqualTo(ReviewErrorCode.FORBIDDEN_FAMILY);
+    }
+
+    @Test
+    @DisplayName("존재하지 않는 일정이면 대표사진을 변경할 수 없다")
+    void changeRepresentativePhotoScheduleNotFound() {
+        when(memberRepository.findById(memberId))
+                .thenReturn(Optional.of(Member.builder().id(memberId).family(family).build()));
+        when(scheduleRepository.findById(scheduleId)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> reviewService.changeRepresentativePhoto(memberId, scheduleId, 5L))
+                .isInstanceOf(ScheduleException.class)
+                .extracting("errorCode")
+                .isEqualTo(ScheduleErrorCode.SCHEDULE_NOT_FOUND);
     }
 }
