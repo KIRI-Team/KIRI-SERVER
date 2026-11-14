@@ -8,6 +8,7 @@ import com.kiri.server.domain.member.exception.MemberException;
 import com.kiri.server.domain.member.exception.code.MemberErrorCode;
 import com.kiri.server.domain.member.repository.MemberRepository;
 import com.kiri.server.domain.mission.enums.Category;
+import com.kiri.server.domain.notification.service.NotificationService;
 import com.kiri.server.domain.question.dto.PreferenceClassification;
 import com.kiri.server.domain.question.dto.QuestionReqDTO;
 import com.kiri.server.domain.question.dto.QuestionResDTO;
@@ -85,6 +86,9 @@ class QuestionServiceTest {
     @Mock
     private AiService aiService;
 
+    @Mock
+    private NotificationService notificationService;
+
     private QuestionService questionService;
 
     private final Clock clock = Clock.fixed(Instant.parse("2026-10-10T03:00:00Z"), ZoneId.of("Asia/Seoul"));
@@ -104,7 +108,7 @@ class QuestionServiceTest {
     @BeforeEach
     void setUp() {
         questionService = new QuestionService(
-                memberRepository, familyQuestionRepository, memberAnswerRepository, memberAnswerCategoryRepository, clock, pokeRepository, eventPublisher, familyRepository, questionRepository, aiService
+                memberRepository, familyQuestionRepository, memberAnswerRepository, memberAnswerCategoryRepository, clock, pokeRepository, eventPublisher, familyRepository, questionRepository, aiService, notificationService
         );
     }
 
@@ -259,6 +263,7 @@ class QuestionServiceTest {
                 .extracting("errorCode")
                 .isEqualTo(QuestionErrorCode.ANSWER_PERIOD_EXPIRED);
         verify(memberAnswerRepository, never()).findByFamilyQuestionAndMember(any(), any());
+        verify(notificationService, never()).cancelQuestionReminder(any(), any());
     }
 
     @Test
@@ -278,6 +283,8 @@ class QuestionServiceTest {
         assertThat(saved.getContent()).isEqualTo(WRITE_REQUEST.answer());
         assertThat(saved.getFamilyQuestion()).isEqualTo(familyQuestion);
         assertThat(saved.getMember()).isEqualTo(member);
+
+        verify(notificationService).cancelQuestionReminder(member, familyQuestion);
     }
 
     @Test
@@ -297,6 +304,7 @@ class QuestionServiceTest {
 
         assertThat(existing.getContent()).isEqualTo(WRITE_REQUEST.answer());
         verify(memberAnswerRepository, never()).save(any());
+        verify(notificationService).cancelQuestionReminder(member, familyQuestion);
     }
 
     @Test

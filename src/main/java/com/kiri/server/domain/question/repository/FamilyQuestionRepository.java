@@ -42,4 +42,6 @@ public interface FamilyQuestionRepository extends JpaRepository<FamilyQuestion, 
         where fq.id = :id
        """)
     Optional<FamilyQuestion> findByIdForUpdate(@Param("id") Long id);
+
+    List<FamilyQuestion> findAllByQuestionDate(LocalDate questionDate);
 }

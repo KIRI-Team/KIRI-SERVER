@@ -7,12 +7,16 @@ import com.kiri.server.global.entity.BaseEntity;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Entity
 @Table(
-        name = "notification"
+        name = "notification",
+        uniqueConstraints = {
+                @UniqueConstraint(name = "uk_notification_member_type_reference_date", columnNames = {"member_id", "notification_type", "reference_date"})
+        }
 )
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
@@ -46,9 +50,25 @@ public class Notification extends BaseEntity {
     @Column(name = "status", length = 20, nullable = false)
     private NotificationStatus status;
 
+    @Column(name = "is_read", nullable = false)
+    @Builder.Default
+    private Boolean isRead = false;
+
+    @Column(name = "reference_id")
+    private Long referenceId;
+
+    @Column(name = "reference_date")
+    private LocalDate referenceDate;
+
     @Column(name = "processing_at")
     private LocalDateTime processingAt;
 
     @Column(name = "processing_lease_id")
     private UUID processingLeaseId;
+
+    public void cancel() {
+        if (this.status == NotificationStatus.PENDING) {
+            this.status = NotificationStatus.CANCELLED;
+        }
+    }
 }
