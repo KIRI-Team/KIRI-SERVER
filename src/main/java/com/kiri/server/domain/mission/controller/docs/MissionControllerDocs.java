@@ -205,7 +205,7 @@ public interface MissionControllerDocs {
                     - 헤더: Authorization: Bearer {JWT 토큰}
                     - Path: missionId
 
-                    미션과 장소, 필수 활동(준비물·단계), 공식 출처를 조회합니다.
+                    미션과 장소, 추천 활동(steps), 공식 출처를 조회합니다.
                     공개 중(ACTIVE)이거나 기간이 끝난(ENDED) 미션만 조회할 수 있고, 나머지 상태는 404를 반환합니다.
 
                     ## 값 규칙
@@ -256,9 +256,6 @@ public interface MissionControllerDocs {
                                           "latitude": 37.5786,
                                           "longitude": 126.98
                                         },
-                                        "prepareItems": [
-                                          { "title": "사전 예약", "description": "일부 전시 예약 필요" }
-                                        ],
                                         "steps": [
                                           { "title": "상설 전시 관람하기", "description": "마음에 드는 작품 고르기" }
                                         ],

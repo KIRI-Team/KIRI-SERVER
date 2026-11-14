@@ -86,7 +86,6 @@ public class MissionResDTO {
             WalkingLevel walkingLevel,
             String sourceUrl,
             PlaceInfo place,
-            List<ChecklistItem> prepareItems,
             List<ChecklistItem> steps,
             Boolean bucketSaved,
             BucketSaveState bucketState,

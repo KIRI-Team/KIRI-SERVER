@@ -128,7 +128,6 @@ public class MissionConverter {
                 .walkingLevel(mission.getWalkingLevel())
                 .sourceUrl(sourceUrl)
                 .place(toPlaceInfo(place))
-                .prepareItems(toChecklist(items, ItemType.PREPARE))
                 .steps(toChecklist(items, ItemType.STEP))
                 .bucketSaved(bucketState == BucketSaveState.SAVED)
                 .bucketState(bucketState)
