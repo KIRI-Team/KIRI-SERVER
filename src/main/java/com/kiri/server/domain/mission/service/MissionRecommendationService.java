@@ -54,21 +54,26 @@ public class MissionRecommendationService {
 
         List<Member> familyMembers = memberRepository.findAllByFamilyAndDeletedAtIsNull(family);
 
-        return calculateRecommendations(family, familyMembers);
+        return calculateRecommendations(family, familyMembers, null);
     }
 
     @Transactional(readOnly = true)
     public List<MissionResDTO.Recommendation> recommendByFamilyId(Long familyId) {
 
-        Family family = familyRepository.findById(familyId)
-                .orElseThrow(() -> new FamilyException(FamilyErrorCode.NOT_FOUND));
+        return recommendByFamilyId(familyId, null);
+    }
+
+    @Transactional(readOnly = true)
+    public List<MissionResDTO.Recommendation> recommendByFamilyId(Long familyId, Long excludedMissionId) {
+
+        Family family = familyRepository.findById(familyId).orElseThrow(() -> new FamilyException(FamilyErrorCode.NOT_FOUND));
 
         List<Member> familyMembers = memberRepository.findAllByFamilyAndDeletedAtIsNull(family);
 
-        return calculateRecommendations(family, familyMembers);
+        return calculateRecommendations(family, familyMembers, excludedMissionId);
     }
 
-    private List<MissionResDTO.Recommendation> calculateRecommendations(Family family, List<Member> familyMembers) {
+    private List<MissionResDTO.Recommendation> calculateRecommendations(Family family, List<Member> familyMembers, Long excludedMissionId) {
         LocalDate today = LocalDate.now();
         LocalDateTime now = LocalDateTime.now();
 
@@ -78,17 +83,18 @@ public class MissionRecommendationService {
 
         List<Long> memberIds = familyMembers.stream().map(Member::getId).toList();
 
-        // 3. 추천 가능한 미션 조회
         List<Mission> missions = missionRepository.findAllRecommendableMissions(today);
+
+        if (excludedMissionId != null) {
+            missions = missions.stream().filter(mission -> !mission.getId().equals(excludedMissionId)).toList();
+        }
 
         if (missions.isEmpty()) {
             return List.of();
         }
 
-        // 4. 미션별 가족 취향 점수
         Map<Long, BigDecimal> familyTasteScores = familyTasteScoreService.calculate(memberIds, missions, today);
 
-        // 5. 미션별 최종 점수 계산
         List<MissionResDTO.Recommendation> recommendations = new ArrayList<>();
 
         for (Mission mission : missions) {
@@ -102,7 +108,6 @@ public class MissionRecommendationService {
             recommendations.add(MissionConverter.toRecommendation(mission, finalScore));
         }
 
-        // 6. 점수 내림차순 정렬
         recommendations.sort(Comparator.comparing(MissionResDTO.Recommendation::score, Comparator.reverseOrder()).thenComparing(MissionResDTO.Recommendation::missionId));
 
         return recommendations.stream().limit(1).toList();

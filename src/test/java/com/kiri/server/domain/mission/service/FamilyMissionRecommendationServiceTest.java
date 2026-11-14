@@ -9,9 +9,11 @@ import com.kiri.server.domain.member.repository.MemberRepository;
 import com.kiri.server.domain.mission.dto.MissionResDTO;
 import com.kiri.server.domain.mission.entity.FamilyMissionRecommendation;
 import com.kiri.server.domain.mission.entity.Mission;
+import com.kiri.server.domain.mission.enums.MissionStatus;
 import com.kiri.server.domain.mission.exception.MissionException;
 import com.kiri.server.domain.mission.repository.FamilyMissionRecommendationRepository;
 import com.kiri.server.domain.mission.repository.MissionRepository;
+import com.kiri.server.domain.notification.service.NotificationService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -22,10 +24,14 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
+import java.time.DayOfWeek;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.temporal.TemporalAdjusters;
 import java.util.List;
 import java.util.Optional;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.*;
@@ -47,6 +53,12 @@ class FamilyMissionRecommendationServiceTest {
 
     @Mock
     private MemberRepository memberRepository;
+
+    @Mock
+    private MissionRecommendationService missionRecommendationService;
+
+    @Mock
+    private NotificationService notificationService;
 
     private Family family;
     private Member member;
@@ -174,6 +186,139 @@ class FamilyMissionRecommendationServiceTest {
         assertNull(result);
     }
 
+    @Test
+    @DisplayName("기존 미션이 취소되면 대체 미션으로 변경한다.")
+    void replaceWeeklyMissionCancelledMission() {
+        Mission currentMission = createMission(1L);
+        when(currentMission.getStatus()).thenReturn(MissionStatus.CANCELLED);
+
+        Mission replacementMission = createMission(2L);
+
+        FamilyMissionRecommendation recommendation = createWeeklyRecommendation(currentMission);
+
+        LocalDateTime startedAt = recommendation.getStartedAt();
+        LocalDateTime endedAt = recommendation.getEndedAt();
+
+        MissionResDTO.Recommendation replacement = createRecommendation(2L, "0.95");
+
+        when(familyMissionRecommendationRepository.findCurrentRecommendationForUpdate(eq(FAMILY_ID), any(LocalDateTime.class))).thenReturn(Optional.of(recommendation));
+
+        when(missionRecommendationService.recommendByFamilyId(FAMILY_ID, 1L)).thenReturn(List.of(replacement));
+
+        when(missionRepository.findById(2L)).thenReturn(Optional.of(replacementMission));
+
+        familyMissionRecommendationService.replaceWeeklyMission(FAMILY_ID);
+
+        assertEquals(2L, recommendation.getMission().getId());
+        assertEquals(new BigDecimal("0.95"), recommendation.getRecommendationScore());
+
+        assertEquals(startedAt, recommendation.getStartedAt());
+        assertEquals(endedAt, recommendation.getEndedAt());
+
+        verify(missionRecommendationService).recommendByFamilyId(FAMILY_ID, 1L);
+
+        verify(notificationService).createMissionChangedNotifications(family, replacementMission, startedAt.toLocalDate());
+    }
+
+    @Test
+    @DisplayName("기존 미션이 종료되면 대체 미션으로 변경한다.")
+    void replaceWeeklyMissionEndedMission() {
+        Mission currentMission = createMission(1L);
+        when(currentMission.getStatus()).thenReturn(MissionStatus.ENDED);
+
+        Mission replacementMission = createMission(2L);
+
+        FamilyMissionRecommendation recommendation = createWeeklyRecommendation(currentMission);
+
+        MissionResDTO.Recommendation replacement = createRecommendation(2L, "0.9");
+
+        when(familyMissionRecommendationRepository.findCurrentRecommendationForUpdate(eq(FAMILY_ID), any(LocalDateTime.class))).thenReturn(Optional.of(recommendation));
+
+        when(missionRecommendationService.recommendByFamilyId(FAMILY_ID, 1L)).thenReturn(List.of(replacement));
+
+        when(missionRepository.findById(2L)).thenReturn(Optional.of(replacementMission));
+
+        familyMissionRecommendationService.replaceWeeklyMission(FAMILY_ID);
+
+        assertEquals(2L, recommendation.getMission().getId());
+
+        verify(notificationService).createMissionChangedNotifications(eq(family), eq(replacementMission), any());
+    }
+
+    @Test
+    @DisplayName("기존 미션이 진행 중이면 대체 미션으로 변경하지 않는다.")
+    void replaceWeeklyMissionActiveMission() {
+        Mission currentMission = createMission(1L);
+        when(currentMission.getStatus()).thenReturn(MissionStatus.ACTIVE);
+
+        FamilyMissionRecommendation recommendation = createWeeklyRecommendation(currentMission);
+
+        when(familyMissionRecommendationRepository.findCurrentRecommendationForUpdate(eq(FAMILY_ID), any(LocalDateTime.class))).thenReturn(Optional.of(recommendation));
+
+        familyMissionRecommendationService.replaceWeeklyMission(FAMILY_ID);
+
+        assertEquals(1L, recommendation.getMission().getId());
+
+        verify(missionRecommendationService, never()).recommendByFamilyId(anyLong(), anyLong());
+
+        verify(notificationService, never()).createMissionChangedNotifications(any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("이미 완료된 추천 미션은 교체하지 않는다.")
+    void replaceWeeklyMissionCompletedRecommendation() {
+        Mission currentMission = mock(Mission.class);
+
+        FamilyMissionRecommendation recommendation = createWeeklyRecommendation(currentMission);
+        recommendation.markCompleted(LocalDateTime.now());
+
+        when(familyMissionRecommendationRepository.findCurrentRecommendationForUpdate(eq(FAMILY_ID), any(LocalDateTime.class))).thenReturn(Optional.of(recommendation));
+
+        familyMissionRecommendationService.replaceWeeklyMission(FAMILY_ID);
+
+        assertThat(recommendation.getMission()).isEqualTo(currentMission);
+
+        verify(missionRecommendationService, never()).recommendByFamilyId(anyLong(), anyLong());
+
+        verify(notificationService, never()).createMissionChangedNotifications(any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("대체 미션이 없으면 기존 추천 미션을 유지한다.")
+    void replaceWeeklyMissionNoReplacementMission() {
+        Mission currentMission = createMission(1L);
+        when(currentMission.getStatus()).thenReturn(MissionStatus.CANCELLED);
+
+        FamilyMissionRecommendation recommendation = createWeeklyRecommendation(currentMission);
+
+        when(familyMissionRecommendationRepository.findCurrentRecommendationForUpdate(eq(FAMILY_ID), any(LocalDateTime.class))).thenReturn(Optional.of(recommendation));
+
+        when(missionRecommendationService.recommendByFamilyId(FAMILY_ID, 1L)).thenReturn(List.of());
+
+        familyMissionRecommendationService.replaceWeeklyMission(FAMILY_ID);
+
+        assertEquals(1L, recommendation.getMission().getId());
+        assertEquals(new BigDecimal("0.8"), recommendation.getRecommendationScore());
+
+        verify(missionRepository, never()).findById(anyLong());
+
+        verify(notificationService, never()).createMissionChangedNotifications(any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("현재 주간 추천 미션이 없으면 교체하지 않는다.")
+    void replaceWeeklyMissionNoRecommendation() {
+        when(familyMissionRecommendationRepository.findCurrentRecommendationForUpdate(eq(FAMILY_ID), any(LocalDateTime.class))).thenReturn(Optional.empty());
+
+        familyMissionRecommendationService.replaceWeeklyMission(FAMILY_ID);
+
+        verify(missionRecommendationService, never()).recommendByFamilyId(anyLong(), anyLong());
+
+        verify(notificationService, never()).createMissionChangedNotifications(any(), any(), any());
+
+        verify(missionRepository, never()).findById(anyLong());
+    }
+
     private Mission createMission(Long missionId) {
         Mission mission = mock(Mission.class);
         when(mission.getId()).thenReturn(missionId);
@@ -184,6 +329,22 @@ class FamilyMissionRecommendationServiceTest {
         return MissionResDTO.Recommendation.builder()
                 .missionId(missionId)
                 .score(new BigDecimal(score))
+                .build();
+    }
+
+    private FamilyMissionRecommendation createWeeklyRecommendation(Mission mission) {
+        LocalDateTime startedAt = LocalDateTime.now(ZoneId.of("Asia/Seoul"))
+                .with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
+                .toLocalDate()
+                .atStartOfDay();
+
+        return FamilyMissionRecommendation.builder()
+                .family(family)
+                .mission(mission)
+                .recommendationScore(new BigDecimal("0.8"))
+                .recommendationRank(1)
+                .startedAt(startedAt)
+                .endedAt(startedAt.plusWeeks(1))
                 .build();
     }
 }

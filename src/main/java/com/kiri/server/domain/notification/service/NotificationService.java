@@ -1,7 +1,9 @@
 package com.kiri.server.domain.notification.service;
 
+import com.kiri.server.domain.family.entity.Family;
 import com.kiri.server.domain.member.entity.Member;
 import com.kiri.server.domain.member.repository.MemberRepository;
+import com.kiri.server.domain.mission.entity.Mission;
 import com.kiri.server.domain.notification.converter.NotificationConverter;
 import com.kiri.server.domain.notification.entity.Notification;
 import com.kiri.server.domain.notification.enums.NotificationStatus;
@@ -125,5 +127,33 @@ public class NotificationService {
         Notification notification = NotificationConverter.toPoke(receiver, sender, familyQuestion, hasAnswered);
 
         notificationRepository.save(notification);
+    }
+
+    @Transactional
+    public void createWeeklyMissionNotifications(Family family, Mission mission, LocalDate referenceDate) {
+        List<Member> members = memberRepository.findAllByFamilyAndDeletedAtIsNull(family);
+
+        if (members.isEmpty()) {
+            return;
+        }
+
+        List<Notification> notifications = members.stream()
+                .map(member -> NotificationConverter.toWeeklyMission(member, mission, referenceDate))
+                .toList();
+
+        notificationRepository.saveAll(notifications);
+    }
+
+    @Transactional
+    public void createMissionChangedNotifications(Family family, Mission mission, LocalDate referenceDate) {
+        List<Member> members = memberRepository.findAllByFamilyAndDeletedAtIsNull(family);
+
+        if (members.isEmpty()) {
+            return;
+        }
+
+        List<Notification> notifications = members.stream().map(member -> NotificationConverter.toMissionChanged(member, mission, referenceDate)).toList();
+
+        notificationRepository.saveAll(notifications);
     }
 }

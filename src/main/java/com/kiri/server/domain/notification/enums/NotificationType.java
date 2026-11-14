@@ -6,5 +6,6 @@ public enum NotificationType {
     SCHEDULE,
     POKE,
     RECORD,
-    MISSION
+    MISSION,
+    MISSION_CHANGED
 }

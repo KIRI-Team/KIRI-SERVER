@@ -3,6 +3,7 @@ package com.kiri.server.domain.notification.service;
 import com.kiri.server.domain.family.entity.Family;
 import com.kiri.server.domain.member.entity.Member;
 import com.kiri.server.domain.member.repository.MemberRepository;
+import com.kiri.server.domain.mission.entity.Mission;
 import com.kiri.server.domain.notification.entity.Notification;
 import com.kiri.server.domain.notification.enums.NotificationStatus;
 import com.kiri.server.domain.notification.enums.NotificationType;
@@ -19,6 +20,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
+import org.mockito.Captor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -26,10 +28,13 @@ import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.StreamSupport;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
@@ -56,6 +61,9 @@ class NotificationServiceTest {
 
     @Mock
     private NotificationRepository notificationRepository;
+
+    @Captor
+    private ArgumentCaptor<Iterable<Notification>> notificationsCaptor;
 
     private NotificationService notificationService;
 
@@ -399,6 +407,148 @@ class NotificationServiceTest {
         assertThat(saved.getMember()).isEqualTo(member2);
         assertThat(saved.getNotificationType()).isEqualTo(NotificationType.POKE);
         assertThat(saved.getStatus()).isEqualTo(NotificationStatus.PENDING);
+    }
+
+    @Test
+    @DisplayName("주간 미션 배정 시 활성 가족 구성원 모두에게 알림을 생성한다.")
+    void createWeeklyMissionNotificationsSuccess() {
+        Mission mission = Mission.builder()
+                .id(100L)
+                .title("공원 산책")
+                .build();
+
+        LocalDate referenceDate = LocalDate.of(2026, 11, 9);
+
+        given(memberRepository.findAllByFamilyAndDeletedAtIsNull(family)).willReturn(List.of(member, member2, member3));
+
+        notificationService.createWeeklyMissionNotifications(family, mission, referenceDate);
+
+        then(memberRepository).should().findAllByFamilyAndDeletedAtIsNull(family);
+
+        then(notificationRepository).should().saveAll(notificationsCaptor.capture());
+
+        List<Notification> notifications = StreamSupport.stream(notificationsCaptor.getValue().spliterator(), false).toList();
+
+        assertThat(notifications).hasSize(3);
+
+        assertThat(notifications)
+                .extracting(Notification::getMember)
+                .containsExactlyInAnyOrder(member, member2, member3);
+
+        assertThat(notifications)
+                .extracting(Notification::getNotificationType)
+                .containsOnly(NotificationType.MISSION);
+
+        assertThat(notifications)
+                .extracting(Notification::getTitle)
+                .containsOnly("이번 주 새로운 가족 미션이 도착했어요!");
+
+        assertThat(notifications)
+                .extracting(Notification::getBody)
+                .containsOnly("이번 주 우리 가족의 미션은 '공원 산책'이에요. 함께할 날짜를 정해 보세요.");
+
+        assertThat(notifications)
+                .extracting(Notification::getStatus)
+                .containsOnly(NotificationStatus.PENDING);
+
+        assertThat(notifications)
+                .extracting(Notification::getIsRead)
+                .containsOnly(false);
+
+        assertThat(notifications)
+                .extracting(Notification::getReferenceId)
+                .containsOnly(100L);
+
+        assertThat(notifications)
+                .extracting(Notification::getReferenceDate)
+                .containsOnly(referenceDate);
+    }
+
+    @Test
+    @DisplayName("활성 가족 구성원이 없으면 주간 미션 알림을 생성하지 않는다.")
+    void createWeeklyMissionNotificationsNoMembers() {
+        Mission mission = Mission.builder()
+                .id(100L)
+                .title("공원 산책")
+                .build();
+
+        LocalDate referenceDate = LocalDate.of(2026, 11, 9);
+
+        given(memberRepository.findAllByFamilyAndDeletedAtIsNull(family)).willReturn(List.of());
+
+        notificationService.createWeeklyMissionNotifications(family, mission, referenceDate);
+
+        then(memberRepository).should().findAllByFamilyAndDeletedAtIsNull(family);
+
+        then(notificationRepository).should(never()).saveAll(anyList());
+    }
+
+    @Test
+    @DisplayName("MS-02. 가족 구성원에게 주중 미션 변경 알림을 생성한다.")
+    void createMissionChangedNotificationsSuccess() {
+        Mission mission = Mission.builder()
+                .id(100L)
+                .title("함께 요리하기")
+                .build();
+
+        given(memberRepository.findAllByFamilyAndDeletedAtIsNull(family)).willReturn(List.of(member, member2));
+
+        ArgumentCaptor<List<Notification>> captor = ArgumentCaptor.forClass(List.class);
+
+        notificationService.createMissionChangedNotifications(family, mission, TODAY);
+
+        then(notificationRepository).should().saveAll(captor.capture());
+
+        List<Notification> notifications = captor.getValue();
+
+        assertThat(notifications).hasSize(2);
+
+        assertThat(notifications)
+                .extracting(Notification::getNotificationType)
+                .containsOnly(NotificationType.MISSION_CHANGED);
+
+        assertThat(notifications)
+                .extracting(Notification::getTitle)
+                .containsOnly("이번 주 가족 미션이 변경됐어요!");
+
+        assertThat(notifications)
+                .extracting(Notification::getBody)
+                .containsOnly("기존 미션을 진행할 수 없어 새로운 미션 '함께 요리하기'으로 변경했어요. 함께할 날짜를 정해 보세요.");
+
+        assertThat(notifications)
+                .extracting(Notification::getStatus)
+                .containsOnly(NotificationStatus.PENDING);
+
+        assertThat(notifications)
+                .extracting(Notification::getIsRead)
+                .containsOnly(false);
+
+        assertThat(notifications)
+                .extracting(Notification::getReferenceId)
+                .containsOnly(100L);
+
+        assertThat(notifications)
+                .extracting(Notification::getReferenceDate)
+                .containsOnly(TODAY);
+
+        assertThat(notifications)
+                .extracting(Notification::getMember)
+                .containsExactly(member, member2);
+    }
+
+    @Test
+    @DisplayName("MS-02. 가족 구성원이 없으면 주중 미션 변경 알림을 생성하지 않는다.")
+    void createMissionChangedNotificationsNoMembers() {
+        Mission mission = Mission.builder()
+                .id(100L)
+                .title("함께 요리하기")
+                .build();
+
+        given(memberRepository.findAllByFamilyAndDeletedAtIsNull(family)).willReturn(List.of());
+
+        notificationService.createMissionChangedNotifications(family, mission, TODAY);
+
+        then(notificationRepository).should(never()).saveAll(anyList());
     }
 
     private MemberSetting createSetting(boolean enabled, LocalTime notificationTime) {

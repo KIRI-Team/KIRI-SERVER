@@ -1,10 +1,13 @@
 package com.kiri.server.domain.notification.converter;
 
 import com.kiri.server.domain.member.entity.Member;
+import com.kiri.server.domain.mission.entity.Mission;
 import com.kiri.server.domain.notification.entity.Notification;
 import com.kiri.server.domain.notification.enums.NotificationStatus;
 import com.kiri.server.domain.notification.enums.NotificationType;
 import com.kiri.server.domain.question.entity.FamilyQuestion;
+
+import java.time.LocalDate;
 
 public class NotificationConverter {
 
@@ -46,6 +49,36 @@ public class NotificationConverter {
                 .isRead(false)
                 .referenceId(familyQuestion.getId())
                 .referenceDate(familyQuestion.getQuestionDate())
+                .build();
+    }
+
+    public static Notification toWeeklyMission(Member member, Mission mission, LocalDate referenceDate) {
+        String missionTitle = mission.getTitle();
+
+        return Notification.builder()
+                .member(member)
+                .notificationType(NotificationType.MISSION)
+                .title("이번 주 새로운 가족 미션이 도착했어요!")
+                .body("이번 주 우리 가족의 미션은 '" + missionTitle + "'이에요. 함께할 날짜를 정해 보세요.")
+                .status(NotificationStatus.PENDING)
+                .isRead(false)
+                .referenceId(mission.getId())
+                .referenceDate(referenceDate)
+                .build();
+    }
+
+    public static Notification toMissionChanged(Member member, Mission mission, LocalDate referenceDate) {
+        String missionTitle = mission.getTitle();
+
+        return Notification.builder()
+                .member(member)
+                .notificationType(NotificationType.MISSION_CHANGED)
+                .title("이번 주 가족 미션이 변경됐어요!")
+                .body("기존 미션을 진행할 수 없어 새로운 미션 '" + missionTitle + "'으로 변경했어요. 함께할 날짜를 정해 보세요.")
+                .status(NotificationStatus.PENDING)
+                .isRead(false)
+                .referenceId(mission.getId())
+                .referenceDate(referenceDate)
                 .build();
     }
 }
