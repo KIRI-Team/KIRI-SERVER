@@ -28,7 +28,7 @@ public class SourceTextParser {
     private static final Pattern TIME_RANGE = Pattern.compile(
             "(\\d{1,2})\\s*(?::|시)\\s*(\\d{2})?\\s*분?\\s*[~\\-–]\\s*(\\d{1,2})\\s*(?::|시)\\s*(\\d{2})?");
 
-    private static final Pattern HOUR_RANGE = Pattern.compile("(\\d+)\\s*[~\\-–]\\s*(\\d+)\\s*시간");
+    private static final Pattern HOUR_RANGE = Pattern.compile("(\\d+)\\s*(?:시간)?\\s*[~\\-–]\\s*(\\d+)\\s*시간");
     private static final Pattern HOURS = Pattern.compile("(\\d+)\\s*시간");
     private static final Pattern MINUTES = Pattern.compile("(\\d+)\\s*분");
     private static final int MAX_DURATION_MINUTES = 12 * 60;

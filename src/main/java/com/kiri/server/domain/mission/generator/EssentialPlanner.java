@@ -13,6 +13,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -39,7 +40,11 @@ public class EssentialPlanner {
     private static final Pattern SENTENCE_BREAK = Pattern.compile("\\n|(?<=[.!?])\\s+");
     private static final Pattern LABELED = Pattern.compile("(?:준비물|지참물)\\s*[:：]\\s*(.+)");
     private static final Pattern BRING = Pattern.compile(
-            "((?:[가-힣A-Za-z0-9]{2,}\\s)?[가-힣A-Za-z0-9]+?)(?:\\s*등)?(?:을|를)?\\s*(?:꼭\\s*)?지참");
+            "((?:[가-힣A-Za-z0-9]+\\s*[,，·ㆍ/]\\s*)*(?:[가-힣A-Za-z0-9]{2,}\\s)?[가-힣A-Za-z0-9]+?)"
+                    + "(?:\\s*등)?(?:을|를)?\\s*(?:(?:꼭|반드시|필히)\\s*)?지참"
+                    + "(?!\\s*(?:금지|불가|불필요|제한|하지\\s*마|하지\\s*않아도|안\\s*해도))");
+    private static final Pattern ITEM_SEPARATOR = Pattern.compile("\\s*[,，·ㆍ/]\\s*");
+    private static final Set<String> FUNCTION_WORDS = Set.of("꼭", "반드시", "필히", "시", "및", "등", "또는");
     // 혜택 조건은 따로 모아 혜택 문구로
     private static final Pattern BENEFIT = Pattern.compile("할인|무료|증정|혜택|우대");
 
@@ -106,7 +111,9 @@ public class EssentialPlanner {
             }
             Matcher bring = BRING.matcher(sentence);
             while (bring.find()) {
-                addIfValid(items, bring.group(1));
+                for (String item : ITEM_SEPARATOR.split(bring.group(1))) {
+                    addIfValid(items, item);
+                }
             }
         }
         return items;
@@ -114,7 +121,8 @@ public class EssentialPlanner {
 
     private static void addIfValid(List<String> items, String item) {
         String trimmed = item.trim();
-        if (trimmed.length() >= 2 && trimmed.length() <= MAX_ITEM_LENGTH && !items.contains(trimmed)) {
+        if (!trimmed.isEmpty() && trimmed.length() <= MAX_ITEM_LENGTH && !FUNCTION_WORDS.contains(trimmed)
+                && !items.contains(trimmed)) {
             items.add(trimmed);
         }
     }
