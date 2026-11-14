@@ -239,7 +239,7 @@ class MissionQueryServiceTest {
     }
 
     @Test
-    @DisplayName("상세는 미션 운영시간이 없으면 장소 운영시간을 쓰고, 준비물과 단계를 나눠 순서대로 담는다.")
+    @DisplayName("상세는 미션 운영시간이 없으면 장소 운영시간을 쓰고, 단계를 순서대로 담는다.")
     void getDetail_success() {
         Mission mission = mission(10L, MissionStatus.ACTIVE);
         given(missionRepository.findWithPlaceById(10L)).willReturn(Optional.of(mission));
@@ -257,7 +257,6 @@ class MissionQueryServiceTest {
 
         assertThat(detail.openingTime()).isEqualTo(LocalTime.of(10, 0));
         assertThat(detail.closingTime()).isEqualTo(LocalTime.of(18, 0));
-        assertThat(detail.prepareItems()).extracting(MissionResDTO.ChecklistItem::title).containsExactly("사전 예약");
         assertThat(detail.steps()).extracting(MissionResDTO.ChecklistItem::title)
                 .containsExactly("상설 전시 관람하기", "기획 전시 관람하기");
         assertThat(detail.sourceUrl()).isEqualTo("https://korean.visitkorea.or.kr/detail");
@@ -452,6 +451,36 @@ class MissionQueryServiceTest {
                 .isInstanceOf(MissionException.class)
                 .extracting("errorCode").isEqualTo(MissionErrorCode.NOT_FOUND);
         verify(missionRepository, never()).findAllWithPlaceByIdIn(any());
+    }
+
+    @Test
+    @DisplayName("맞춤템은 저장된 순서대로 최대 4개까지만 담는다.")
+    void getEssentials_limit() {
+        Mission mission = mission(10L, MissionStatus.ACTIVE);
+        given(missionRepository.findWithPlaceById(10L)).willReturn(Optional.of(mission));
+        given(missionChecklistItemRepository.findAllByMissionAndItemTypeOrderByDisplayOrderAsc(mission, ItemType.PREPARE))
+                .willReturn(List.of(
+                        item(mission, ItemType.PREPARE, "신분증", 1),
+                        item(mission, ItemType.PREPARE, "수건", 2),
+                        item(mission, ItemType.PREPARE, "여벌옷", 3),
+                        item(mission, ItemType.PREPARE, "편한 신발", 4),
+                        item(mission, ItemType.PREPARE, "물", 5)));
+
+        List<MissionResDTO.ChecklistItem> result = missionQueryService.getEssentials(10L);
+
+        assertThat(result).extracting(MissionResDTO.ChecklistItem::title)
+                .containsExactly("신분증", "수건", "여벌옷", "편한 신발");
+    }
+
+    @Test
+    @DisplayName("맞춤템 기준 미션이 노출할 수 없는 상태면 MISSION404_1을 던진다.")
+    void getEssentials_notVisible() {
+        given(missionRepository.findWithPlaceById(1L)).willReturn(Optional.of(mission(1L, MissionStatus.HIDDEN)));
+
+        assertThatThrownBy(() -> missionQueryService.getEssentials(1L))
+                .isInstanceOf(MissionException.class)
+                .extracting("errorCode").isEqualTo(MissionErrorCode.NOT_FOUND);
+        verifyNoInteractions(missionChecklistItemRepository);
     }
 
     private void stubNearby(List<Mission> candidates) {

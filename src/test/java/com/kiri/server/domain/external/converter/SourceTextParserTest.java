@@ -79,6 +79,8 @@ class SourceTextParserTest {
     void parseDurationMinutes() {
         assertThat(SourceTextParser.parseDurationMinutes("1~2시간"))
                 .isEqualTo(new SourceTextParser.MinuteRange(60, 120));
+        assertThat(SourceTextParser.parseDurationMinutes("2시간~4시간"))
+                .isEqualTo(new SourceTextParser.MinuteRange(120, 240));
         assertThat(SourceTextParser.parseDurationMinutes("관람 1시간 30분 소요"))
                 .isEqualTo(new SourceTextParser.MinuteRange(90, 90));
         assertThat(SourceTextParser.parseDurationMinutes("약 90분"))

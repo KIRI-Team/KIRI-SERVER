@@ -128,7 +128,6 @@ public class MissionConverter {
                 .walkingLevel(mission.getWalkingLevel())
                 .sourceUrl(sourceUrl)
                 .place(toPlaceInfo(place))
-                .prepareItems(toChecklist(items, ItemType.PREPARE))
                 .steps(toChecklist(items, ItemType.STEP))
                 .bucketSaved(bucketState == BucketSaveState.SAVED)
                 .bucketState(bucketState)
@@ -162,6 +161,13 @@ public class MissionConverter {
                 .build();
     }
 
+    public static List<MissionResDTO.ChecklistItem> toEssentials(List<MissionChecklistItem> items, int limit) {
+        return items.stream()
+                .limit(limit)
+                .map(MissionConverter::toChecklistItem)
+                .toList();
+    }
+
     private static String toRegion(String address) {
         if (address == null || address.isBlank()) {
             return null;
@@ -190,11 +196,15 @@ public class MissionConverter {
         return items.stream()
                 .filter(item -> item.getItemType() == itemType)
                 .sorted(Comparator.comparing(MissionChecklistItem::getDisplayOrder))
-                .map(item -> MissionResDTO.ChecklistItem.builder()
-                        .title(item.getTitle())
-                        .description(item.getDescription())
-                        .build())
+                .map(MissionConverter::toChecklistItem)
                 .toList();
+    }
+
+    private static MissionResDTO.ChecklistItem toChecklistItem(MissionChecklistItem item) {
+        return MissionResDTO.ChecklistItem.builder()
+                .title(item.getTitle())
+                .description(item.getDescription())
+                .build();
     }
 
     private static String imageSource(Mission mission) {

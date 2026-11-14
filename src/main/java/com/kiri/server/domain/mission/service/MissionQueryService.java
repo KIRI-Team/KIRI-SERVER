@@ -13,9 +13,11 @@ import com.kiri.server.domain.mission.converter.MissionConverter;
 import com.kiri.server.domain.mission.dto.MissionReqDTO;
 import com.kiri.server.domain.mission.dto.MissionResDTO;
 import com.kiri.server.domain.mission.entity.Mission;
+import com.kiri.server.domain.mission.enums.ItemType;
 import com.kiri.server.domain.mission.enums.MissionStatus;
 import com.kiri.server.domain.mission.exception.MissionException;
 import com.kiri.server.domain.mission.exception.code.MissionErrorCode;
+import com.kiri.server.domain.mission.generator.EssentialPlanner;
 import com.kiri.server.domain.mission.repository.MissionChecklistItemRepository;
 import com.kiri.server.domain.mission.repository.MissionFeedRepository;
 import com.kiri.server.domain.mission.repository.MissionFeedRepository.BaseLocation;
@@ -138,6 +140,17 @@ public class MissionQueryService {
                 .map(candidate -> MissionConverter.toNearbyItem(candidate.mission(), candidate.distanceKm(),
                         nearbyReason(candidate)))
                 .toList();
+    }
+
+    // 일정 없이 조회하므로 날씨 없이 저장된 미션 근거 항목만
+    @Transactional(readOnly = true)
+    public List<MissionResDTO.ChecklistItem> getEssentials(Long missionId) {
+        Mission mission = missionRepository.findWithPlaceById(missionId)
+                .filter(found -> DETAIL_STATUSES.contains(found.getStatus()))
+                .orElseThrow(() -> new MissionException(MissionErrorCode.NOT_FOUND));
+        return MissionConverter.toEssentials(
+                missionChecklistItemRepository.findAllByMissionAndItemTypeOrderByDisplayOrderAsc(mission, ItemType.PREPARE),
+                EssentialPlanner.MAX_ESSENTIALS);
     }
 
     // 근거가 거리뿐이라 가까우면 거리 문구, 아니면 미션 소개 문구

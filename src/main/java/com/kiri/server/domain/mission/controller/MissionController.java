@@ -53,6 +53,14 @@ public class MissionController implements MissionControllerDocs {
         return ApiResponse.onSuccess(code, missionQueryService.getNearby(missionId));
     }
 
+    @GetMapping("/{missionId}/essentials")
+    public ApiResponse<List<MissionResDTO.ChecklistItem>> getEssentials(
+            @PathVariable Long missionId
+    ) {
+        BaseSuccessCode code = MissionSuccessCode.ESSENTIALS_SUCCESS;
+        return ApiResponse.onSuccess(code, missionQueryService.getEssentials(missionId));
+    }
+
     @GetMapping("/recommendations")
     public ApiResponse<MissionResDTO.Recommendation> getRecommendations(
             @AuthenticationPrincipal Long memberId
