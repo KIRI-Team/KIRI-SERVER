@@ -8,6 +8,7 @@ import com.kiri.server.domain.notification.enums.NotificationStatus;
 import com.kiri.server.domain.notification.enums.NotificationType;
 import com.kiri.server.domain.notification.repository.NotificationRepository;
 import com.kiri.server.domain.question.entity.FamilyQuestion;
+import com.kiri.server.domain.question.entity.MemberAnswer;
 import com.kiri.server.domain.question.repository.FamilyQuestionRepository;
 import com.kiri.server.domain.question.repository.MemberAnswerRepository;
 import com.kiri.server.domain.setting.entity.MemberSetting;
@@ -66,6 +67,16 @@ class NotificationServiceTest {
             .family(family)
             .build();
 
+    private final Member member2 = Member.builder()
+            .id(2L)
+            .family(family)
+            .build();
+
+    private final Member member3 = Member.builder()
+            .id(3L)
+            .family(family)
+            .build();
+
     private final FamilyQuestion familyQuestion = FamilyQuestion.builder()
             .id(FAMILY_QUESTION_ID)
             .family(family)
@@ -87,7 +98,7 @@ class NotificationServiceTest {
 
         given(memberSettingRepository.findByMember(member)).willReturn(Optional.of(setting));
         given(memberAnswerRepository.existsByFamilyQuestionAndMember(familyQuestion, member)).willReturn(false);
-        given(notificationRepository.existsByMemberAndNotificationTypeAndReferenceDate(member, NotificationType.QUESTION, TODAY)).willReturn(false);
+        given(notificationRepository.existsByMemberAndNotificationTypeAndReferenceDate(member, NotificationType.QUESTION_REMINDER, TODAY)).willReturn(false);
 
         notificationService.createQuestionReminderNotifications(TODAY, NOTIFICATION_TIME);
 
@@ -97,7 +108,7 @@ class NotificationServiceTest {
         Notification saved = captor.getValue();
 
         assertThat(saved.getMember()).isEqualTo(member);
-        assertThat(saved.getNotificationType()).isEqualTo(NotificationType.QUESTION);
+        assertThat(saved.getNotificationType()).isEqualTo(NotificationType.QUESTION_REMINDER);
         assertThat(saved.getTitle()).isEqualTo("아직 오늘의 질문에 답변하지 않았어요!");
         assertThat(saved.getBody()).isEqualTo("오늘 받은 질문카드는 오늘 내로 답변해 주세요. 가족들이 기다리고 있어요.");
         assertThat(saved.getStatus()).isEqualTo(NotificationStatus.PENDING);
@@ -154,7 +165,7 @@ class NotificationServiceTest {
         notificationService.createQuestionReminderNotifications(TODAY, NOTIFICATION_TIME);
 
         verify(notificationRepository, never()).save(org.mockito.ArgumentMatchers.any());
-        verify(notificationRepository, never()).existsByMemberAndNotificationTypeAndReferenceDate(member, NotificationType.QUESTION, TODAY);
+        verify(notificationRepository, never()).existsByMemberAndNotificationTypeAndReferenceDate(member, NotificationType.QUESTION_REMINDER, TODAY);
     }
 
     @Test
@@ -164,7 +175,7 @@ class NotificationServiceTest {
         given(memberRepository.findAllByFamilyAndDeletedAtIsNull(family)).willReturn(List.of(member));
         given(memberSettingRepository.findByMember(member)).willReturn(Optional.of(createSetting(true, NOTIFICATION_TIME)));
         given(memberAnswerRepository.existsByFamilyQuestionAndMember(familyQuestion, member)).willReturn(false);
-        given(notificationRepository.existsByMemberAndNotificationTypeAndReferenceDate(member, NotificationType.QUESTION, TODAY)).willReturn(true);
+        given(notificationRepository.existsByMemberAndNotificationTypeAndReferenceDate(member, NotificationType.QUESTION_REMINDER, TODAY)).willReturn(true);
 
         notificationService.createQuestionReminderNotifications(TODAY, NOTIFICATION_TIME);
 
@@ -187,7 +198,7 @@ class NotificationServiceTest {
     void cancelQuestionReminderSuccess() {
         Notification notification = Notification.builder()
                 .member(member)
-                .notificationType(NotificationType.QUESTION)
+                .notificationType(NotificationType.QUESTION_REMINDER)
                 .title("아직 오늘의 질문에 답변하지 않았어요!")
                 .body("오늘 받은 질문카드는 오늘 내로 답변해 주세요. 가족들이 기다리고 있어요.")
                 .status(NotificationStatus.PENDING)
@@ -195,7 +206,7 @@ class NotificationServiceTest {
                 .referenceDate(TODAY)
                 .build();
 
-        given(notificationRepository.findAllByMemberAndNotificationTypeAndReferenceIdAndStatus(member, NotificationType.QUESTION, FAMILY_QUESTION_ID, NotificationStatus.PENDING)).willReturn(List.of(notification));
+        given(notificationRepository.findAllByMemberAndNotificationTypeAndReferenceIdAndStatus(member, NotificationType.QUESTION_REMINDER, FAMILY_QUESTION_ID, NotificationStatus.PENDING)).willReturn(List.of(notification));
 
         notificationService.cancelQuestionReminder(member, familyQuestion);
 
@@ -205,11 +216,102 @@ class NotificationServiceTest {
     @Test
     @DisplayName("취소할 질문 리마인드 알림이 없으면 아무 작업도 하지 않는다.")
     void cancelQuestionReminderNoNotification() {
-        given(notificationRepository.findAllByMemberAndNotificationTypeAndReferenceIdAndStatus(member, NotificationType.QUESTION, FAMILY_QUESTION_ID, NotificationStatus.PENDING)).willReturn(List.of());
+        given(notificationRepository.findAllByMemberAndNotificationTypeAndReferenceIdAndStatus(member, NotificationType.QUESTION_REMINDER, FAMILY_QUESTION_ID, NotificationStatus.PENDING)).willReturn(List.of());
 
         notificationService.cancelQuestionReminder(member, familyQuestion);
 
-        verify(notificationRepository).findAllByMemberAndNotificationTypeAndReferenceIdAndStatus(member, NotificationType.QUESTION, FAMILY_QUESTION_ID, NotificationStatus.PENDING);
+        verify(notificationRepository).findAllByMemberAndNotificationTypeAndReferenceIdAndStatus(member, NotificationType.QUESTION_REMINDER, FAMILY_QUESTION_ID, NotificationStatus.PENDING);
+    }
+
+    @Test
+    @DisplayName("가족 구성원 전원이 답변하면 마지막 답변자를 제외하고 알림을 생성한다.")
+    void createFamilyAnswerCompleteNotificationsSuccess() {
+        given(memberRepository.findAllByFamilyAndDeletedAtIsNull(family)).willReturn(List.of(member, member2, member3));
+
+        given(memberAnswerRepository.findAllByFamilyQuestion(familyQuestion)).willReturn(List.of(createAnswer(member), createAnswer(member2), createAnswer(member3)));
+
+        given(notificationRepository.existsByMemberAndNotificationTypeAndReferenceDate(member2, NotificationType.QUESTION_COMPLETE, TODAY)).willReturn(false);
+
+        given(notificationRepository.existsByMemberAndNotificationTypeAndReferenceDate(member3, NotificationType.QUESTION_COMPLETE, TODAY)).willReturn(false);
+
+        notificationService.createFamilyAnswerCompleteNotifications(member, familyQuestion);
+
+        ArgumentCaptor<List<Notification>> captor = ArgumentCaptor.forClass(List.class);
+        verify(notificationRepository).saveAll(captor.capture());
+
+        List<Notification> saved = captor.getValue();
+
+        assertThat(saved).hasSize(2);
+        assertThat(saved)
+                .extracting(notification -> notification.getMember().getId())
+                .containsExactlyInAnyOrder(2L, 3L);
+
+        assertThat(saved).allSatisfy(notification -> {
+            assertThat(notification.getNotificationType()).isEqualTo(NotificationType.QUESTION_COMPLETE);
+            assertThat(notification.getTitle()).isEqualTo("오늘은 가족 모두가 답변했어요!");
+            assertThat(notification.getBody()).isEqualTo("우리 가족의 생각이 모두 모였어요. 어떤 답변을 남겼는지 확인해 보세요.");
+            assertThat(notification.getStatus()).isEqualTo(NotificationStatus.PENDING);
+            assertThat(notification.getReferenceId()).isEqualTo(FAMILY_QUESTION_ID);
+            assertThat(notification.getReferenceDate()).isEqualTo(TODAY);
+        });
+    }
+
+    @Test
+    @DisplayName("가족 구성원 중 답변하지 않은 회원이 있으면 알림을 생성하지 않는다.")
+    void createFamilyAnswerCompleteNotificationsNotAllAnswered() {
+        given(memberRepository.findAllByFamilyAndDeletedAtIsNull(family)).willReturn(List.of(member, member2, member3));
+
+        given(memberAnswerRepository.findAllByFamilyQuestion(familyQuestion)).willReturn(List.of(createAnswer(member), createAnswer(member2)));
+
+        notificationService.createFamilyAnswerCompleteNotifications(member, familyQuestion);
+
+        verify(notificationRepository, never()).saveAll(org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    @DisplayName("이미 가족 전원 답변 완료 알림이 존재하면 중복 생성하지 않는다.")
+    void createFamilyAnswerCompleteNotificationsAlreadyExists() {
+        given(memberRepository.findAllByFamilyAndDeletedAtIsNull(family)).willReturn(List.of(member, member2, member3));
+
+        given(memberAnswerRepository.findAllByFamilyQuestion(familyQuestion)).willReturn(List.of(createAnswer(member), createAnswer(member2), createAnswer(member3)));
+
+        given(notificationRepository.existsByMemberAndNotificationTypeAndReferenceDate(member2, NotificationType.QUESTION_COMPLETE, TODAY)).willReturn(true);
+
+        given(notificationRepository.existsByMemberAndNotificationTypeAndReferenceDate(member3, NotificationType.QUESTION_COMPLETE, TODAY)).willReturn(true);
+
+        notificationService.createFamilyAnswerCompleteNotifications(member, familyQuestion);
+
+        verify(notificationRepository, never()).saveAll(org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    @DisplayName("활성 구성원이 마지막 답변자 한 명뿐이면 알림을 생성하지 않는다.")
+    void createFamilyAnswerCompleteNotificationsOnlyOneMember() {
+        given(memberRepository.findAllByFamilyAndDeletedAtIsNull(family)).willReturn(List.of(member));
+
+        given(memberAnswerRepository.findAllByFamilyQuestion(familyQuestion)).willReturn(List.of(createAnswer(member)));
+
+        notificationService.createFamilyAnswerCompleteNotifications(member, familyQuestion);
+
+        verify(notificationRepository, never()).saveAll(org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    @DisplayName("탈퇴한 구성원은 가족 전원 답변 완료 판단에서 제외한다.")
+    void createFamilyAnswerCompleteNotificationsExcludesWithdrawnMember() {
+        given(memberRepository.findAllByFamilyAndDeletedAtIsNull(family)).willReturn(List.of(member, member2));
+
+        given(memberAnswerRepository.findAllByFamilyQuestion(familyQuestion)).willReturn(List.of(createAnswer(member), createAnswer(member2)));
+
+        given(notificationRepository.existsByMemberAndNotificationTypeAndReferenceDate(member2, NotificationType.QUESTION_COMPLETE, TODAY)).willReturn(false);
+
+        notificationService.createFamilyAnswerCompleteNotifications(member, familyQuestion);
+
+        ArgumentCaptor<List<Notification>> captor = ArgumentCaptor.forClass(List.class);
+        verify(notificationRepository).saveAll(captor.capture());
+
+        assertThat(captor.getValue()).hasSize(1);
+        assertThat(captor.getValue().get(0).getMember()).isEqualTo(member2);
     }
 
     private MemberSetting createSetting(boolean enabled, LocalTime notificationTime) {
@@ -217,6 +319,14 @@ class NotificationServiceTest {
                 .member(member)
                 .isAllNotificationEnabled(enabled)
                 .regularNotificationTime(notificationTime)
+                .build();
+    }
+
+    private MemberAnswer createAnswer(Member answerer) {
+        return MemberAnswer.builder()
+                .content("오늘의 답변입니다.")
+                .familyQuestion(familyQuestion)
+                .member(answerer)
                 .build();
     }
 }

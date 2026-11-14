@@ -95,6 +95,9 @@ public class QuestionService {
 
         FamilyQuestion familyQuestion = getMyFamilyQuestion(member, questionId);
 
+        familyQuestion = familyQuestionRepository.findByIdForUpdate(familyQuestion.getId())
+                .orElseThrow(() -> new QuestionException(QuestionErrorCode.TODAY_QUESTION_NOT_FOUND));
+
         // 답변 작성/수정은 질문이 배정된 당일에만 가능
         if (!familyQuestion.getQuestionDate().equals(LocalDate.now(clock))) {
             throw new QuestionException(QuestionErrorCode.ANSWER_PERIOD_EXPIRED);
@@ -115,6 +118,9 @@ public class QuestionService {
 
             // 신규 답변 저장 후 미발송 알림 취소
             notificationService.cancelQuestionReminder(member, familyQuestion);
+
+            // 가족 전원 답변 완료 여부 확인 및 알림 생성
+            notificationService.createFamilyAnswerCompleteNotifications(member, familyQuestion);
         } catch (DataIntegrityViolationException e) {
             if (isDuplicateAnswer(e)) {
                 throw new QuestionException(QuestionErrorCode.DUPLICATE_ANSWER_REQUEST);

@@ -20,6 +20,8 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -65,7 +67,7 @@ public class NotificationService {
             return;
         }
 
-        if (notificationRepository.existsByMemberAndNotificationTypeAndReferenceDate(member, NotificationType.QUESTION, familyQuestion.getQuestionDate())) {
+        if (notificationRepository.existsByMemberAndNotificationTypeAndReferenceDate(member, NotificationType.QUESTION_REMINDER, familyQuestion.getQuestionDate())) {
             return;
         }
 
@@ -76,8 +78,39 @@ public class NotificationService {
 
     @Transactional
     public void cancelQuestionReminder(Member member, FamilyQuestion familyQuestion) {
-        List<Notification> notifications = notificationRepository.findAllByMemberAndNotificationTypeAndReferenceIdAndStatus(member, NotificationType.QUESTION, familyQuestion.getId(), NotificationStatus.PENDING);
+        List<Notification> notifications = notificationRepository.findAllByMemberAndNotificationTypeAndReferenceIdAndStatus(member, NotificationType.QUESTION_REMINDER, familyQuestion.getId(), NotificationStatus.PENDING);
 
         notifications.forEach(Notification::cancel);
+    }
+
+    @Transactional
+    public void createFamilyAnswerCompleteNotifications(Member lastAnswerer, FamilyQuestion familyQuestion) {
+        List<Member> members = memberRepository.findAllByFamilyAndDeletedAtIsNull(familyQuestion.getFamily());
+
+        if (members.isEmpty()) {
+            return;
+        }
+
+        Set<Long> answeredMemberIds = memberAnswerRepository
+                .findAllByFamilyQuestion(familyQuestion)
+                .stream()
+                .map(answer -> answer.getMember().getId())
+                .collect(Collectors.toSet());
+
+        boolean allAnswered = members.stream().allMatch(member -> answeredMemberIds.contains(member.getId()));
+
+        if (!allAnswered) {
+            return;
+        }
+
+        List<Notification> notifications = members.stream()
+                .filter(member -> !member.getId().equals(lastAnswerer.getId()))
+                .filter(member -> !notificationRepository.existsByMemberAndNotificationTypeAndReferenceDate(member, NotificationType.QUESTION_COMPLETE, familyQuestion.getQuestionDate()))
+                .map(member -> NotificationConverter.toFamilyAnswerComplete(member, familyQuestion))
+                .toList();
+
+        if (!notifications.isEmpty()) {
+            notificationRepository.saveAll(notifications);
+        }
     }
 }
