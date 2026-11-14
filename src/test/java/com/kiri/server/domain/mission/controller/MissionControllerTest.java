@@ -201,7 +201,6 @@ class MissionControllerTest {
                 .walkingLevel(WalkingLevel.MEDIUM)
                 .place(MissionResDTO.PlaceInfo.builder()
                         .placeId(52L).name("국립현대미술관 서울").latitude(37.5786).longitude(126.98).build())
-                .prepareItems(List.of())
                 .steps(List.of(MissionResDTO.ChecklistItem.builder().title("상설 전시 관람하기").build()))
                 .bucketSaved(false)
                 .bucketState(BucketSaveState.NONE)
@@ -229,6 +228,19 @@ class MissionControllerTest {
         mockMvc.perform(get("/api/v1/missions/99").header(HttpHeaders.AUTHORIZATION, bearerToken))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value("MISSION404_1"));
+    }
+
+    @Test
+    @DisplayName("맞춤템 조회에 성공하면 MISSION200_5와 맞춤템 목록을 반환한다.")
+    void getEssentials_success() throws Exception {
+        given(missionQueryService.getEssentials(130L)).willReturn(List.of(
+                MissionResDTO.ChecklistItem.builder().title("편한 신발").description("많이 걷는 일정이에요.").build()));
+
+        mockMvc.perform(get("/api/v1/missions/130/essentials").header(HttpHeaders.AUTHORIZATION, bearerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value("MISSION200_5"))
+                .andExpect(jsonPath("$.result[0].title").value("편한 신발"))
+                .andExpect(jsonPath("$.result[0].description").value("많이 걷는 일정이에요."));
     }
 
     @Test

@@ -104,7 +104,9 @@ class MissionDraftFactoryTest {
                 .extracting(MissionDraft.ChecklistDraft::source, MissionDraft.ChecklistDraft::title)
                 .containsExactly(
                         tuple(ChecklistSource.KIRI, "함께 걸을 코스 정하기"),
-                        tuple(ChecklistSource.KIRI, "서로 근황 이야기하기"));
+                        tuple(ChecklistSource.KIRI, "서로 근황 이야기하기"),
+                        tuple(ChecklistSource.KIRI, "편한 신발"),
+                        tuple(ChecklistSource.KIRI, "물"));
     }
 
     @Test
@@ -302,6 +304,25 @@ class MissionDraftFactoryTest {
                 .containsExactly("함께 참여할 부스나 프로그램 고르기", "가장 재미있었던 활동 공유하기");
         assertThat(titles(ready(factory.create(base("28", "한강 카약 체험").build()))))
                 .containsExactly("함께할 체험 고르기", "가장 재미있었던 순간 공유하기");
+    }
+
+    @Test
+    @DisplayName("맞춤템은 활동 뒤에 붙고, 원본 소요시간이 짧으면 물을 담지 않는다.")
+    void checklist_appendsEssentials() {
+        NormalizedContent longStay = base("12", "남산공원").lclsSystm1("NA").lclsSystm2("NA04")
+                .overview("준비물 : 돗자리").durationText("약 4시간").build();
+        NormalizedContent shortStay = base("12", "남산공원").lclsSystm1("NA").lclsSystm2("NA04")
+                .durationText("약 1시간").build();
+
+        assertThat(ready(factory.create(longStay)).checklist())
+                .extracting(MissionDraft.ChecklistDraft::itemType, MissionDraft.ChecklistDraft::title)
+                .containsExactly(
+                        tuple(ItemType.STEP, "함께 걸을 코스 정하기"),
+                        tuple(ItemType.STEP, "서로 근황 이야기하기"),
+                        tuple(ItemType.PREPARE, "돗자리"),
+                        tuple(ItemType.PREPARE, "편한 신발"),
+                        tuple(ItemType.PREPARE, "물"));
+        assertThat(titles(ready(factory.create(shortStay)))).doesNotContain("물");
     }
 
     @Test
