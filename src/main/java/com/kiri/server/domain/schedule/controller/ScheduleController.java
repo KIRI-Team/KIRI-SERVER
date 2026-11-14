@@ -2,6 +2,7 @@ package com.kiri.server.domain.schedule.controller;
 
 import com.kiri.server.domain.schedule.controller.docs.ScheduleControllerDocs;
 import com.kiri.server.domain.schedule.dto.ScheduleReqDTO;
+import com.kiri.server.domain.mission.dto.MissionResDTO;
 import com.kiri.server.domain.schedule.dto.ScheduleResDTO;
 import com.kiri.server.domain.schedule.exception.code.ScheduleSuccessCode;
 import com.kiri.server.domain.schedule.service.ScheduleQueryService;
@@ -57,7 +58,7 @@ public class ScheduleController implements ScheduleControllerDocs {
     }
 
     @GetMapping("/{scheduleId}/nearby")
-    public ApiResponse<List<ScheduleResDTO.NearbyItem>> getNearby(
+    public ApiResponse<List<MissionResDTO.NearbyItem>> getNearby(
             @AuthenticationPrincipal Long memberId,
             @PathVariable Long scheduleId
     ) {

@@ -17,6 +17,8 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.List;
+
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/v1/missions")
@@ -41,6 +43,14 @@ public class MissionController implements MissionControllerDocs {
     ) {
         BaseSuccessCode code = MissionSuccessCode.DETAIL_SUCCESS;
         return ApiResponse.onSuccess(code, missionQueryService.getDetail(memberId, missionId));
+    }
+
+    @GetMapping("/{missionId}/nearby")
+    public ApiResponse<List<MissionResDTO.NearbyItem>> getNearby(
+            @PathVariable Long missionId
+    ) {
+        BaseSuccessCode code = MissionSuccessCode.NEARBY_SUCCESS;
+        return ApiResponse.onSuccess(code, missionQueryService.getNearby(missionId));
     }
 
     @GetMapping("/recommendations")

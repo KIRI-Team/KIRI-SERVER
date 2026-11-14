@@ -149,6 +149,33 @@ public class MissionConverter {
                 .build();
     }
 
+    public static MissionResDTO.NearbyItem toNearbyItem(Mission mission, double distance, String description) {
+        Place place = mission.getPlace();
+        return MissionResDTO.NearbyItem.builder()
+                .missionId(mission.getId())
+                .placeName(place.getName())
+                .region(toRegion(place.getAddress()))
+                .description(description)
+                .imageUrl(place.getImageUrl() != null ? place.getImageUrl() : mission.getImageUrl())
+                .price(mission.getPrice())
+                .distance(Math.round(distance * 10) / 10.0)
+                .build();
+    }
+
+    private static String toRegion(String address) {
+        if (address == null || address.isBlank()) {
+            return null;
+        }
+        String[] tokens = address.trim().split("\\s+");
+        String province = tokens[0]
+                .replaceFirst("(특별자치시|특별시|광역시)$", "시")
+                .replaceFirst("특별자치도$", "도");
+        if (tokens.length < 2 || !tokens[1].matches(".+[시군구]$")) {
+            return province;
+        }
+        return province + " " + tokens[1];
+    }
+
     private static MissionResDTO.PlaceInfo toPlaceInfo(Place place) {
         return MissionResDTO.PlaceInfo.builder()
                 .placeId(place.getId())

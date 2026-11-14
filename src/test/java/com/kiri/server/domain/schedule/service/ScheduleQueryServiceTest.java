@@ -11,11 +11,13 @@ import com.kiri.server.domain.mission.enums.Category;
 import com.kiri.server.domain.mission.enums.IndoorOutdoor;
 import com.kiri.server.domain.mission.enums.WalkingLevel;
 import com.kiri.server.domain.mission.repository.MissionRepository;
+import com.kiri.server.domain.mission.service.NearbyMissionFinder;
 import com.kiri.server.domain.place.entity.Place;
 import com.kiri.server.domain.review.entity.Review;
 import com.kiri.server.domain.review.entity.ReviewPhoto;
 import com.kiri.server.domain.review.repository.ReviewPhotoRepository;
 import com.kiri.server.domain.schedule.dto.ScheduleReqDTO;
+import com.kiri.server.domain.mission.dto.MissionResDTO;
 import com.kiri.server.domain.schedule.dto.ScheduleResDTO;
 import com.kiri.server.domain.schedule.entity.Schedule;
 import com.kiri.server.domain.schedule.entity.ScheduleCondition;
@@ -106,7 +108,7 @@ class ScheduleQueryServiceTest {
     void setUp() {
         scheduleQueryService = new ScheduleQueryService(
                 scheduleRepository, scheduleParticipantRepository, scheduleConditionRepository, memberRepository,
-                missionRepository, familyTasteScoreService, tasteProfileService,
+                new NearbyMissionFinder(missionRepository), familyTasteScoreService, tasteProfileService,
                 reviewPhotoRepository, imageUrlService, CLOCK);
     }
 
@@ -599,8 +601,8 @@ class ScheduleQueryServiceTest {
                 .toList());
     }
 
-    private List<String> placeNames(List<ScheduleResDTO.NearbyItem> items) {
-        return items.stream().map(ScheduleResDTO.NearbyItem::placeName).toList();
+    private List<String> placeNames(List<MissionResDTO.NearbyItem> items) {
+        return items.stream().map(MissionResDTO.NearbyItem::placeName).toList();
     }
 
     @Test
@@ -638,7 +640,7 @@ class ScheduleQueryServiceTest {
         given(missionRepository.findNearbyIds(anyDouble(), anyDouble(), anyDouble(), anyDouble(), anyDouble(),
                 anyDouble(), anyDouble(), eq(basePlace.getId()), eq(SCHEDULE_DATE))).willReturn(List.of());
 
-        List<ScheduleResDTO.NearbyItem> result = scheduleQueryService.getNearby(MEMBER_ID, SCHEDULE_ID);
+        List<MissionResDTO.NearbyItem> result = scheduleQueryService.getNearby(MEMBER_ID, SCHEDULE_ID);
 
         assertThat(result).isEmpty();
         verifyNoInteractions(familyTasteScoreService, tasteProfileService);
@@ -651,7 +653,7 @@ class ScheduleQueryServiceTest {
         Mission exhibition = mission(place(3L, "먼 미술관", 2.0, null), Category.EXHIBITION, IndoorOutdoor.INDOOR, 5000);
         stubNearby(List.of(cafe, exhibition), List.of(), tasteScores(exhibition, "0.8", cafe, "0.2"), List.of());
 
-        List<ScheduleResDTO.NearbyItem> result = scheduleQueryService.getNearby(MEMBER_ID, SCHEDULE_ID);
+        List<MissionResDTO.NearbyItem> result = scheduleQueryService.getNearby(MEMBER_ID, SCHEDULE_ID);
 
         assertThat(placeNames(result)).containsExactly("먼 미술관", "근처 카페");
     }
@@ -684,7 +686,7 @@ class ScheduleQueryServiceTest {
         Mission near = mission(place(3L, "가까운 공원", 0.5, null), Category.OUTDOOR, IndoorOutdoor.OUTDOOR, 0);
         stubNearby(List.of(far, near), List.of(), Map.of(), List.of());
 
-        List<ScheduleResDTO.NearbyItem> result = scheduleQueryService.getNearby(MEMBER_ID, SCHEDULE_ID);
+        List<MissionResDTO.NearbyItem> result = scheduleQueryService.getNearby(MEMBER_ID, SCHEDULE_ID);
 
         assertThat(placeNames(result)).containsExactly("가까운 공원", "먼 공원");
     }
@@ -697,7 +699,7 @@ class ScheduleQueryServiceTest {
         Mission cafe = mission(sevitseom, Category.FOOD_CAFE, IndoorOutdoor.INDOOR, 15000);
         stubNearby(List.of(night, cafe), List.of(), tasteScores(night, "0.2", cafe, "0.9"), List.of());
 
-        List<ScheduleResDTO.NearbyItem> result = scheduleQueryService.getNearby(MEMBER_ID, SCHEDULE_ID);
+        List<MissionResDTO.NearbyItem> result = scheduleQueryService.getNearby(MEMBER_ID, SCHEDULE_ID);
 
         assertThat(result).hasSize(1);
         assertThat(result.get(0).description()).isEqualTo("세빛섬 FOOD_CAFE");
@@ -712,9 +714,9 @@ class ScheduleQueryServiceTest {
         stubNearby(List.of(exhibition, park), List.of(nearbyParticipant(3L, ParticipantStatus.DECLINED)),
                 Map.of(), List.of(ConditionType.MORE_REST));
 
-        List<ScheduleResDTO.NearbyItem> result = scheduleQueryService.getNearby(MEMBER_ID, SCHEDULE_ID);
+        List<MissionResDTO.NearbyItem> result = scheduleQueryService.getNearby(MEMBER_ID, SCHEDULE_ID);
 
-        assertThat(result).extracting(ScheduleResDTO.NearbyItem::description)
+        assertThat(result).extracting(MissionResDTO.NearbyItem::description)
                 .containsExactly(TASTE_REASON, "공원 OUTDOOR");
     }
 
@@ -725,9 +727,9 @@ class ScheduleQueryServiceTest {
         Mission park = mission(place(3L, "공원", 0.5, null), Category.OUTDOOR, IndoorOutdoor.OUTDOOR, 0);
         stubNearby(List.of(cafe, park), List.of(), Map.of(), List.of(ConditionType.MORE_REST));
 
-        List<ScheduleResDTO.NearbyItem> result = scheduleQueryService.getNearby(MEMBER_ID, SCHEDULE_ID);
+        List<MissionResDTO.NearbyItem> result = scheduleQueryService.getNearby(MEMBER_ID, SCHEDULE_ID);
 
-        assertThat(result).extracting(ScheduleResDTO.NearbyItem::description)
+        assertThat(result).extracting(MissionResDTO.NearbyItem::description)
                 .containsExactly(REST_REASON, NEAR_REASON);
     }
 
@@ -737,9 +739,9 @@ class ScheduleQueryServiceTest {
         Mission exhibition = mission(place(2L, "전시관", 2.0, null), Category.EXHIBITION, IndoorOutdoor.INDOOR, 0);
         stubNearby(List.of(exhibition), List.of(), Map.of(), List.of());
 
-        List<ScheduleResDTO.NearbyItem> result = scheduleQueryService.getNearby(MEMBER_ID, SCHEDULE_ID);
+        List<MissionResDTO.NearbyItem> result = scheduleQueryService.getNearby(MEMBER_ID, SCHEDULE_ID);
 
-        assertThat(result).extracting(ScheduleResDTO.NearbyItem::description).containsExactly("전시관 EXHIBITION");
+        assertThat(result).extracting(MissionResDTO.NearbyItem::description).containsExactly("전시관 EXHIBITION");
     }
 
     @Test
@@ -756,7 +758,7 @@ class ScheduleQueryServiceTest {
                 mission(place(7L, "6번", 3.0, null), Category.OUTDOOR, IndoorOutdoor.OUTDOOR, 0));
         stubNearby(candidates, List.of(), Map.of(), List.of());
 
-        List<ScheduleResDTO.NearbyItem> result = scheduleQueryService.getNearby(MEMBER_ID, SCHEDULE_ID);
+        List<MissionResDTO.NearbyItem> result = scheduleQueryService.getNearby(MEMBER_ID, SCHEDULE_ID);
 
         // 1번 장소의 미션 2개가 자리 2개를 차지하지 않아 5번까지 들어오고, 6번은 빠진다
         assertThat(placeNames(result)).containsExactly("1번", "2번", "3번", "4번", "5번");
@@ -771,10 +773,10 @@ class ScheduleQueryServiceTest {
                 Category.OUTDOOR, IndoorOutdoor.OUTDOOR, 0);
         stubNearby(List.of(withPlaceImage, withoutPlaceImage), List.of(), Map.of(), List.of());
 
-        List<ScheduleResDTO.NearbyItem> result = scheduleQueryService.getNearby(MEMBER_ID, SCHEDULE_ID);
+        List<MissionResDTO.NearbyItem> result = scheduleQueryService.getNearby(MEMBER_ID, SCHEDULE_ID);
 
-        assertThat(result).extracting(ScheduleResDTO.NearbyItem::region).containsOnly("서울시 서초구");
-        assertThat(result).extracting(ScheduleResDTO.NearbyItem::imageUrl)
+        assertThat(result).extracting(MissionResDTO.NearbyItem::region).containsOnly("서울시 서초구");
+        assertThat(result).extracting(MissionResDTO.NearbyItem::imageUrl)
                 .containsExactly("https://place/sevitseom", "https://mission/반포 한강공원");
     }
 
@@ -785,7 +787,7 @@ class ScheduleQueryServiceTest {
         Mission near = mission(place(3L, "가까운 공원", 0.5, null), Category.OUTDOOR, IndoorOutdoor.OUTDOOR, 5000);
         stubNearby(List.of(far, near), List.of(), tasteScores(far, "0.3"), List.of(ConditionType.REDUCE_STEPS));
 
-        List<ScheduleResDTO.NearbyItem> result = scheduleQueryService.getNearby(MEMBER_ID, SCHEDULE_ID);
+        List<MissionResDTO.NearbyItem> result = scheduleQueryService.getNearby(MEMBER_ID, SCHEDULE_ID);
 
         assertThat(placeNames(result)).containsExactly("가까운 공원", "먼 미술관");
     }
@@ -797,7 +799,7 @@ class ScheduleQueryServiceTest {
         Mission indoor = mission(place(3L, "먼 전시관", 2.0, null), Category.EXHIBITION, IndoorOutdoor.INDOOR, 0);
         stubNearby(List.of(outdoor, indoor), List.of(), Map.of(), List.of(ConditionType.MORE_REST));
 
-        List<ScheduleResDTO.NearbyItem> result = scheduleQueryService.getNearby(MEMBER_ID, SCHEDULE_ID);
+        List<MissionResDTO.NearbyItem> result = scheduleQueryService.getNearby(MEMBER_ID, SCHEDULE_ID);
 
         assertThat(placeNames(result)).containsExactly("먼 전시관", "가까운 공원");
     }
@@ -811,10 +813,10 @@ class ScheduleQueryServiceTest {
         Mission cheap = mission(place(5L, "저가", 3.0, null), Category.OUTDOOR, IndoorOutdoor.OUTDOOR, 10000);
         stubNearby(List.of(unknown, paid, free, cheap), List.of(), Map.of(), List.of(ConditionType.LOWER_BUDGET));
 
-        List<ScheduleResDTO.NearbyItem> result = scheduleQueryService.getNearby(MEMBER_ID, SCHEDULE_ID);
+        List<MissionResDTO.NearbyItem> result = scheduleQueryService.getNearby(MEMBER_ID, SCHEDULE_ID);
 
         assertThat(placeNames(result)).containsExactly("무료", "저가", "요금 모름", "유료");
-        assertThat(result).extracting(ScheduleResDTO.NearbyItem::price).containsExactly(0, 10000, null, 20000);
+        assertThat(result).extracting(MissionResDTO.NearbyItem::price).containsExactly(0, 10000, null, 20000);
     }
 
     @Test

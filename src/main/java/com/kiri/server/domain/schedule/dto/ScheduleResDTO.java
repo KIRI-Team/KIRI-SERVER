@@ -119,16 +119,6 @@ public class ScheduleResDTO {
     }
 
     @Builder
-    public record NearbyItem(
-            String placeName,
-            String region,
-            String description,
-            String imageUrl,
-            Integer price
-    ) {
-    }
-
-    @Builder
     @Schema(name = "ScheduleDetailResponse", description = "일정 상세 조회 응답")
     public record Detail(
             Long missionId,

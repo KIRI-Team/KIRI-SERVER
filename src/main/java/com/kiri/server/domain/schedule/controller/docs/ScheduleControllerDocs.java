@@ -1,6 +1,7 @@
 package com.kiri.server.domain.schedule.controller.docs;
 
 import com.kiri.server.domain.schedule.dto.ScheduleReqDTO;
+import com.kiri.server.domain.mission.dto.MissionResDTO;
 import com.kiri.server.domain.schedule.dto.ScheduleResDTO;
 import com.kiri.server.global.apiPayload.ApiResponse;
 import io.swagger.v3.oas.annotations.Operation;
@@ -450,6 +451,8 @@ public interface ScheduleControllerDocs {
                       근거가 없으면 미션 소개 문구를 반환합니다.
                     - imageUrl: 장소 이미지가 없으면 미션 이미지, 둘 다 없으면 null입니다.
                     - price: 1인 기준 요금(원). 무료면 0, 1인 기준 가격을 확인할 수 없으면 null이며 "정보 확인 필요"로 표시합니다.
+                    - missionId: 카드를 누르면 이 ID로 미션 상세 화면으로 이동합니다.
+                    - distance: 일정 장소로부터의 거리(km, 소수 첫째 자리)
                     - 추천할 장소가 없으면 빈 배열입니다.
                     - 같은 가족의 일정만 조회할 수 있으며, 다른 가족의 일정은 존재하지 않는 일정과 같이 404로 응답합니다.
                     """
@@ -470,11 +473,13 @@ public interface ScheduleControllerDocs {
                                                       "message": "근처 놀거리 추천 조회 성공",
                                                       "result": [
                                                         {
+                                                          "missionId": 241,
                                                           "placeName": "세빛섬",
                                                           "region": "서울시 서초구",
                                                           "description": "일정 장소에서 가까운 곳이에요",
                                                           "imageUrl": "https://tong.visitkorea.or.kr/cms/resource/00/1234500_image2_1.jpg",
-                                                          "price": 0
+                                                          "price": 0,
+                                                          "distance": 0.8
                                                         }
                                                       ]
                                                     }
@@ -598,7 +603,7 @@ public interface ScheduleControllerDocs {
                     )
             )
     })
-    ApiResponse<List<ScheduleResDTO.NearbyItem>> getNearby(
+    ApiResponse<List<MissionResDTO.NearbyItem>> getNearby(
             @Parameter(hidden = true) Long memberId,
             @Parameter(description = "일정 ID", example = "118") Long scheduleId
     );

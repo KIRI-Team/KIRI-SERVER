@@ -13,6 +13,8 @@ import jakarta.validation.Valid;
 import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 
+import java.util.List;
+
 @Tag(name = "미션 API")
 public interface MissionControllerDocs {
 
@@ -344,6 +346,154 @@ public interface MissionControllerDocs {
     })
     ApiResponse<MissionResDTO.Detail> getDetail(
             @Parameter(hidden = true) Long memberId,
+            @Parameter(description = "미션 ID", example = "130") Long missionId
+    );
+
+    @Operation(
+            summary = "미션 상세 근처 놀거리 조회 API",
+            description = """
+                    # 미션 상세 근처 놀거리 조회
+
+                    ## 요청 형식
+                    - 헤더: Authorization: Bearer {JWT 토큰}
+                    - Path: missionId
+
+                    일정을 잡기 전에 미션 상세에서 보는 근처 놀거리입니다. 약속 당일 근처 놀거리는 일정 근처 놀거리 API를 사용합니다.
+                    미션 상세와 같이 공개 중(ACTIVE)이거나 기간이 끝난(ENDED) 미션만 조회할 수 있고, 나머지 상태는 404를 반환합니다.
+
+                    ## 추천 기준
+                    - 미션 장소 좌표 기준 반경 5km 안에서 오늘 운영 중인 공개 미션을 후보로 합니다.
+                    - 미션 장소와 같은 장소의 미션은 제외합니다.
+                    - 취향·컨디션 없이 가까운 순으로 정렬합니다.
+                    - 같은 장소에 미션이 여러 개면 장소 하나로 묶고, 상위 5개만 반환합니다.
+
+                    ## 값 규칙
+                    - 응답 형식은 일정 근처 놀거리 API와 같습니다.
+                    - missionId: 카드를 누르면 이 ID로 미션 상세 화면으로 이동합니다.
+                    - region: 주소의 시·도와 시·군·구까지만 축약해 반환합니다. (예: 서울특별시 서초구 → 서울시 서초구)
+                    - description: 미션 장소에서 1km 이내면 "미션 장소에서 가까운 곳이에요", 아니면 미션 소개 문구입니다.
+                    - imageUrl: 장소 이미지가 없으면 미션 이미지, 둘 다 없으면 null입니다.
+                    - price: 1인 기준 요금(원). 무료면 0, 정보가 없으면 null입니다.
+                    - distance: 미션 장소로부터의 거리(km, 소수 첫째 자리)
+                    - 추천할 장소가 없으면 빈 배열입니다.
+                    """
+    )
+    @ApiResponses(value = {
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200",
+                    description = "조회 성공",
+                    content = @Content(
+                            mediaType = "application/json",
+                            examples = {
+                                    @ExampleObject(
+                                            name = "추천 장소 있음",
+                                            value = """
+                                                    {
+                                                      "isSuccess": true,
+                                                      "code": "MISSION200_4",
+                                                      "message": "근처 놀거리 조회 성공",
+                                                      "result": [
+                                                        {
+                                                          "missionId": 241,
+                                                          "placeName": "세빛섬",
+                                                          "region": "서울시 서초구",
+                                                          "description": "미션 장소에서 가까운 곳이에요",
+                                                          "imageUrl": "https://tong.visitkorea.or.kr/cms/resource/00/1234500_image2_1.jpg",
+                                                          "price": 0,
+                                                          "distance": 0.8
+                                                        }
+                                                      ]
+                                                    }
+                                                    """
+                                    ),
+                                    @ExampleObject(
+                                            name = "추천 장소 없음",
+                                            value = """
+                                                    {
+                                                      "isSuccess": true,
+                                                      "code": "MISSION200_4",
+                                                      "message": "근처 놀거리 조회 성공",
+                                                      "result": []
+                                                    }
+                                                    """
+                                    )
+                            }
+                    )
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "400",
+                    description = "missionId 형식 오류(COMMON400_1)",
+                    content = @Content(
+                            mediaType = "application/json",
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "isSuccess": false,
+                                      "code": "COMMON400_1",
+                                      "message": "잘못된 요청입니다.",
+                                      "result": null
+                                    }
+                                    """)
+                    )
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "401",
+                    description = "인증 실패 - 토큰 미삽입(COMMON401_1) / 유효하지 않은 토큰(AUTH401_1) / 토큰 만료(AUTH401_2)",
+                    content = @Content(
+                            mediaType = "application/json",
+                            examples = {
+                                    @ExampleObject(
+                                            name = "토큰 미삽입",
+                                            value = """
+                                                    {
+                                                      "isSuccess": false,
+                                                      "code": "COMMON401_1",
+                                                      "message": "인증이 필요합니다.",
+                                                      "result": null
+                                                    }
+                                                    """
+                                    ),
+                                    @ExampleObject(
+                                            name = "유효하지 않은 토큰",
+                                            value = """
+                                                    {
+                                                      "isSuccess": false,
+                                                      "code": "AUTH401_1",
+                                                      "message": "유효하지 않은 토큰입니다.",
+                                                      "result": null
+                                                    }
+                                                    """
+                                    ),
+                                    @ExampleObject(
+                                            name = "토큰 만료",
+                                            value = """
+                                                    {
+                                                      "isSuccess": false,
+                                                      "code": "AUTH401_2",
+                                                      "message": "토큰이 만료되었습니다.",
+                                                      "result": null
+                                                    }
+                                                    """
+                                    )
+                            }
+                    )
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "404",
+                    description = "없는 미션이거나 노출할 수 없는 상태(MISSION404_1)",
+                    content = @Content(
+                            mediaType = "application/json",
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "isSuccess": false,
+                                      "code": "MISSION404_1",
+                                      "message": "존재하지 않는 미션입니다.",
+                                      "result": null
+                                    }
+                                    """)
+                    )
+            )
+    })
+    ApiResponse<List<MissionResDTO.NearbyItem>> getNearby(
             @Parameter(description = "미션 ID", example = "130") Long missionId
     );
 

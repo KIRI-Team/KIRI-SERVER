@@ -46,6 +46,7 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyDouble;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
@@ -90,7 +91,7 @@ class MissionQueryServiceTest {
     void setUp() {
         missionQueryService = new MissionQueryService(missionRepository, missionFeedRepository,
                 missionChecklistItemRepository, externalRecordRepository, memberRepository, bucketItemRepository,
-                kiriPickRepository, reviewRepository, CLOCK);
+                kiriPickRepository, reviewRepository, new NearbyMissionFinder(missionRepository), CLOCK);
     }
 
     @Test
@@ -403,6 +404,76 @@ class MissionQueryServiceTest {
         assertThatThrownBy(() -> missionQueryService.getDetail(MEMBER_ID, 99L))
                 .isInstanceOf(MissionException.class)
                 .extracting("errorCode").isEqualTo(MissionErrorCode.NOT_FOUND);
+    }
+
+    @Test
+    @DisplayName("근처 놀거리는 오늘 운영 중인 후보를 가까운 순으로 담는다.")
+    void getNearby_sortsByDistance() {
+        Mission far = nearbyMission(11L, nearbyPlace(2L, "먼 곳", 3.0), "먼 곳 소개");
+        Mission near = nearbyMission(12L, nearbyPlace(3L, "가까운 곳", 0.5), "가까운 곳 소개");
+        stubNearby(List.of(far, near));
+
+        List<MissionResDTO.NearbyItem> result = missionQueryService.getNearby(1L);
+
+        assertThat(result).extracting(MissionResDTO.NearbyItem::missionId).containsExactly(12L, 11L);
+        assertThat(result).extracting(MissionResDTO.NearbyItem::distance).containsExactly(0.5, 3.0);
+    }
+
+    @Test
+    @DisplayName("같은 장소에 미션이 여러 개면 미션 ID가 가장 작은 미션 하나만 담는다.")
+    void getNearby_dedupsByPlace() {
+        Place sevitseom = nearbyPlace(2L, "세빛섬", 2.0);
+        stubNearby(List.of(nearbyMission(22L, sevitseom, "행사"), nearbyMission(21L, sevitseom, "상설")));
+
+        List<MissionResDTO.NearbyItem> result = missionQueryService.getNearby(1L);
+
+        assertThat(result).extracting(MissionResDTO.NearbyItem::missionId).containsExactly(21L);
+    }
+
+    @Test
+    @DisplayName("미션 장소에서 1km 이내면 거리 문구, 아니면 미션 소개 문구를 담는다.")
+    void getNearby_reason() {
+        Mission near = nearbyMission(11L, nearbyPlace(2L, "가까운 곳", 0.9), "가까운 곳 소개");
+        Mission far = nearbyMission(12L, nearbyPlace(3L, "먼 곳", 2.0), "먼 곳 소개");
+        stubNearby(List.of(near, far));
+
+        List<MissionResDTO.NearbyItem> result = missionQueryService.getNearby(1L);
+
+        assertThat(result).extracting(MissionResDTO.NearbyItem::description)
+                .containsExactly("미션 장소에서 가까운 곳이에요", "먼 곳 소개");
+    }
+
+    @Test
+    @DisplayName("근처 놀거리 기준 미션이 노출할 수 없는 상태면 MISSION404_1을 던진다.")
+    void getNearby_notVisible() {
+        given(missionRepository.findWithPlaceById(1L)).willReturn(Optional.of(mission(1L, MissionStatus.HIDDEN)));
+
+        assertThatThrownBy(() -> missionQueryService.getNearby(1L))
+                .isInstanceOf(MissionException.class)
+                .extracting("errorCode").isEqualTo(MissionErrorCode.NOT_FOUND);
+        verify(missionRepository, never()).findAllWithPlaceByIdIn(any());
+    }
+
+    private void stubNearby(List<Mission> candidates) {
+        given(missionRepository.findWithPlaceById(1L)).willReturn(Optional.of(mission(1L, MissionStatus.ACTIVE)));
+        List<Long> ids = candidates.stream().map(Mission::getId).toList();
+        given(missionRepository.findNearbyIds(anyDouble(), anyDouble(), anyDouble(), anyDouble(), anyDouble(),
+                anyDouble(), anyDouble(), eq(1L), eq(TODAY))).willReturn(ids);
+        given(missionRepository.findAllWithPlaceByIdIn(ids)).willReturn(candidates);
+    }
+
+    // 기준 장소(서울숲)에서 북쪽으로 kmNorth만큼 떨어진 장소
+    private Place nearbyPlace(Long id, String name, double kmNorth) {
+        return Place.builder()
+                .id(id)
+                .name(name)
+                .latitude(new BigDecimal("37.5444000").add(BigDecimal.valueOf(kmNorth * 0.009)))
+                .longitude(new BigDecimal("127.0374000"))
+                .build();
+    }
+
+    private Mission nearbyMission(Long id, Place place, String description) {
+        return Mission.builder().id(id).place(place).description(description).status(MissionStatus.ACTIVE).build();
     }
 
     private Member member(Family family) {
