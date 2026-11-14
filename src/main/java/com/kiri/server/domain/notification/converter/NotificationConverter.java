@@ -33,4 +33,19 @@ public class NotificationConverter {
                 .referenceDate(familyQuestion.getQuestionDate())
                 .build();
     }
+
+    public static Notification toPoke(Member receiver, Member sender, FamilyQuestion familyQuestion, boolean hasAnswered) {
+        String senderNickname = sender.getNickname();
+
+        return Notification.builder()
+                .member(receiver)
+                .notificationType(NotificationType.POKE)
+                .title("'" + senderNickname + "'님이 나를 '콕' 찔렀어요!")
+                .body(hasAnswered ? senderNickname + "님이 관심을 보냈어요. 가족의 답변도 확인해 보세요." : senderNickname + "님이 오늘의 질문 답변을 기다리고 있어요. 들어가서 확인해 주세요.")
+                .status(NotificationStatus.PENDING)
+                .isRead(false)
+                .referenceId(familyQuestion.getId())
+                .referenceDate(familyQuestion.getQuestionDate())
+                .build();
+    }
 }

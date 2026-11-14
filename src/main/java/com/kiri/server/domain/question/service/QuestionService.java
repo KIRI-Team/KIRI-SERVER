@@ -208,6 +208,8 @@ public class QuestionService {
             throw e;
         }
 
+        notificationService.createPokeNotification(member, receiver, today);
+
         eventPublisher.publishEvent(new PokeEvent(memberId, receiverId));
     }
 

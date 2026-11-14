@@ -8,6 +8,8 @@ import com.kiri.server.domain.notification.enums.NotificationStatus;
 import com.kiri.server.domain.notification.enums.NotificationType;
 import com.kiri.server.domain.notification.repository.NotificationRepository;
 import com.kiri.server.domain.question.entity.FamilyQuestion;
+import com.kiri.server.domain.question.exception.QuestionException;
+import com.kiri.server.domain.question.exception.code.QuestionErrorCode;
 import com.kiri.server.domain.question.repository.FamilyQuestionRepository;
 import com.kiri.server.domain.question.repository.MemberAnswerRepository;
 import com.kiri.server.domain.setting.entity.MemberSetting;
@@ -112,5 +114,16 @@ public class NotificationService {
         if (!notifications.isEmpty()) {
             notificationRepository.saveAll(notifications);
         }
+    }
+
+    @Transactional
+    public void createPokeNotification(Member sender, Member receiver, LocalDate today) {
+        FamilyQuestion familyQuestion = familyQuestionRepository.findByFamilyAndQuestionDate(receiver.getFamily(), today).orElseThrow(() -> new QuestionException(QuestionErrorCode.TODAY_QUESTION_NOT_FOUND));
+
+        boolean hasAnswered = memberAnswerRepository.existsByFamilyQuestionAndMember(familyQuestion, receiver);
+
+        Notification notification = NotificationConverter.toPoke(receiver, sender, familyQuestion, hasAnswered);
+
+        notificationRepository.save(notification);
     }
 }

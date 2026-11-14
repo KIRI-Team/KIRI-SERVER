@@ -3,5 +3,6 @@ ALTER TABLE notification
     ADD COLUMN reference_id BIGINT,
     ADD COLUMN reference_date DATE;
 
-ALTER TABLE notification
-    ADD CONSTRAINT uk_notification_member_type_reference_date UNIQUE (member_id, notification_type, reference_date);
+CREATE UNIQUE INDEX uk_notification_member_type_reference_date
+    ON notification (member_id, notification_type, reference_date)
+    WHERE notification_type <> 'POKE';

@@ -9,6 +9,7 @@ import com.kiri.server.domain.notification.enums.NotificationType;
 import com.kiri.server.domain.notification.repository.NotificationRepository;
 import com.kiri.server.domain.question.entity.FamilyQuestion;
 import com.kiri.server.domain.question.entity.MemberAnswer;
+import com.kiri.server.domain.question.exception.QuestionException;
 import com.kiri.server.domain.question.repository.FamilyQuestionRepository;
 import com.kiri.server.domain.question.repository.MemberAnswerRepository;
 import com.kiri.server.domain.setting.entity.MemberSetting;
@@ -27,6 +28,7 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -64,11 +66,13 @@ class NotificationServiceTest {
 
     private final Member member = Member.builder()
             .id(MEMBER_ID)
+            .nickname("철수")
             .family(family)
             .build();
 
     private final Member member2 = Member.builder()
             .id(2L)
+            .nickname("영희")
             .family(family)
             .build();
 
@@ -312,6 +316,89 @@ class NotificationServiceTest {
 
         assertThat(captor.getValue()).hasSize(1);
         assertThat(captor.getValue().get(0).getMember()).isEqualTo(member2);
+    }
+
+    @Test
+    @DisplayName("미답변 수신자에게 PK-01 알림 문구를 생성한다.")
+    void createPokeNotificationNotAnswered() {
+        given(familyQuestionRepository.findByFamilyAndQuestionDate(family, TODAY)).willReturn(Optional.of(familyQuestion));
+
+        given(memberAnswerRepository.existsByFamilyQuestionAndMember(familyQuestion, member2)).willReturn(false);
+
+        notificationService.createPokeNotification(member, member2, TODAY);
+
+        ArgumentCaptor<Notification> captor = ArgumentCaptor.forClass(Notification.class);
+
+        verify(notificationRepository).save(captor.capture());
+
+        Notification saved = captor.getValue();
+
+        assertThat(saved.getMember()).isEqualTo(member2);
+        assertThat(saved.getNotificationType()).isEqualTo(NotificationType.POKE);
+        assertThat(saved.getTitle()).isEqualTo("'철수'님이 나를 '콕' 찔렀어요!");
+        assertThat(saved.getBody()).isEqualTo("철수님이 오늘의 질문 답변을 기다리고 있어요. 들어가서 확인해 주세요.");
+        assertThat(saved.getStatus()).isEqualTo(NotificationStatus.PENDING);
+        assertThat(saved.getIsRead()).isFalse();
+        assertThat(saved.getReferenceId()).isEqualTo(FAMILY_QUESTION_ID);
+        assertThat(saved.getReferenceDate()).isEqualTo(TODAY);
+    }
+
+    @Test
+    @DisplayName("답변 완료 수신자에게 PK-02 알림 문구를 생성한다.")
+    void createPokeNotificationAnswered() {
+        given(familyQuestionRepository.findByFamilyAndQuestionDate(family, TODAY)).willReturn(Optional.of(familyQuestion));
+
+        given(memberAnswerRepository.existsByFamilyQuestionAndMember(familyQuestion, member2)).willReturn(true);
+
+        notificationService.createPokeNotification(member, member2, TODAY);
+
+        ArgumentCaptor<Notification> captor = ArgumentCaptor.forClass(Notification.class);
+
+        verify(notificationRepository).save(captor.capture());
+
+        Notification saved = captor.getValue();
+
+        assertThat(saved.getMember()).isEqualTo(member2);
+        assertThat(saved.getNotificationType()).isEqualTo(NotificationType.POKE);
+        assertThat(saved.getTitle()).isEqualTo("'철수'님이 나를 '콕' 찔렀어요!");
+        assertThat(saved.getBody()).isEqualTo("철수님이 관심을 보냈어요. 가족의 답변도 확인해 보세요.");
+        assertThat(saved.getStatus()).isEqualTo(NotificationStatus.PENDING);
+        assertThat(saved.getIsRead()).isFalse();
+        assertThat(saved.getReferenceId()).isEqualTo(FAMILY_QUESTION_ID);
+        assertThat(saved.getReferenceDate()).isEqualTo(TODAY);
+    }
+
+    @Test
+    @DisplayName("오늘 질문이 존재하지 않으면 예외가 발생한다.")
+    void createPokeNotificationQuestionNotFound() {
+        given(familyQuestionRepository.findByFamilyAndQuestionDate(family, TODAY)).willReturn(Optional.empty());
+
+        assertThatThrownBy(() -> notificationService.createPokeNotification(member, member2, TODAY)).isInstanceOf(QuestionException.class);
+
+        verify(memberAnswerRepository, never()).existsByFamilyQuestionAndMember(familyQuestion, member2);
+
+        verify(notificationRepository, never()).save(org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    @DisplayName("콕 알림을 Notification 테이블에 저장한다.")
+    void createPokeNotificationSaveNotification() {
+        given(familyQuestionRepository.findByFamilyAndQuestionDate(family, TODAY)).willReturn(Optional.of(familyQuestion));
+
+        given(memberAnswerRepository.existsByFamilyQuestionAndMember(familyQuestion, member2)).willReturn(false);
+
+        notificationService.createPokeNotification(member, member2, TODAY);
+
+        ArgumentCaptor<Notification> captor = ArgumentCaptor.forClass(Notification.class);
+
+        verify(notificationRepository).save(captor.capture());
+
+        Notification saved = captor.getValue();
+
+        assertThat(saved).isNotNull();
+        assertThat(saved.getMember()).isEqualTo(member2);
+        assertThat(saved.getNotificationType()).isEqualTo(NotificationType.POKE);
+        assertThat(saved.getStatus()).isEqualTo(NotificationStatus.PENDING);
     }
 
     private MemberSetting createSetting(boolean enabled, LocalTime notificationTime) {

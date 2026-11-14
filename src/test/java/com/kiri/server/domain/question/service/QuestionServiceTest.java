@@ -484,6 +484,7 @@ class QuestionServiceTest {
                 .extracting("errorCode")
                 .isEqualTo(QuestionErrorCode.SELF_POKE);
         verify(memberRepository, never()).findById(any());
+        verify(notificationService, never()).createPokeNotification(any(), any(), any());
     }
 
     @Test
@@ -495,6 +496,8 @@ class QuestionServiceTest {
                 .isInstanceOf(MemberException.class)
                 .extracting("errorCode")
                 .isEqualTo(MemberErrorCode.NOT_FOUND);
+
+        verify(notificationService, never()).createPokeNotification(any(), any(), any());
     }
 
     @Test
@@ -508,6 +511,7 @@ class QuestionServiceTest {
                 .extracting("errorCode")
                 .isEqualTo(QuestionErrorCode.FAMILY_REQUIRED);
         verify(memberRepository, never()).findById(RECEIVER_ID);
+        verify(notificationService, never()).createPokeNotification(any(), any(), any());
     }
 
     @Test
@@ -520,6 +524,8 @@ class QuestionServiceTest {
                 .isInstanceOf(QuestionException.class)
                 .extracting("errorCode")
                 .isEqualTo(QuestionErrorCode.POKE_RECEIVER_NOT_FOUND);
+
+        verify(notificationService, never()).createPokeNotification(any(), any(), any());
     }
 
     @Test
@@ -535,6 +541,7 @@ class QuestionServiceTest {
                 .extracting("errorCode")
                 .isEqualTo(QuestionErrorCode.POKE_RECEIVER_NOT_FOUND);
         verify(pokeRepository, never()).save(any());
+        verify(notificationService, never()).createPokeNotification(any(), any(), any());
     }
 
     @Test
@@ -548,6 +555,8 @@ class QuestionServiceTest {
                 .isInstanceOf(QuestionException.class)
                 .extracting("errorCode")
                 .isEqualTo(QuestionErrorCode.POKE_RECEIVER_NOT_FOUND);
+
+        verify(notificationService, never()).createPokeNotification(any(), any(), any());
     }
 
     @Test
@@ -562,6 +571,7 @@ class QuestionServiceTest {
                 .extracting("errorCode")
                 .isEqualTo(QuestionErrorCode.ALREADY_POKED);
         verify(pokeRepository, never()).save(any());
+        verify(notificationService, never()).createPokeNotification(any(), any(), any());
         verify(eventPublisher, never()).publishEvent(any(Object.class));
     }
 
@@ -582,6 +592,7 @@ class QuestionServiceTest {
         assertThat(saved.getReceiver()).isEqualTo(receiver);
         assertThat(saved.getPokeDate()).isEqualTo(today);
 
+        verify(notificationService).createPokeNotification(member, receiver, today);
         verify(eventPublisher).publishEvent(new PokeEvent(MEMBER_ID, RECEIVER_ID));
     }
 
@@ -600,6 +611,7 @@ class QuestionServiceTest {
                 .isInstanceOf(QuestionException.class)
                 .extracting("errorCode")
                 .isEqualTo(QuestionErrorCode.ALREADY_POKED);
+        verify(notificationService, never()).createPokeNotification(any(), any(), any());
         verify(eventPublisher, never()).publishEvent(any(Object.class));
     }
 
@@ -617,6 +629,8 @@ class QuestionServiceTest {
 
         assertThatThrownBy(() -> questionService.poke(MEMBER_ID, RECEIVER_ID))
                 .isInstanceOf(DataIntegrityViolationException.class);
+
+        verify(notificationService, never()).createPokeNotification(any(), any(), any());
     }
 
     @Test

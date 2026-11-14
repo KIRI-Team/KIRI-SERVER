@@ -12,12 +12,7 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Entity
-@Table(
-        name = "notification",
-        uniqueConstraints = {
-                @UniqueConstraint(name = "uk_notification_member_type_reference_date", columnNames = {"member_id", "notification_type", "reference_date"})
-        }
-)
+@Table(name = "notification")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @Builder
