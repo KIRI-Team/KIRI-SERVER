@@ -61,7 +61,8 @@ class MissionDraftFactoryTest {
                 .containsExactly(
                         tuple(ItemType.STEP, ChecklistSource.ORIGIN, "잠수교 걷기", 1),
                         tuple(ItemType.STEP, ChecklistSource.ORIGIN, "푸드트럭 존 함께 즐기기", 2),
-                        tuple(ItemType.STEP, ChecklistSource.ORIGIN, "버스킹 공연 관람하기", 3));
+                        tuple(ItemType.STEP, ChecklistSource.ORIGIN, "버스킹 공연 관람하기", 3),
+                        tuple(ItemType.PREPARE, ChecklistSource.KIRI, "편한 신발", 1));
     }
 
     @Test
@@ -104,9 +105,7 @@ class MissionDraftFactoryTest {
                 .extracting(MissionDraft.ChecklistDraft::source, MissionDraft.ChecklistDraft::title)
                 .containsExactly(
                         tuple(ChecklistSource.KIRI, "함께 걸을 코스 정하기"),
-                        tuple(ChecklistSource.KIRI, "서로 근황 이야기하기"),
-                        tuple(ChecklistSource.KIRI, "편한 신발"),
-                        tuple(ChecklistSource.KIRI, "물"));
+                        tuple(ChecklistSource.KIRI, "서로 근황 이야기하기"));
     }
 
     @Test
@@ -296,23 +295,22 @@ class MissionDraftFactoryTest {
     @Test
     @DisplayName("카테고리마다 서로 다른 KIRI 기본 활동을 쓴다.")
     void checklist_defaultsByCategory() {
-        assertThat(titles(ready(factory.create(base("14", "국립중앙박물관").build()))))
+        assertThat(stepTitles(ready(factory.create(base("14", "국립중앙박물관").build()))))
                 .containsExactly("마음에 드는 작품 고르기", "서로 감상 이야기하기");
-        assertThat(titles(ready(factory.create(event("가을밤 페스티벌", "EV02", "EV020700")))))
+        assertThat(stepTitles(ready(factory.create(event("가을밤 페스티벌", "EV02", "EV020700")))))
                 .containsExactly("관람 전 기대되는 점 이야기하기", "가장 기억에 남는 장면 이야기하기");
-        assertThat(titles(ready(factory.create(event("K-푸드 페스티벌", "EV01", "EV010600")))))
+        assertThat(stepTitles(ready(factory.create(event("K-푸드 페스티벌", "EV01", "EV010600")))))
                 .containsExactly("함께 참여할 부스나 프로그램 고르기", "가장 재미있었던 활동 공유하기");
-        assertThat(titles(ready(factory.create(base("28", "한강 카약 체험").build()))))
+        assertThat(stepTitles(ready(factory.create(base("28", "한강 카약 체험").build()))))
                 .containsExactly("함께할 체험 고르기", "가장 재미있었던 순간 공유하기");
     }
 
     @Test
-    @DisplayName("맞춤템은 활동 뒤에 붙고, 원본 소요시간이 짧으면 물을 담지 않는다.")
+    @DisplayName("맞춤템은 활동 뒤에 붙고, 기본 활동시간이 아니라 원본 소요시간으로 물을 판단한다.")
     void checklist_appendsEssentials() {
         NormalizedContent longStay = base("12", "남산공원").lclsSystm1("NA").lclsSystm2("NA04")
-                .overview("준비물 : 돗자리").durationText("약 4시간").build();
-        NormalizedContent shortStay = base("12", "남산공원").lclsSystm1("NA").lclsSystm2("NA04")
-                .durationText("약 1시간").build();
+                .overview("준비물 : 돗자리\n산책로를 따라 걷기 좋은 공원").durationText("약 4시간").build();
+        NormalizedContent noDuration = base("12", "남산공원").lclsSystm1("NA").lclsSystm2("NA04").build();
 
         assertThat(ready(factory.create(longStay)).checklist())
                 .extracting(MissionDraft.ChecklistDraft::itemType, MissionDraft.ChecklistDraft::title)
@@ -322,7 +320,9 @@ class MissionDraftFactoryTest {
                         tuple(ItemType.PREPARE, "돗자리"),
                         tuple(ItemType.PREPARE, "편한 신발"),
                         tuple(ItemType.PREPARE, "물"));
-        assertThat(titles(ready(factory.create(shortStay)))).doesNotContain("물");
+        MissionDraft defaultOnly = ready(factory.create(noDuration));
+        assertThat(defaultOnly.durationMaxMinutes()).isEqualTo(180);
+        assertThat(titles(defaultOnly)).doesNotContain("물");
     }
 
     @Test
@@ -342,6 +342,13 @@ class MissionDraftFactoryTest {
         assertThat(factory.create(base("14", "부산시립미술관")
                 .latitude(new BigDecimal("35.1667")).longitude(new BigDecimal("129.1361")).build()))
                 .isEqualTo(new DraftResult.ReviewRequired(ReviewReason.NO_LOCATION));
+    }
+
+    private List<String> stepTitles(MissionDraft draft) {
+        return draft.checklist().stream()
+                .filter(item -> item.itemType() == ItemType.STEP)
+                .map(MissionDraft.ChecklistDraft::title)
+                .toList();
     }
 
     private List<String> titles(MissionDraft draft) {
