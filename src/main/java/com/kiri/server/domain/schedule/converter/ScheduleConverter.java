@@ -15,6 +15,7 @@ import com.kiri.server.domain.schedule.exception.ScheduleException;
 import com.kiri.server.domain.schedule.exception.code.ScheduleErrorCode;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 
@@ -122,14 +123,25 @@ public class ScheduleConverter {
     }
 
     public static ScheduleResDTO.Detail toDetail(Schedule schedule, List<ScheduleParticipant> participants,
-                                                 LocalDate today) {
+                                                 Long memberId, LocalDateTime now) {
+        ScheduleParticipant myParticipant = participants.stream()
+                .filter(participant -> participant.getMember() != null
+                        && memberId.equals(participant.getMember().getId()))
+                .findFirst()
+                .orElse(null);
+        boolean isProposer = schedule.isProposer(memberId);
+
         return ScheduleResDTO.Detail.builder()
                 .missionId(resolveMissionId(schedule))
                 .date(schedule.getScheduleDate())
                 .time(schedule.getScheduleTime())
-                .status(toDetailStatus(schedule, today))
+                .status(toDetailStatus(schedule, now.toLocalDate()))
                 .proposer(toProposer(schedule.getProposer()))
                 .requestMessage(schedule.getRequestMessage())
+                .myStatus(toMyStatus(myParticipant))
+                .canRespond(myParticipant != null && !isProposer && schedule.isResponseOpen(now))
+                .canEdit(isProposer && schedule.isUpdatable() && !schedule.hasStarted(now))
+                .canCancel(isProposer && schedule.isCancelable())
                 .participants(participants.stream().map(ScheduleConverter::toParticipantItem).toList())
                 .build();
     }

@@ -130,6 +130,10 @@ public class ScheduleResDTO {
             ScheduleDetailStatus status,
             Proposer proposer,
             String requestMessage,
+            CalendarMyStatus myStatus,
+            boolean canRespond,
+            boolean canEdit,
+            boolean canCancel,
             List<ParticipantItem> participants
     ) {
     }

@@ -341,7 +341,7 @@ public class ScheduleQueryService {
         }
         List<ScheduleParticipant> participants = scheduleParticipantRepository.findAllWithMemberByScheduleId(scheduleId);
 
-        return ScheduleConverter.toDetail(schedule, participants, LocalDate.now(clock));
+        return ScheduleConverter.toDetail(schedule, participants, memberId, LocalDateTime.now(clock));
     }
 
     // DB 조회에만 트랜잭션을 걸고, 날씨 API는 트랜잭션 밖에서 호출해 커넥션을 잡지 않음

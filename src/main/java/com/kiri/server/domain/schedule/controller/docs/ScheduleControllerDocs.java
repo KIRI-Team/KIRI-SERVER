@@ -830,7 +830,7 @@ public interface ScheduleControllerDocs {
                     - 헤더: Authorization: Bearer {JWT 토큰}
                     - Path: scheduleId
 
-                    일정의 날짜, 시작 시간, 일정 상태, 초대 정보(제안자, 가족에게 한 줄)와 참여자별 수락 여부를 조회합니다.
+                    일정의 날짜, 시작 시간, 일정 상태, 초대 정보(제안자, 가족에게 한 줄), 내 응답 상태와 버튼 노출 여부, 참여자별 수락 여부를 조회합니다.
                     초대받은 화면, 약속 확정·당일 화면, 일정 취소 확인 화면 모두 이 API로 처리합니다.
                     미션 정보(제목, 행사 설명, 장소, 걸음 수, 활동 시간)는 미션 상세 조회 API를 사용합니다.
 
@@ -843,6 +843,15 @@ public interface ScheduleControllerDocs {
                       - COMPLETED: 약속 완료
                     - proposer: 일정을 제안한 구성원. 탈퇴한 회원은 nickname이 "탈퇴한 사용자", familyRole이 null입니다.
                     - requestMessage: 가족에게 한 줄. 입력하지 않았으면 null입니다.
+                    - myStatus: 조회한 사용자의 응답 상태
+                      - NOT_INVITED: 초대받지 않음
+                      - PENDING: 미응답
+                      - ACCEPTED: 수락
+                      - DECLINED: 거절
+                      - RECONFIRM_REQUIRED: 일정 변경으로 재확인 필요
+                    - canRespond: 수락·거절 가능 여부 (초대 대상이고 응답 마감 전)
+                    - canEdit: 일정 변경 가능 여부 (제안자이고 시작 전인 응답 대기·확정 일정)
+                    - canCancel: 일정 취소 가능 여부 (제안자이고 응답 대기·확정 일정)
                     - participants: 제안자가 맨 앞이며, 이후 초대 순서입니다.
                       - nickname: 탈퇴한 회원은 "탈퇴한 사용자"로 표시합니다.
                       - accepted: 수락했으면 true, 응답 대기·거절이면 false
@@ -872,6 +881,10 @@ public interface ScheduleControllerDocs {
                                           "familyRole": "DAUGHTER"
                                         },
                                         "requestMessage": "엄마, 아빠 나 여기 가고싶은데 같이 갈래요??",
+                                        "myStatus": "PENDING",
+                                        "canRespond": true,
+                                        "canEdit": false,
+                                        "canCancel": false,
                                         "participants": [
                                           { "nickname": "첫째", "accepted": true },
                                           { "nickname": "엄마", "accepted": false },
