@@ -5,6 +5,7 @@ import com.kiri.server.domain.family.entity.Family;
 import com.kiri.server.domain.member.entity.Member;
 import com.kiri.server.domain.member.exception.MemberException;
 import com.kiri.server.domain.member.repository.MemberRepository;
+import com.kiri.server.domain.notification.service.NotificationService;
 import com.kiri.server.domain.schedule.dto.ScheduleReqDTO;
 import com.kiri.server.domain.schedule.dto.ScheduleResDTO;
 import com.kiri.server.domain.schedule.entity.Schedule;
@@ -33,7 +34,10 @@ import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 
 @ExtendWith(MockitoExtension.class)
 class ScheduleResponseServiceTest {
@@ -46,6 +50,7 @@ class ScheduleResponseServiceTest {
     @Mock private ScheduleRepository scheduleRepository;
     @Mock private ScheduleParticipantRepository scheduleParticipantRepository;
     @Mock private MemberRepository memberRepository;
+    @Mock private NotificationService notificationService;
 
     private ScheduleResponseService service;
 
@@ -54,7 +59,7 @@ class ScheduleResponseServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new ScheduleResponseService(scheduleRepository, scheduleParticipantRepository, memberRepository, CLOCK);
+        service = new ScheduleResponseService(scheduleRepository, scheduleParticipantRepository, memberRepository, CLOCK, notificationService);
         Family family = Family.builder().id(10L).name("가족").build();
         proposer = Member.builder().id(PROPOSER_ID).family(family).nickname("제안자").build();
         me = Member.builder().id(MEMBER_ID).family(family).nickname("엄마").build();
@@ -93,6 +98,7 @@ class ScheduleResponseServiceTest {
         assertThat(p.getStatus()).isEqualTo(ParticipantStatus.ACCEPTED);
         assertThat(result.myStatus()).isEqualTo(ParticipantStatus.ACCEPTED);
         assertThat(result.status()).isEqualTo(ScheduleStatus.CONFIRMED);
+        verify(notificationService).createScheduleConfirmedNotifications(schedule);
     }
 
     @Test
@@ -111,6 +117,7 @@ class ScheduleResponseServiceTest {
 
         assertThat(result.myStatus()).isEqualTo(ParticipantStatus.DECLINED);
         assertThat(result.status()).isEqualTo(ScheduleStatus.PENDING_RESPONSE);
+        verify(notificationService, never()).createScheduleConfirmedNotifications(any());
     }
 
     @Test
@@ -234,5 +241,31 @@ class ScheduleResponseServiceTest {
                 .isInstanceOf(ScheduleException.class)
                 .extracting(e -> ((ScheduleException) e).getErrorCode())
                 .isEqualTo(ScheduleErrorCode.RESPONSE_CLOSED);
+    }
+
+    @Test
+    @DisplayName("이미 확정된 일정에서 추가 참여자가 수락해도 확정 알림을 다시 생성하지 않는다.")
+    void respondAlreadyConfirmed() {
+        Schedule schedule = schedule(ScheduleStatus.CONFIRMED, future());
+
+        ScheduleParticipant p = ScheduleParticipant.builder()
+                .id(5L)
+                .schedule(schedule)
+                .member(me)
+                .status(ParticipantStatus.PENDING)
+                .reconfirmRequired(false)
+                .build();
+
+        given(memberRepository.existsById(MEMBER_ID)).willReturn(true);
+        given(scheduleRepository.findByIdForUpdate(SCHEDULE_ID)).willReturn(Optional.of(schedule));
+        given(scheduleParticipantRepository.findBySchedule_IdAndMember_IdForUpdate(SCHEDULE_ID, MEMBER_ID)).willReturn(Optional.of(p));
+        given(scheduleParticipantRepository.countBySchedule_IdAndStatusAndReconfirmRequiredFalseAndMember_IdNot(SCHEDULE_ID, ParticipantStatus.ACCEPTED, PROPOSER_ID)).willReturn(2L);
+
+        ScheduleResDTO.Responded result = service.respond(MEMBER_ID, SCHEDULE_ID, req(ResponseAction.ACCEPT));
+
+        assertThat(p.getStatus()).isEqualTo(ParticipantStatus.ACCEPTED);
+        assertThat(result.status()).isEqualTo(ScheduleStatus.CONFIRMED);
+
+        verify(notificationService, never()).createScheduleConfirmedNotifications(any());
     }
 }

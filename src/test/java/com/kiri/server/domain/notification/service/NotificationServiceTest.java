@@ -749,6 +749,132 @@ class NotificationServiceTest {
         assertThat(schedule.getResponseReminderAt()).isEqualTo(reminderAt);
     }
 
+    @Test
+    @DisplayName("SC-03. 일정이 확정되면 제안자와 수락한 참여자에게 알림을 생성한다.")
+    void createScheduleConfirmedNotificationsSuccess() {
+        Schedule schedule = createSchedule();
+
+        ScheduleParticipant acceptedParticipant = createParticipant(schedule, member2, ParticipantStatus.ACCEPTED);
+
+        ScheduleParticipant declinedParticipant = createParticipant(schedule, member3, ParticipantStatus.DECLINED);
+
+        given(scheduleParticipantRepository.findAllWithMemberByScheduleId(schedule.getId())).willReturn(List.of(acceptedParticipant, declinedParticipant));
+
+        given(notificationRepository.existsByMemberAndNotificationTypeAndReferenceId(member, NotificationType.SCHEDULE, schedule.getId())).willReturn(false);
+
+        given(notificationRepository.existsByMemberAndNotificationTypeAndReferenceId(member2, NotificationType.SCHEDULE, schedule.getId())).willReturn(false);
+
+        notificationService.createScheduleConfirmedNotifications(schedule);
+
+        ArgumentCaptor<List<Notification>> captor = ArgumentCaptor.forClass(List.class);
+
+        verify(notificationRepository).saveAll(captor.capture());
+
+        List<Notification> saved = captor.getValue();
+
+        assertThat(saved).hasSize(2);
+
+        assertThat(saved)
+                .extracting(Notification::getMember)
+                .containsExactlyInAnyOrder(member, member2);
+
+        assertThat(saved)
+                .extracting(Notification::getNotificationType)
+                .containsOnly(NotificationType.SCHEDULE);
+
+        assertThat(saved)
+                .extracting(Notification::getTitle)
+                .containsOnly("일정이 확정됐어요! 🎉");
+
+        assertThat(saved)
+                .extracting(Notification::getBody)
+                .containsOnly("'공원 산책' 일정이 확정됐어요. 11월 15일 14:00에 만나요!");
+
+        assertThat(saved)
+                .extracting(Notification::getStatus)
+                .containsOnly(NotificationStatus.PENDING);
+
+        assertThat(saved)
+                .extracting(Notification::getIsRead)
+                .containsOnly(false);
+
+        assertThat(saved)
+                .extracting(Notification::getReferenceId)
+                .containsOnly(schedule.getId());
+    }
+
+    @Test
+    @DisplayName("SC-03. 거절하거나 응답하지 않은 참여자에게는 확정 알림을 생성하지 않는다.")
+    void createScheduleConfirmedNotificationsExcludesNonAccepted() {
+        Schedule schedule = createSchedule();
+
+        ScheduleParticipant declined = createParticipant(schedule, member2, ParticipantStatus.DECLINED);
+
+        ScheduleParticipant pending = createParticipant(schedule, member3, ParticipantStatus.PENDING);
+
+        given(scheduleParticipantRepository.findAllWithMemberByScheduleId(schedule.getId())).willReturn(List.of(declined, pending));
+
+        given(notificationRepository.existsByMemberAndNotificationTypeAndReferenceId(member, NotificationType.SCHEDULE, schedule.getId())).willReturn(false);
+
+        notificationService.createScheduleConfirmedNotifications(schedule);
+
+        ArgumentCaptor<List<Notification>> captor = ArgumentCaptor.forClass(List.class);
+
+        verify(notificationRepository).saveAll(captor.capture());
+
+        assertThat(captor.getValue())
+                .hasSize(1)
+                .extracting(Notification::getMember)
+                .containsExactly(member);
+    }
+
+    @Test
+    @DisplayName("SC-03. 제안자가 참여자 목록에도 포함되어 있으면 확정 알림을 중복 생성하지 않는다.")
+    void createScheduleConfirmedNotificationsExcludeDuplicateProposer() {
+        Schedule schedule = createSchedule();
+
+        ScheduleParticipant proposerParticipant = createParticipant(schedule, member, ParticipantStatus.ACCEPTED);
+
+        ScheduleParticipant acceptedParticipant = createParticipant(schedule, member2, ParticipantStatus.ACCEPTED);
+
+        given(scheduleParticipantRepository.findAllWithMemberByScheduleId(schedule.getId())).willReturn(List.of(proposerParticipant, acceptedParticipant));
+
+        given(notificationRepository.existsByMemberAndNotificationTypeAndReferenceId(member, NotificationType.SCHEDULE, schedule.getId())).willReturn(false);
+
+        given(notificationRepository.existsByMemberAndNotificationTypeAndReferenceId(member2, NotificationType.SCHEDULE, schedule.getId())).willReturn(false);
+
+        notificationService.createScheduleConfirmedNotifications(schedule);
+
+        ArgumentCaptor<List<Notification>> captor = ArgumentCaptor.forClass(List.class);
+
+        verify(notificationRepository).saveAll(captor.capture());
+
+        List<Notification> saved = captor.getValue();
+
+        assertThat(saved).hasSize(2);
+
+        assertThat(saved)
+                .extracting(notification -> notification.getMember().getId())
+                .containsExactlyInAnyOrder(1L, 2L);
+    }
+
+    @Test
+    @DisplayName("SC-03. 이미 확정 알림이 존재하는 회원에게는 중복 생성하지 않는다.")
+    void createScheduleConfirmedNotificationsPreventDuplicate() {
+        Schedule schedule = createSchedule();
+
+        ScheduleParticipant acceptedParticipant = createParticipant(schedule, member2, ParticipantStatus.ACCEPTED);
+
+        given(scheduleParticipantRepository.findAllWithMemberByScheduleId(schedule.getId())).willReturn(List.of(acceptedParticipant));
+
+        given(notificationRepository.existsByMemberAndNotificationTypeAndReferenceId(member, NotificationType.SCHEDULE, schedule.getId())).willReturn(true);
+
+        given(notificationRepository.existsByMemberAndNotificationTypeAndReferenceId(member2, NotificationType.SCHEDULE, schedule.getId())).willReturn(true);
+
+        notificationService.createScheduleConfirmedNotifications(schedule);
+
+        verify(notificationRepository, never()).saveAll(anyList());
+    }
 
     private MemberSetting createSetting(boolean enabled, LocalTime notificationTime) {
         return MemberSetting.builder()

@@ -3,6 +3,7 @@ package com.kiri.server.domain.schedule.service;
 import com.kiri.server.domain.member.exception.MemberException;
 import com.kiri.server.domain.member.exception.code.MemberErrorCode;
 import com.kiri.server.domain.member.repository.MemberRepository;
+import com.kiri.server.domain.notification.service.NotificationService;
 import com.kiri.server.domain.schedule.converter.ScheduleConverter;
 import com.kiri.server.domain.schedule.dto.ScheduleReqDTO;
 import com.kiri.server.domain.schedule.dto.ScheduleResDTO;
@@ -29,6 +30,7 @@ public class ScheduleResponseService {
     private final ScheduleParticipantRepository scheduleParticipantRepository;
     private final MemberRepository memberRepository;
     private final Clock clock;
+    private final NotificationService notificationService;
 
     @Transactional
     public ScheduleResDTO.Responded respond(Long memberId, Long scheduleId, ScheduleReqDTO.Response request) {
@@ -54,10 +56,19 @@ public class ScheduleResponseService {
 
         participant.respond(request.action().toParticipantStatus(), now);
 
+        ScheduleStatus previousStatus = schedule.getStatus();
+
         long acceptedExcludingProposer = scheduleParticipantRepository
-                .countBySchedule_IdAndStatusAndReconfirmRequiredFalseAndMember_IdNot(scheduleId,
-                        ParticipantStatus.ACCEPTED, schedule.getProposer().getId());
+                .countBySchedule_IdAndStatusAndReconfirmRequiredFalseAndMember_IdNot(
+                        scheduleId,
+                        ParticipantStatus.ACCEPTED,
+                        schedule.getProposer().getId());
+
         schedule.recalculateStatus(acceptedExcludingProposer, now);
+
+        if (previousStatus == ScheduleStatus.PENDING_RESPONSE && schedule.getStatus() == ScheduleStatus.CONFIRMED) {
+            notificationService.createScheduleConfirmedNotifications(schedule);
+        }
 
         return ScheduleConverter.toResponded(schedule, participant);
     }

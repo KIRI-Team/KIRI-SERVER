@@ -32,7 +32,9 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -224,5 +226,34 @@ public class NotificationService {
         schedule.clearResponseReminderAt();
 
         log.info("일정 초대 리마인더 생성 완료 scheduleId={}, notificationCount={}", scheduleId, notifications.size());
+    }
+
+    @Transactional
+    public void createScheduleConfirmedNotifications(Schedule schedule) {
+        Map<Long, Member> receivers = new LinkedHashMap<>();
+
+        Member proposer = schedule.getProposer();
+
+        if (proposer != null) {
+            receivers.put(proposer.getId(), proposer);
+        }
+
+        List<ScheduleParticipant> participants = scheduleParticipantRepository.findAllWithMemberByScheduleId(schedule.getId());
+
+        participants.stream()
+                .filter(participant -> participant.getStatus() == ParticipantStatus.ACCEPTED)
+                .filter(participant -> participant.getMember() != null)
+                .forEach(participant -> receivers.putIfAbsent(participant.getMember().getId(), participant.getMember()));
+
+        List<Notification> notifications = receivers.values().stream()
+                .filter(member -> !notificationRepository.existsByMemberAndNotificationTypeAndReferenceId(member, NotificationType.SCHEDULE, schedule.getId()))
+                .map(member -> NotificationConverter.toScheduleConfirmed(member, schedule))
+                .toList();
+
+        if (!notifications.isEmpty()) {
+            notificationRepository.saveAll(notifications);
+        }
+
+        log.info("일정 확정 알림 생성 완료 scheduleId={}, notificationCount={}", schedule.getId(), notifications.size());
     }
 }

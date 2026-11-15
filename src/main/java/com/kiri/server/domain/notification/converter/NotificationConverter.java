@@ -124,4 +124,24 @@ public class NotificationConverter {
                 .referenceVersion(schedule.getInviteVersion())
                 .build();
     }
+
+    public static Notification toScheduleConfirmed(Member receiver, Schedule schedule) {
+        String missionTitle = schedule.getBucketItem().getMission().getTitle();
+        String scheduleDate = schedule.getScheduleDate()
+                .format(DateTimeFormatter.ofPattern("M월 d일"));
+        String scheduleTime = schedule.getScheduleTime()
+                .format(DateTimeFormatter.ofPattern("HH:mm"));
+
+        return Notification.builder()
+                .member(receiver)
+                .notificationType(NotificationType.SCHEDULE)
+                .title("일정이 확정됐어요! 🎉")
+                .body("'" + missionTitle + "' 일정이 확정됐어요. "
+                        + scheduleDate + " " + scheduleTime + "에 만나요!")
+                .status(NotificationStatus.PENDING)
+                .isRead(false)
+                .referenceId(schedule.getId())
+                .referenceDate(schedule.getScheduleDate())
+                .build();
+    }
 }
