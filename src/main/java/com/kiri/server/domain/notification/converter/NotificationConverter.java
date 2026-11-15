@@ -325,4 +325,18 @@ public class NotificationConverter {
                 .referenceDate(recommendation.getStartedAt().toLocalDate())
                 .build();
     }
+
+    public static Notification toExternalEventCancelled(Member member, Mission mission) {
+        String missionTitle = mission.getTitle();
+
+        return Notification.builder()
+                .member(member)
+                .notificationType(NotificationType.EXTERNAL_EVENT_CANCELLED)
+                .title("예정된 활동에 변경 사항이 있어요.")
+                .body("'" + missionTitle + "' 행사 취소가 확인됐어요. 방문 전에 일정 내용을 확인해 주세요.")
+                .status(NotificationStatus.PENDING)
+                .isRead(false)
+                .referenceId(mission.getId())
+                .build();
+    }
 }

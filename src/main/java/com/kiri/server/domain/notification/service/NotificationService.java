@@ -34,10 +34,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
@@ -604,6 +601,50 @@ public class NotificationService {
         }
 
         log.info("주간 미션 완료 알림 생성 완료 recommendationId={}, writerId={}, notificationCount={}", recommendation.getId(), writer.getId(), notifications.size());
+    }
+
+    @Transactional
+    public void createExternalEventCancelledNotifications(Mission mission) {
+        List<Schedule> schedules = scheduleRepository.findAllActiveByMissionId(mission.getId(), List.of(ScheduleStatus.PENDING_RESPONSE, ScheduleStatus.CONFIRMED));
+
+        if (schedules.isEmpty()) {
+            return;
+        }
+
+        Map<Long, Member> recipients = new LinkedHashMap<>();
+
+        for (Schedule schedule : schedules) {
+            Member proposer = schedule.getProposer();
+            if (proposer != null) {
+                recipients.put(proposer.getId(), proposer);
+            }
+
+            List<ScheduleParticipant> participants = scheduleParticipantRepository.findAllConfirmedWithMemberByScheduleIdAndStatus(schedule.getId(), ParticipantStatus.ACCEPTED);
+
+            for (ScheduleParticipant participant : participants) {
+                Member member = participant.getMember();
+
+                if (member != null) {
+                    recipients.put(member.getId(), member);
+                }
+            }
+        }
+
+        List<Notification> notifications = new ArrayList<>();
+
+        for (Member member : recipients.values()) {
+            boolean alreadyExists = notificationRepository.existsByMemberAndNotificationTypeAndReferenceId(member, NotificationType.EXTERNAL_EVENT_CANCELLED, mission.getId());
+
+            if (alreadyExists) {
+                continue;
+            }
+
+            notifications.add(NotificationConverter.toExternalEventCancelled(member, mission));
+        }
+
+        if (!notifications.isEmpty()) {
+            notificationRepository.saveAll(notifications);
+        }
     }
 
     private LocalDateTime calculateRecordReminderAt(LocalDateTime scheduleStartAt) {

@@ -26,6 +26,7 @@ import com.kiri.server.domain.setting.entity.MemberSetting;
 import com.kiri.server.domain.setting.repository.MemberSettingRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -47,8 +48,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class NotificationServiceTest {
@@ -2012,6 +2012,165 @@ class NotificationServiceTest {
 
         verify(notificationRepository, never()).saveAll(any(Iterable.class));
     }
+
+
+    @DisplayName("EX-01 외부 행사 취소 알림")
+    @Nested
+    class ExternalEventCancelledNotificationTest {
+
+        private final Long missionId = 500L;
+
+        private Mission createMission() {
+            Mission mission = mock(Mission.class);
+            given(mission.getId()).willReturn(missionId);
+
+            return mission;
+        }
+
+        private Schedule createSchedule(Long scheduleId, Member proposer) {
+            Schedule schedule = mock(Schedule.class);
+            given(schedule.getId()).willReturn(scheduleId);
+            given(schedule.getProposer()).willReturn(proposer);
+
+            return schedule;
+        }
+
+        private ScheduleParticipant createAcceptedParticipant(Member participant) {
+            ScheduleParticipant scheduleParticipant = mock(ScheduleParticipant.class);
+            given(scheduleParticipant.getMember()).willReturn(participant);
+
+            return scheduleParticipant;
+        }
+
+        private List<Notification> captureNotifications() {
+            ArgumentCaptor<Iterable<Notification>> captor = ArgumentCaptor.forClass(Iterable.class);
+
+            then(notificationRepository).should().saveAll(captor.capture());
+
+            return StreamSupport.stream(captor.getValue().spliterator(), false).toList();
+        }
+
+        @Test
+        @DisplayName("행사 취소 시 일정 제안자와 확정 참여자에게 알림을 생성한다")
+        void createExternalEventCancelledNotifications() {
+            Mission mission = createMission();
+            given(mission.getTitle()).willReturn("공원 산책");
+
+            Schedule schedule = createSchedule(100L, member);
+
+            ScheduleParticipant participant1 = createAcceptedParticipant(member2);
+            ScheduleParticipant participant2 = createAcceptedParticipant(member3);
+
+            given(scheduleRepository.findAllActiveByMissionId(eq(missionId), eq(List.of(ScheduleStatus.PENDING_RESPONSE, ScheduleStatus.CONFIRMED)))).willReturn(List.of(schedule));
+
+            given(scheduleParticipantRepository.findAllConfirmedWithMemberByScheduleIdAndStatus(100L, ParticipantStatus.ACCEPTED)).willReturn(List.of(participant1, participant2));
+
+            given(notificationRepository.existsByMemberAndNotificationTypeAndReferenceId(any(Member.class), eq(NotificationType.EXTERNAL_EVENT_CANCELLED), eq(missionId))).willReturn(false);
+
+            notificationService.createExternalEventCancelledNotifications(mission);
+
+            List<Notification> notifications = captureNotifications();
+
+            assertThat(notifications).hasSize(3);
+            assertThat(notifications)
+                    .extracting(notification -> notification.getMember().getId())
+                    .containsExactlyInAnyOrder(member.getId(), member2.getId(), member3.getId());
+
+            assertThat(notifications)
+                    .allSatisfy(notification -> {
+                        assertThat(notification.getNotificationType()).isEqualTo(NotificationType.EXTERNAL_EVENT_CANCELLED);
+                        assertThat(notification.getTitle()).isEqualTo("예정된 활동에 변경 사항이 있어요.");
+                        assertThat(notification.getBody()).isEqualTo("'공원 산책' 행사 취소가 확인됐어요. 방문 전에 일정 내용을 확인해 주세요.");
+                        assertThat(notification.getStatus()).isEqualTo(NotificationStatus.PENDING);
+                        assertThat(notification.getReferenceId()).isEqualTo(missionId);
+                    });
+        }
+
+        @Test
+        @DisplayName("여러 일정에 동일한 회원이 포함되어 있어도 알림은 한 번만 생성한다")
+        void createExternalEventCancelledNotificationsWithoutDuplicateRecipients() {
+            Mission mission = createMission();
+            given(mission.getTitle()).willReturn("공원 산책");
+
+            Schedule schedule1 = createSchedule(100L, member);
+            Schedule schedule2 = createSchedule(200L, member);
+
+            ScheduleParticipant participant1 = createAcceptedParticipant(member2);
+            ScheduleParticipant participant2 = createAcceptedParticipant(member2);
+            ScheduleParticipant participant3 = createAcceptedParticipant(member3);
+
+            given(scheduleRepository.findAllActiveByMissionId(eq(missionId), eq(List.of(ScheduleStatus.PENDING_RESPONSE, ScheduleStatus.CONFIRMED)))).willReturn(List.of(schedule1, schedule2));
+
+            given(scheduleParticipantRepository.findAllConfirmedWithMemberByScheduleIdAndStatus(100L, ParticipantStatus.ACCEPTED)).willReturn(List.of(participant1));
+
+            given(scheduleParticipantRepository.findAllConfirmedWithMemberByScheduleIdAndStatus(200L, ParticipantStatus.ACCEPTED)).willReturn(List.of(participant2, participant3));
+
+            given(notificationRepository.existsByMemberAndNotificationTypeAndReferenceId(any(Member.class), eq(NotificationType.EXTERNAL_EVENT_CANCELLED), eq(missionId))).willReturn(false);
+
+            notificationService.createExternalEventCancelledNotifications(mission);
+
+            List<Notification> notifications = captureNotifications();
+
+            assertThat(notifications).hasSize(3);
+            assertThat(notifications)
+                    .extracting(notification -> notification.getMember().getId())
+                    .containsExactlyInAnyOrder(member.getId(), member2.getId(), member3.getId());
+        }
+
+        @Test
+        @DisplayName("이미 동일한 행사 취소 알림이 존재하면 중복 생성하지 않는다")
+        void createExternalEventCancelledNotificationsWithoutExistingNotification() {
+            Mission mission = createMission();
+
+            Schedule schedule = createSchedule(100L, member);
+            ScheduleParticipant participant = createAcceptedParticipant(member2);
+
+            given(scheduleRepository.findAllActiveByMissionId(eq(missionId), eq(List.of(ScheduleStatus.PENDING_RESPONSE, ScheduleStatus.CONFIRMED)))).willReturn(List.of(schedule));
+
+            given(scheduleParticipantRepository.findAllConfirmedWithMemberByScheduleIdAndStatus(100L, ParticipantStatus.ACCEPTED)).willReturn(List.of(participant));
+
+            given(notificationRepository.existsByMemberAndNotificationTypeAndReferenceId(any(Member.class), eq(NotificationType.EXTERNAL_EVENT_CANCELLED), eq(missionId))).willReturn(true);
+
+            notificationService.createExternalEventCancelledNotifications(mission);
+
+            then(notificationRepository).should(never()).saveAll(any());
+        }
+
+        @Test
+        @DisplayName("연결된 활성 일정이 없으면 알림을 생성하지 않는다")
+        void createExternalEventCancelledNotificationsWithoutActiveSchedule() {
+            Mission mission = createMission();
+
+            given(scheduleRepository.findAllActiveByMissionId(eq(missionId), eq(List.of(ScheduleStatus.PENDING_RESPONSE, ScheduleStatus.CONFIRMED)))).willReturn(List.of());
+
+            notificationService.createExternalEventCancelledNotifications(mission);
+
+            then(scheduleParticipantRepository).shouldHaveNoInteractions();
+            then(notificationRepository).should(never()).saveAll(any());
+        }
+
+        @Test
+        @DisplayName("확정 참여자가 없어도 일정 제안자에게는 알림을 생성한다")
+        void createExternalEventCancelledNotificationsToProposerOnly() {
+            Mission mission = createMission();
+
+            Schedule schedule = createSchedule(100L, member);
+
+            given(scheduleRepository.findAllActiveByMissionId(eq(missionId), eq(List.of(ScheduleStatus.PENDING_RESPONSE, ScheduleStatus.CONFIRMED)))).willReturn(List.of(schedule));
+
+            given(scheduleParticipantRepository.findAllConfirmedWithMemberByScheduleIdAndStatus(100L, ParticipantStatus.ACCEPTED)).willReturn(List.of());
+
+            given(notificationRepository.existsByMemberAndNotificationTypeAndReferenceId(any(Member.class), eq(NotificationType.EXTERNAL_EVENT_CANCELLED), eq(missionId))).willReturn(false);
+
+            notificationService.createExternalEventCancelledNotifications(mission);
+
+            List<Notification> notifications = captureNotifications();
+
+            assertThat(notifications).hasSize(1);
+            assertThat(notifications.get(0).getMember().getId()).isEqualTo(member.getId());
+        }
+    }
+
 
     private MemberSetting createSetting(boolean enabled, LocalTime notificationTime) {
         return MemberSetting.builder()

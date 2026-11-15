@@ -11,6 +11,7 @@ import com.kiri.server.domain.mission.generator.dto.DraftResult;
 import com.kiri.server.domain.mission.generator.dto.MissionDraft;
 import com.kiri.server.domain.mission.repository.MissionChecklistItemRepository;
 import com.kiri.server.domain.mission.repository.MissionRepository;
+import com.kiri.server.domain.notification.service.NotificationService;
 import com.kiri.server.domain.place.entity.Place;
 import com.kiri.server.domain.place.repository.PlaceRepository;
 import lombok.RequiredArgsConstructor;
@@ -39,6 +40,7 @@ public class MissionGenerationService {
     private final MissionChecklistItemRepository missionChecklistItemRepository;
     private final MissionProperties missionProperties;
     private final FamilyMissionRecommendationService familyMissionRecommendationService;
+    private final NotificationService notificationService;
 
     @Transactional
     public void apply(ExternalRecord record, DraftResult result, LocalDate today) {
@@ -152,6 +154,7 @@ public class MissionGenerationService {
 
             if (beforeStatus != MissionStatus.CANCELLED && mission.getStatus() == MissionStatus.CANCELLED) {
                 familyMissionRecommendationService.replaceWeeklyMissionsByMissionId(mission.getId());
+                notificationService.createExternalEventCancelledNotifications(mission);
             }
         } else {
             mission.requireCheck();

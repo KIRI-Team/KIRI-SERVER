@@ -126,6 +126,16 @@ public interface ScheduleRepository extends JpaRepository<Schedule, Long> {
             """)
     List<Schedule> findAllForRecordReminder(@Param("startDate") LocalDate startDate, @Param("endDate") LocalDate endDate, @Param("statuses") Collection<ScheduleStatus> statuses);
 
+    @Query("""
+        SELECT s FROM Schedule s
+        JOIN FETCH s.proposer
+        JOIN FETCH s.bucketItem bi
+        JOIN FETCH bi.mission
+        WHERE bi.mission.id = :missionId
+          AND s.status IN :statuses
+        """)
+    List<Schedule> findAllActiveByMissionId(@Param("missionId") Long missionId, @Param("statuses") Collection<ScheduleStatus> statuses);
+
     interface BucketSchedule {
 
         Long getBucketItemId();
