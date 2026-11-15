@@ -57,3 +57,14 @@ jobs:
           CLOUDFRONT_KEY_PAIR_ID: KTESTKEYPAIRID
           FIREBASE_SERVICE_ACCOUNT_B64: test-firebase-service-account
           GEMINI_API_KEY: test-gemini-api-key
+
+      - name: Test 결과 업로드
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: test-results
+          path: |
+            build/test-results/test/
+            build/reports/tests/test/
+          retention-days: 7
+          if-no-files-found: warn
