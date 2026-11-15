@@ -317,8 +317,7 @@ public class ScheduleCommandService {
             notificationService.cancelScheduleInvitationReminders(scheduleId);
             notificationService.cancelScheduleD1Reminders(scheduleId);
             notificationService.cancelScheduleD0Reminders(scheduleId);
-
-            keptAccepted.forEach(ScheduleParticipant::markReconfirmRequired);
+        }
         if (!changedFields.isEmpty()) {
             keptAccepted.forEach(participant -> participant.markReconfirmRequired(changedFields));
         }
