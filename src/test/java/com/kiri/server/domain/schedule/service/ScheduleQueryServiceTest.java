@@ -1,6 +1,7 @@
 package com.kiri.server.domain.schedule.service;
 
 import com.kiri.server.domain.bucket.entity.BucketItem;
+import com.kiri.server.domain.character.repository.CharacterRepository;
 import com.kiri.server.domain.family.entity.Family;
 import com.kiri.server.domain.image.service.ImageUrlService;
 import com.kiri.server.domain.member.entity.Member;
@@ -118,6 +119,9 @@ class ScheduleQueryServiceTest {
     @Mock
     private PlatformTransactionManager transactionManager;
 
+    @Mock
+    private CharacterRepository characterRepository;
+
     private ScheduleQueryService scheduleQueryService;
 
     @BeforeEach
@@ -126,7 +130,7 @@ class ScheduleQueryServiceTest {
                 scheduleRepository, scheduleParticipantRepository, scheduleConditionRepository, memberRepository,
                 new NearbyMissionFinder(missionRepository), familyTasteScoreService, tasteProfileService,
                 reviewPhotoRepository, imageUrlService, CLOCK, missionChecklistItemRepository, weatherService,
-                transactionManager);
+                transactionManager, characterRepository);
     }
 
     private ScheduleReqDTO.CalendarCondition condition(int year, int month) {

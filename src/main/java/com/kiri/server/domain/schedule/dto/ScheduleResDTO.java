@@ -149,7 +149,8 @@ public class ScheduleResDTO {
     @Builder
     public record ParticipantItem(
             String nickname,
-            CalendarMyStatus status
+            CalendarMyStatus status,
+            String characterImageUrl
     ) {
     }
 }

@@ -1,6 +1,7 @@
 package com.kiri.server.domain.schedule.converter;
 
 import com.kiri.server.domain.member.entity.Member;
+import com.kiri.server.domain.member.enums.FamilyRole;
 import com.kiri.server.domain.mission.entity.Mission;
 import com.kiri.server.domain.schedule.dto.ScheduleResDTO;
 import com.kiri.server.domain.schedule.entity.Schedule;
@@ -17,6 +18,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.Map;
 
 public class ScheduleConverter {
 
@@ -122,6 +124,7 @@ public class ScheduleConverter {
     }
 
     public static ScheduleResDTO.Detail toDetail(Schedule schedule, List<ScheduleParticipant> participants,
+                                                 Map<FamilyRole, String> characterImageUrls,
                                                  Long memberId, LocalDateTime now) {
         ScheduleParticipant myParticipant = participants.stream()
                 .filter(participant -> participant.getMember() != null
@@ -141,7 +144,9 @@ public class ScheduleConverter {
                 .canRespond(myParticipant != null && !isProposer && schedule.isResponseOpen(now))
                 .canEdit(isProposer && schedule.isUpdatable() && !schedule.hasStarted(now))
                 .canCancel(isProposer && schedule.isCancelable())
-                .participants(participants.stream().map(ScheduleConverter::toParticipantItem).toList())
+                .participants(participants.stream()
+                        .map(participant -> toParticipantItem(participant, characterImageUrls))
+                        .toList())
                 .build();
     }
 
@@ -163,10 +168,13 @@ public class ScheduleConverter {
         return schedule.getBucketItem().getMission().getId();
     }
 
-    private static ScheduleResDTO.ParticipantItem toParticipantItem(ScheduleParticipant participant) {
+    private static ScheduleResDTO.ParticipantItem toParticipantItem(ScheduleParticipant participant,
+                                                                    Map<FamilyRole, String> characterImageUrls) {
+        Member member = participant.getMember();
         return ScheduleResDTO.ParticipantItem.builder()
-                .nickname(participant.getMember() == null ? "탈퇴한 사용자" : participant.getMember().getDisplayName())
+                .nickname(member == null ? "탈퇴한 사용자" : member.getDisplayName())
                 .status(toMyStatus(participant))
+                .characterImageUrl(member == null ? null : characterImageUrls.get(member.getFamilyRole()))
                 .build();
     }
 

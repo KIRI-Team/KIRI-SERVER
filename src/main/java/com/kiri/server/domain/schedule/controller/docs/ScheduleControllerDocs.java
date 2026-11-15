@@ -855,6 +855,7 @@ public interface ScheduleControllerDocs {
                     - participants: 제안자가 맨 앞이며, 이후 초대 순서입니다.
                       - nickname: 탈퇴한 회원은 "탈퇴한 사용자"로 표시합니다.
                       - status: 구성원별 응답 상태 (myStatus와 같은 값, NOT_INVITED는 나오지 않음)
+                      - characterImageUrl: 가족 역할별 캐릭터 이미지. 역할이 없거나 탈퇴한 회원은 null입니다.
                     - 같은 가족의 일정이면 초대받지 않은 구성원도 조회할 수 있으며, 다른 가족의 일정은 존재하지 않는 일정과 같이 404로 응답합니다.
                     - 취소된 일정은 조회할 수 없습니다. (409)
                     """
@@ -886,9 +887,9 @@ public interface ScheduleControllerDocs {
                                         "canEdit": false,
                                         "canCancel": false,
                                         "participants": [
-                                          { "nickname": "첫째", "status": "ACCEPTED" },
-                                          { "nickname": "엄마", "status": "PENDING" },
-                                          { "nickname": "아빠", "status": "DECLINED" }
+                                          { "nickname": "첫째", "status": "ACCEPTED", "characterImageUrl": "https://cdn.kiri.app/characters/daughter.png" },
+                                          { "nickname": "엄마", "status": "PENDING", "characterImageUrl": "https://cdn.kiri.app/characters/mother.png" },
+                                          { "nickname": "아빠", "status": "DECLINED", "characterImageUrl": "https://cdn.kiri.app/characters/father.png" }
                                         ]
                                       }
                                     }

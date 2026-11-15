@@ -1,8 +1,11 @@
 package com.kiri.server.domain.schedule.service;
 
+import com.kiri.server.domain.character.entity.Character;
+import com.kiri.server.domain.character.repository.CharacterRepository;
 import com.kiri.server.domain.family.entity.Family;
 import com.kiri.server.domain.image.service.ImageUrlService;
 import com.kiri.server.domain.member.entity.Member;
+import com.kiri.server.domain.member.enums.FamilyRole;
 import com.kiri.server.domain.member.exception.MemberException;
 import com.kiri.server.domain.member.exception.code.MemberErrorCode;
 import com.kiri.server.domain.member.repository.MemberRepository;
@@ -84,6 +87,7 @@ public class ScheduleQueryService {
     private final MissionChecklistItemRepository missionChecklistItemRepository;
     private final WeatherService weatherService;
     private final PlatformTransactionManager transactionManager;
+    private final CharacterRepository characterRepository;
 
     @Transactional(readOnly = true)
     public ScheduleResDTO.Calendar getCalendar(Long memberId, ScheduleReqDTO.CalendarCondition condition) {
@@ -340,8 +344,11 @@ public class ScheduleQueryService {
             throw new ScheduleException(ScheduleErrorCode.SCHEDULE_CANCELLED);
         }
         List<ScheduleParticipant> participants = scheduleParticipantRepository.findAllWithMemberByScheduleId(scheduleId);
+        Map<FamilyRole, String> characterImageUrls = characterRepository.findAll().stream()
+                .collect(Collectors.toMap(Character::getRole, Character::getImageUrl));
 
-        return ScheduleConverter.toDetail(schedule, participants, memberId, LocalDateTime.now(clock));
+        return ScheduleConverter.toDetail(schedule, participants, characterImageUrls, memberId,
+                LocalDateTime.now(clock));
     }
 
     // DB 조회에만 트랜잭션을 걸고, 날씨 API는 트랜잭션 밖에서 호출해 커넥션을 잡지 않음
