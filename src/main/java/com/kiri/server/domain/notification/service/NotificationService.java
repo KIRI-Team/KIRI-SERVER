@@ -6,7 +6,9 @@ import com.kiri.server.domain.member.repository.MemberRepository;
 import com.kiri.server.domain.mission.entity.FamilyMissionRecommendation;
 import com.kiri.server.domain.mission.entity.Mission;
 import com.kiri.server.domain.notification.converter.NotificationConverter;
+import com.kiri.server.domain.notification.dto.NotificationResDTO;
 import com.kiri.server.domain.notification.entity.Notification;
+import com.kiri.server.domain.notification.enums.NotificationPriority;
 import com.kiri.server.domain.notification.enums.NotificationStatus;
 import com.kiri.server.domain.notification.enums.NotificationType;
 import com.kiri.server.domain.notification.repository.NotificationRepository;
@@ -34,6 +36,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.time.ZoneId;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -41,6 +44,10 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 @Slf4j
 public class NotificationService {
+
+    private static final int NOTIFICATION_BATCH_SIZE = 100;
+    private static final int PROCESSING_TIMEOUT_MINUTES = 5;
+    private static final int MAX_DAILY_PUSH_COUNT = 2;
 
     private final FamilyQuestionRepository familyQuestionRepository;
     private final MemberRepository memberRepository;
@@ -645,6 +652,96 @@ public class NotificationService {
         if (!notifications.isEmpty()) {
             notificationRepository.saveAll(notifications);
         }
+    }
+
+    @Transactional
+    public List<NotificationResDTO.NotificationProcessingTarget> claimPendingNotifications() {
+        LocalDateTime now = LocalDateTime.now();
+
+        List<Notification> notifications = notificationRepository.findPendingNotificationsForProcessing(now, NOTIFICATION_BATCH_SIZE);
+
+        List<NotificationResDTO.NotificationProcessingTarget> targets = new ArrayList<>();
+
+        for (Notification notification : notifications) {
+            UUID leaseId = notification.startProcessing();
+
+            if (leaseId == null) {
+                continue;
+            }
+
+            targets.add(new NotificationResDTO.NotificationProcessingTarget(notification.getId(), notification.getMember().getId(), notification.getTitle(), notification.getBody(), notification.getNotificationType(), notification.getReferenceDate(), leaseId));
+        }
+
+        log.info("알림 발송 대상 선점 완료 notificationCount={}", targets.size());
+
+        return targets;
+    }
+
+    @Transactional
+    public int recoverStaleProcessingNotifications() {
+        LocalDateTime threshold = LocalDateTime.now().minusMinutes(PROCESSING_TIMEOUT_MINUTES);
+
+        List<Notification> notifications = notificationRepository.findStaleProcessingNotifications(threshold, NOTIFICATION_BATCH_SIZE);
+
+        for (Notification notification : notifications) {
+            notification.recoverProcessing();
+        }
+
+        log.info("중단된 알림 복구 완료 notificationCount={}", notifications.size());
+
+        return notifications.size();
+    }
+
+    @Transactional
+    public void markNotificationSent(Long notificationId, UUID leaseId) {
+        notificationRepository.findById(notificationId).ifPresent(notification -> notification.send(leaseId));
+    }
+
+    @Transactional
+    public void markNotificationFailed(Long notificationId, UUID leaseId) {
+        notificationRepository.findById(notificationId).ifPresent(notification -> notification.fail(leaseId));
+    }
+
+    @Transactional
+    public void markNotificationSkipped(Long notificationId, UUID leaseId) {
+        notificationRepository.findById(notificationId).ifPresent(notification -> notification.skip(leaseId));
+    }
+
+    @Transactional
+    public int retryFailedNotifications() {
+        LocalDateTime now = LocalDateTime.now();
+
+        List<Notification> notifications = notificationRepository.findRetryableNotifications(now, NOTIFICATION_BATCH_SIZE);
+
+        for (Notification notification : notifications) {
+            notification.retry();
+        }
+
+        log.info("실패한 알림 재시도 대상 등록 완료 notificationCount={}", notifications.size());
+
+        return notifications.size();
+    }
+
+    @Transactional
+    public void deferNotification(Long notificationId, UUID leaseId, LocalDateTime scheduledAt) {
+        notificationRepository.findById(notificationId).ifPresent(notification -> notification.defer(leaseId, scheduledAt));
+    }
+
+    @Transactional
+    public void expireNotification(Long notificationId, UUID leaseId) {
+        notificationRepository.findById(notificationId).ifPresent(notification -> notification.expire(leaseId));
+    }
+
+    @Transactional(readOnly = true)
+    public boolean hasReachedDailyPushLimit(Long memberId) {
+        LocalDate today = LocalDate.now(ZoneId.of("Asia/Seoul"));
+
+        LocalDateTime start = today.atStartOfDay();
+        LocalDateTime end = today.plusDays(1).atStartOfDay();
+
+        long sentCount = notificationRepository.countByMember_IdAndPriorityAndStatusAndSentAtGreaterThanEqualAndSentAtLessThan(memberId, NotificationPriority.P5, NotificationStatus.SENT, start, end);
+
+        return sentCount >= MAX_DAILY_PUSH_COUNT;
     }
 
     private LocalDateTime calculateRecordReminderAt(LocalDateTime scheduleStartAt) {

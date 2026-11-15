@@ -1,28 +1,38 @@
 package com.kiri.server.domain.notification.service;
 
 import com.google.firebase.messaging.FirebaseMessaging;
+import com.google.firebase.messaging.FirebaseMessagingException;
 import com.google.firebase.messaging.Message;
 import com.google.firebase.messaging.Notification;
+import com.kiri.server.domain.notification.enums.NotificationType;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+
+import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
 @Slf4j
 public class FcmService {
 
-    public void send(String token, String title, String body) {
-        Notification notification = Notification.builder().setTitle(title).setBody(body).build();
+    public String send(String token, String title, String body, NotificationType notificationType) throws FirebaseMessagingException {
 
-        Message message = Message.builder().setToken(token).setNotification(notification).build();
+        Message message = Message.builder()
+                .setToken(token)
+                .setNotification(
+                        com.google.firebase.messaging.Notification.builder()
+                                .setTitle(title)
+                                .setBody(body)
+                                .build()
+                )
+                .putAllData(Map.of("notificationType", notificationType.name()))
+                .build();
 
-        try {
-            String response = FirebaseMessaging.getInstance().send(message);
-            log.info("FCM 전송 성공 : response={}", response);
-        } catch (Exception e) {
-            log.error("FCM 전송 실패 token={}", token, e);
-            throw new RuntimeException(e);
-        }
+        String response = FirebaseMessaging.getInstance().send(message);
+
+        log.info("FCM 전송 성공 notificationType={}, response={}", notificationType, response);
+
+        return response;
     }
 }
