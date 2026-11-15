@@ -1022,6 +1022,150 @@ class NotificationServiceTest {
         verify(notificationRepository, never()).saveAll(anyList());
     }
 
+    @Test
+    @DisplayName("SC-06. 일정 재확인이 필요한 참여자에게 리마인더 알림을 생성한다.")
+    void createScheduleReconfirmReminderNotificationsSuccess() {
+        Schedule schedule = createReconfirmSchedule(ScheduleStatus.PENDING_RESPONSE, NOW.plusHours(1), NOW.minusMinutes(1));
+
+        ScheduleParticipant participant = createReconfirmParticipant(schedule, member2);
+
+        given(scheduleRepository.findByIdForUpdate(schedule.getId())).willReturn(Optional.of(schedule));
+
+        given(scheduleParticipantRepository
+                .findAllReconfirmRequiredWithMemberByScheduleIdAndStatus(schedule.getId(), ParticipantStatus.ACCEPTED))
+                .willReturn(List.of(participant));
+
+        given(notificationRepository
+                .existsByMemberAndNotificationTypeAndReferenceIdAndReferenceVersion(member2, NotificationType.SCHEDULE_RECONFIRM_REMINDER, schedule.getId(), schedule.getInviteVersion()))
+                .willReturn(false);
+
+        notificationService.createScheduleReconfirmReminderNotifications(schedule.getId(), NOW);
+
+        ArgumentCaptor<Iterable<Notification>> captor = ArgumentCaptor.forClass(Iterable.class);
+
+        verify(notificationRepository).saveAll(captor.capture());
+
+        List<Notification> saved = StreamSupport.stream(captor.getValue().spliterator(), false).toList();
+
+        assertThat(saved).hasSize(1);
+
+        Notification notification = saved.get(0);
+
+        assertThat(notification.getMember()).isEqualTo(member2);
+        assertThat(notification.getNotificationType()).isEqualTo(NotificationType.SCHEDULE_RECONFIRM_REMINDER);
+        assertThat(notification.getTitle()).isEqualTo("변경된 일정을 다시 확인해 주세요!");
+        assertThat(notification.getBody()).isEqualTo("'공원 산책'의 일정이 바뀌었어요. 변경된 일정에 다시 수락 또는 거절해 주세요.");
+        assertThat(notification.getStatus()).isEqualTo(NotificationStatus.PENDING);
+        assertThat(notification.getIsRead()).isFalse();
+        assertThat(notification.getReferenceId()).isEqualTo(schedule.getId());
+        assertThat(notification.getReferenceDate()).isEqualTo(schedule.getScheduleDate());
+        assertThat(notification.getReferenceVersion()).isEqualTo(schedule.getInviteVersion());
+
+        assertThat(schedule.getReconfirmReminderAt()).isNull();
+    }
+
+    @Test
+    @DisplayName("SC-06. 이미 재수락하거나 거절한 참여자에게는 리마인더 알림을 생성하지 않는다.")
+    void createScheduleReconfirmReminderNotificationsExcludeRespondedParticipants() {
+        Schedule schedule = createReconfirmSchedule(ScheduleStatus.PENDING_RESPONSE, NOW.plusHours(1), NOW.minusMinutes(1));
+
+        ScheduleParticipant reconfirmRequired = createReconfirmParticipant(schedule, member2);
+
+        ScheduleParticipant alreadyAccepted = createParticipant(schedule, member3, ParticipantStatus.ACCEPTED);
+
+        ScheduleParticipant declined = createParticipant(schedule, member, ParticipantStatus.DECLINED);
+
+        given(scheduleRepository.findByIdForUpdate(schedule.getId())).willReturn(Optional.of(schedule));
+
+        given(scheduleParticipantRepository.findAllReconfirmRequiredWithMemberByScheduleIdAndStatus(schedule.getId(), ParticipantStatus.ACCEPTED)).willReturn(List.of(reconfirmRequired));
+
+        given(notificationRepository.existsByMemberAndNotificationTypeAndReferenceIdAndReferenceVersion(member2, NotificationType.SCHEDULE_RECONFIRM_REMINDER, schedule.getId(), schedule.getInviteVersion())).willReturn(false);
+
+        notificationService.createScheduleReconfirmReminderNotifications(schedule.getId(), NOW);
+
+        ArgumentCaptor<Iterable<Notification>> captor = ArgumentCaptor.forClass(Iterable.class);
+
+        verify(notificationRepository).saveAll(captor.capture());
+
+        List<Notification> saved = StreamSupport.stream(captor.getValue().spliterator(), false).toList();
+
+        assertThat(saved)
+                .extracting(notification -> notification.getMember().getId())
+                .containsExactly(member2.getId());
+
+        verify(scheduleParticipantRepository).findAllReconfirmRequiredWithMemberByScheduleIdAndStatus(schedule.getId(), ParticipantStatus.ACCEPTED);
+    }
+
+    @Test
+    @DisplayName("SC-06. 동일한 일정 변경 버전의 재확인 알림이 존재하면 중복 생성하지 않는다.")
+    void createScheduleReconfirmReminderNotificationsPreventDuplicate() {
+        Schedule schedule = createReconfirmSchedule(ScheduleStatus.PENDING_RESPONSE, NOW.plusHours(1), NOW.minusMinutes(1));
+
+        ScheduleParticipant participant = createReconfirmParticipant(schedule, member2);
+
+        given(scheduleRepository.findByIdForUpdate(schedule.getId())).willReturn(Optional.of(schedule));
+
+        given(scheduleParticipantRepository.findAllReconfirmRequiredWithMemberByScheduleIdAndStatus(schedule.getId(), ParticipantStatus.ACCEPTED)).willReturn(List.of(participant));
+
+        given(notificationRepository.existsByMemberAndNotificationTypeAndReferenceIdAndReferenceVersion(member2, NotificationType.SCHEDULE_RECONFIRM_REMINDER, schedule.getId(), schedule.getInviteVersion())).willReturn(true);
+
+        notificationService.createScheduleReconfirmReminderNotifications(schedule.getId(), NOW);
+
+        verify(notificationRepository, never()).saveAll(anyList());
+
+        assertThat(schedule.getReconfirmReminderAt()).isNull();
+    }
+
+    @Test
+    @DisplayName("SC-06. 응답 마감 시간이 지난 일정은 재확인 알림을 생성하지 않는다.")
+    void createScheduleReconfirmReminderNotificationsDeadlineExpired() {
+        Schedule schedule = createReconfirmSchedule(ScheduleStatus.PENDING_RESPONSE, NOW.minusMinutes(1), NOW.minusMinutes(1));
+
+        given(scheduleRepository.findByIdForUpdate(schedule.getId())).willReturn(Optional.of(schedule));
+
+        notificationService.createScheduleReconfirmReminderNotifications(schedule.getId(), NOW);
+
+        verify(scheduleParticipantRepository, never()).findAllReconfirmRequiredWithMemberByScheduleIdAndStatus(anyLong(), any());
+
+        verify(notificationRepository, never()).saveAll(anyList());
+
+        assertThat(schedule.getReconfirmReminderAt()).isNull();
+    }
+
+    @Test
+    @DisplayName("SC-06. 취소된 일정은 재확인 알림을 생성하지 않는다.")
+    void createScheduleReconfirmReminderNotificationsCancelled() {
+        Schedule schedule = createReconfirmSchedule(ScheduleStatus.CANCELLED, NOW.plusHours(1), NOW.minusMinutes(1));
+
+        given(scheduleRepository.findByIdForUpdate(schedule.getId())).willReturn(Optional.of(schedule));
+
+        notificationService.createScheduleReconfirmReminderNotifications(schedule.getId(), NOW);
+
+        verify(scheduleParticipantRepository, never()).findAllReconfirmRequiredWithMemberByScheduleIdAndStatus(anyLong(), any());
+
+        verify(notificationRepository, never()).saveAll(anyList());
+
+        assertThat(schedule.getReconfirmReminderAt()).isNull();
+    }
+
+    @Test
+    @DisplayName("SC-06. 재확인 리마인드 발송 시각이 아직 되지 않았다면 알림을 생성하지 않는다.")
+    void createScheduleReconfirmReminderNotificationsNotDue() {
+        LocalDateTime reminderAt = NOW.plusMinutes(5);
+
+        Schedule schedule = createReconfirmSchedule(ScheduleStatus.PENDING_RESPONSE, NOW.plusHours(1), reminderAt);
+
+        given(scheduleRepository.findByIdForUpdate(schedule.getId())).willReturn(Optional.of(schedule));
+
+        notificationService.createScheduleReconfirmReminderNotifications(schedule.getId(), NOW);
+
+        verify(scheduleParticipantRepository, never()).findAllReconfirmRequiredWithMemberByScheduleIdAndStatus(anyLong(), any());
+
+        verify(notificationRepository, never()).saveAll(anyList());
+
+        assertThat(schedule.getReconfirmReminderAt()).isEqualTo(reminderAt);
+    }
+
     private MemberSetting createSetting(boolean enabled, LocalTime notificationTime) {
         return MemberSetting.builder()
                 .member(member)
@@ -1090,6 +1234,44 @@ class NotificationServiceTest {
                 .schedule(schedule)
                 .member(participant)
                 .status(status)
+                .build();
+    }
+
+    private Schedule createReconfirmSchedule(
+            ScheduleStatus status,
+            LocalDateTime responseDeadline,
+            LocalDateTime reconfirmReminderAt
+    ) {
+        Mission mission = Mission.builder()
+                .id(100L)
+                .title("공원 산책")
+                .build();
+
+        BucketItem bucketItem = BucketItem.builder()
+                .id(200L)
+                .mission(mission)
+                .build();
+
+        return Schedule.builder()
+                .id(300L)
+                .family(family)
+                .bucketItem(bucketItem)
+                .proposer(member)
+                .scheduleDate(TODAY)
+                .scheduleTime(LocalTime.of(14, 0))
+                .status(status)
+                .responseDeadline(responseDeadline)
+                .inviteVersion(2)
+                .reconfirmReminderAt(reconfirmReminderAt)
+                .build();
+    }
+
+    private ScheduleParticipant createReconfirmParticipant(Schedule schedule, Member participant) {
+        return ScheduleParticipant.builder()
+                .schedule(schedule)
+                .member(participant)
+                .status(ParticipantStatus.ACCEPTED)
+                .reconfirmRequired(true)
                 .build();
     }
 }

@@ -22,7 +22,7 @@ public class ScheduleInvitationReminderScheduler {
     private final NotificationService notificationService;
     private final Clock clock;
 
-    @Scheduled(cron = "${schedule.invitation-reminder-cron:0 */1 * * * *}", zone = "Asia/Seoul")
+    @Scheduled(cron = "0 * * * * *", zone = "Asia/Seoul")
     public void sendInvitationReminders() {
         LocalDateTime now = LocalDateTime.now(clock);
 

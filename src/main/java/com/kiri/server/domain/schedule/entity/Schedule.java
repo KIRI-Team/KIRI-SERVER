@@ -85,6 +85,9 @@ public class Schedule extends BaseEntity {
     @Builder.Default
     private Integer inviteVersion = 1;
 
+    @Column(name = "reconfirm_reminder_at")
+    private LocalDateTime reconfirmReminderAt;
+
     public static Schedule create(Family family, BucketItem bucketItem, Member proposer,
                                   LocalDate scheduleDate, LocalTime scheduleTime,
                                   String requestMessage, LocalDateTime responseDeadline) {
@@ -124,6 +127,8 @@ public class Schedule extends BaseEntity {
 
     public void cancel() {
         this.status = ScheduleStatus.CANCELLED;
+        this.responseReminderAt = null;
+        this.reconfirmReminderAt = null;
     }
 
     public boolean isProposer(Long memberId) {
@@ -175,5 +180,13 @@ public class Schedule extends BaseEntity {
 
     public void clearResponseReminderAt() {
         this.responseReminderAt = null;
+    }
+
+    public void updateReconfirmReminderAt(LocalDateTime reconfirmReminderAt) {
+        this.reconfirmReminderAt = reconfirmReminderAt;
+    }
+
+    public void clearReconfirmReminderAt() {
+        this.reconfirmReminderAt = null;
     }
 }

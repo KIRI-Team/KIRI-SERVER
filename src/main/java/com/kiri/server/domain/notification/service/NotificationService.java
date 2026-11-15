@@ -319,4 +319,39 @@ public class NotificationService {
 
         log.info("일정 변경 알림 생성 완료 scheduleId={}, changedCount={}, removedCount={}, addedCount={}", scheduleId, changedNotifications.size(), removedNotifications.size(), addedParticipants.stream().filter(participant -> participant.getStatus() == ParticipantStatus.PENDING).count());
     }
+
+    @Transactional
+    public void createScheduleReconfirmReminderNotifications(Long scheduleId, LocalDateTime now) {
+        Schedule schedule = scheduleRepository.findByIdForUpdate(scheduleId).orElse(null);
+
+        if (schedule == null) {
+            return;
+        }
+
+        LocalDateTime reconfirmReminderAt = schedule.getReconfirmReminderAt();
+
+        if (reconfirmReminderAt == null || reconfirmReminderAt.isAfter(now)) {
+            return;
+        }
+
+        if (!schedule.isResponseOpen(now)) {
+            schedule.clearReconfirmReminderAt();
+            return;
+        }
+
+        List<ScheduleParticipant> participants = scheduleParticipantRepository.findAllReconfirmRequiredWithMemberByScheduleIdAndStatus(scheduleId, ParticipantStatus.ACCEPTED);
+
+        List<Notification> notifications = participants.stream()
+                .map(participant -> NotificationConverter.toScheduleReconfirmReminder(participant.getMember(), schedule))
+                .filter(notification -> !notificationRepository.existsByMemberAndNotificationTypeAndReferenceIdAndReferenceVersion(notification.getMember(), NotificationType.SCHEDULE_RECONFIRM_REMINDER, scheduleId, schedule.getInviteVersion()))
+                .toList();
+
+        if (!notifications.isEmpty()) {
+            notificationRepository.saveAll(notifications);
+        }
+
+        schedule.clearReconfirmReminderAt();
+
+        log.info("일정 재확인 리마인드 생성 완료 scheduleId={}, inviteVersion={}, notificationCount={}", scheduleId, schedule.getInviteVersion(), notifications.size());
+    }
 }

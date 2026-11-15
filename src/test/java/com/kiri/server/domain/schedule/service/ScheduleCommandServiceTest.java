@@ -369,6 +369,8 @@ class ScheduleCommandServiceTest {
         verify(scheduleParticipantRepository).saveAll(any());
         verify(notificationService).cancelScheduleInvitationReminders(SCHEDULE_ID);
         verify(notificationService).createScheduleUpdateNotifications(eq(schedule), anyList(), anyList(), anyList());
+        assertThat(schedule.getInviteVersion()).isEqualTo(2);
+        assertThat(schedule.getReconfirmReminderAt()).isEqualTo(LocalDateTime.of(2026, 12, 20, 11, 0));
     }
 
     @Test
@@ -403,6 +405,7 @@ class ScheduleCommandServiceTest {
         assertThat(removedCaptor.getValue()).extracting(Member::getId).containsExactly(2L);
 
         assertThat(addedCaptor.getValue()).extracting(p -> p.getMember().getId()).containsExactly(3L);
+        assertThat(schedule.getReconfirmReminderAt()).isNull();
     }
 
     @Test
@@ -895,5 +898,25 @@ class ScheduleCommandServiceTest {
         verify(scheduleRepository, never()).save(any(Schedule.class));
         verify(scheduleParticipantRepository, never()).saveAll(any());
         verifyNoInteractions(notificationService);
+    }
+
+    @Test
+    @DisplayName("응답 마감까지 2시간 이하로 남은 일정 변경은 재확인 리마인더를 예약하지 않는다.")
+    void update_coreChange_shortResponseTime() {
+        Schedule schedule = updatableSchedule(ScheduleStatus.CONFIRMED, LocalDate.of(2026, 12, 20), LocalTime.of(14, 0));
+
+        ScheduleParticipant m2p = participant(schedule, m2, ParticipantStatus.ACCEPTED);
+
+        given(memberRepository.findById(PROPOSER_ID)).willReturn(Optional.of(proposer));
+        given(scheduleRepository.findByIdForUpdate(SCHEDULE_ID)).willReturn(Optional.of(schedule));
+        given(memberRepository.findAllByFamilyAndDeletedAtIsNull(family)).willReturn(List.of(proposer, m2, m3));
+        given(scheduleParticipantRepository.findBySchedule_Id(SCHEDULE_ID)).willReturn(List.of(participant(schedule, proposer, ParticipantStatus.ACCEPTED), m2p));
+        given(scheduleParticipantRepository.countBySchedule_IdAndStatusAndReconfirmRequiredFalseAndMember_IdNot(SCHEDULE_ID, ParticipantStatus.ACCEPTED, PROPOSER_ID)).willReturn(0L);
+
+        service.update(PROPOSER_ID, SCHEDULE_ID, updateReq(LocalDate.of(2026, 11, 1), LocalTime.of(11, 0), List.of(2L)));
+
+        assertThat(m2p.getReconfirmRequired()).isTrue();
+        assertThat(schedule.getResponseDeadline()).isEqualTo(LocalDateTime.of(2026, 11, 1, 11, 0));
+        assertThat(schedule.getReconfirmReminderAt()).isNull();
     }
 }

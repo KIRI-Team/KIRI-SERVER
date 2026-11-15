@@ -9,6 +9,7 @@ public enum NotificationType {
     SCHEDULE_RESPONSE,
     SCHEDULE_CHANGED,
     SCHEDULE_REMOVED,
+    SCHEDULE_RECONFIRM_REMINDER,
     POKE,
     RECORD,
     MISSION,

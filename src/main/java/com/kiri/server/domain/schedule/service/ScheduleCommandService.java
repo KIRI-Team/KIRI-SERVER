@@ -310,6 +310,10 @@ public class ScheduleCommandService {
         if (coreChanged) {
             schedule.increaseInviteVersion();
             schedule.updateResponseReminderAt(calculateResponseReminderAt(responseDeadline, now));
+
+            LocalDateTime reconfirmReminderAt = keptAccepted.isEmpty() ? null : calculateResponseReminderAt(responseDeadline, now);
+
+            schedule.updateReconfirmReminderAt(reconfirmReminderAt);
         }
 
         long acceptedExcludingProposer = scheduleParticipantRepository

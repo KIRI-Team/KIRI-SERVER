@@ -196,4 +196,20 @@ public class NotificationConverter {
                 .referenceVersion(schedule.getInviteVersion())
                 .build();
     }
+
+    public static Notification toScheduleReconfirmReminder(Member receiver, Schedule schedule) {
+        String missionTitle = schedule.getBucketItem().getMission().getTitle();
+
+        return Notification.builder()
+                .member(receiver)
+                .notificationType(NotificationType.SCHEDULE_RECONFIRM_REMINDER)
+                .title("변경된 일정을 다시 확인해 주세요!")
+                .body("'" + missionTitle + "'의 일정이 바뀌었어요. 변경된 일정에 다시 수락 또는 거절해 주세요.")
+                .status(NotificationStatus.PENDING)
+                .isRead(false)
+                .referenceId(schedule.getId())
+                .referenceDate(schedule.getScheduleDate())
+                .referenceVersion(schedule.getInviteVersion())
+                .build();
+    }
 }
