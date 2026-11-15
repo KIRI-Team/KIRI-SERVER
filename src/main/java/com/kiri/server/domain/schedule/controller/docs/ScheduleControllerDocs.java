@@ -830,11 +830,12 @@ public interface ScheduleControllerDocs {
                     - 헤더: Authorization: Bearer {JWT 토큰}
                     - Path: scheduleId
 
-                    일정의 날짜, 시작 시간, 일정 상태, 초대 정보(제안자, 가족에게 한 줄), 내 응답 상태와 버튼 노출 여부, 참여자별 응답 상태를 조회합니다.
+                    일정의 미션명·행사 설명, 날짜, 시작 시간, 일정 상태, 초대 정보(제안자, 가족에게 한 줄), 내 응답 상태와 버튼 노출 여부, 참여자별 응답 상태를 조회합니다.
                     초대받은 화면, 약속 확정·당일 화면, 일정 취소 확인 화면 모두 이 API로 처리합니다.
-                    미션 정보(제목, 행사 설명, 장소, 걸음 수, 활동 시간)는 미션 상세 조회 API를 사용합니다.
+                    장소, 걸음 수, 활동 시간은 미션 상세 조회 API를 사용합니다.
 
                     ## 응답 규칙
+                    - missionTitle, missionDescription: 일정에 연결된 미션의 제목과 설명. 미션이 숨김·취소 상태여도 반환하며, 연결된 미션이 없으면 null입니다.
                     - date: yyyy-MM-dd, time: HH:mm
                     - status: 화면 표시용 일정 상태
                       - SCHEDULED: 약속 예정 (응답 대기 / 미확정)
@@ -874,6 +875,8 @@ public interface ScheduleControllerDocs {
                                       "message": "일정 상세 조회 성공",
                                       "result": {
                                         "missionId": 42,
+                                        "missionTitle": "한강 뚜벅뚜벅 축제 가보기",
+                                        "missionDescription": "잠수교를 보행교로 전환해 시민이 직접 걸으며 공연·체험·미식을 즐기는 한강 축제입니다.",
                                         "date": "2026-11-17",
                                         "time": "14:50",
                                         "status": "SCHEDULED",

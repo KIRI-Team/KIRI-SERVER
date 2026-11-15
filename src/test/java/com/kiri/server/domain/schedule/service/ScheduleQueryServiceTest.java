@@ -14,6 +14,7 @@ import com.kiri.server.domain.mission.enums.ChecklistSource;
 import com.kiri.server.domain.mission.enums.Category;
 import com.kiri.server.domain.mission.enums.IndoorOutdoor;
 import com.kiri.server.domain.mission.enums.ItemType;
+import com.kiri.server.domain.mission.enums.MissionStatus;
 import com.kiri.server.domain.mission.enums.WalkingLevel;
 import com.kiri.server.domain.mission.repository.MissionChecklistItemRepository;
 import com.kiri.server.domain.mission.repository.MissionRepository;
@@ -1054,6 +1055,27 @@ class ScheduleQueryServiceTest {
         assertThat(result.canRespond()).isFalse();
         assertThat(result.canEdit()).isFalse();
         assertThat(result.canCancel()).isFalse();
+    }
+
+    @Test
+    @DisplayName("일정 상세 조회: 연결된 미션이 숨김 상태여도 미션명과 행사 설명을 반환한다.")
+    void getDetail_hiddenMission() {
+        Family family = Family.builder().id(10L).build();
+        Member proposer = Member.builder().id(3L).build();
+        Mission mission = Mission.builder().id(42L).title("한강 축제 가보기").description("한강 대표 축제")
+                .status(MissionStatus.HIDDEN).build();
+        Schedule schedule = Schedule.builder().id(118L).family(family).proposer(proposer)
+                .bucketItem(BucketItem.builder().mission(mission).build())
+                .scheduleDate(LocalDate.of(2026, 11, 3)).scheduleTime(LocalTime.of(14, 50))
+                .status(ScheduleStatus.CONFIRMED).build();
+        givenDetail(family, schedule,
+                ScheduleParticipant.builder().schedule(schedule).member(proposer).status(ParticipantStatus.ACCEPTED).build());
+
+        ScheduleResDTO.Detail result = scheduleQueryService.getDetail(MEMBER_ID, 118L);
+
+        assertThat(result.missionId()).isEqualTo(42L);
+        assertThat(result.missionTitle()).isEqualTo("한강 축제 가보기");
+        assertThat(result.missionDescription()).isEqualTo("한강 대표 축제");
     }
 
     @ParameterizedTest(name = "{0}, {1} → {2}")

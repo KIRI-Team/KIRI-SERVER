@@ -132,9 +132,12 @@ public class ScheduleConverter {
                 .findFirst()
                 .orElse(null);
         boolean isProposer = schedule.isProposer(memberId);
+        Mission mission = schedule.getBucketItem() == null ? null : schedule.getBucketItem().getMission();
 
         return ScheduleResDTO.Detail.builder()
-                .missionId(resolveMissionId(schedule))
+                .missionId(mission == null ? null : mission.getId())
+                .missionTitle(mission == null ? null : mission.getTitle())
+                .missionDescription(mission == null ? null : mission.getDescription())
                 .date(schedule.getScheduleDate())
                 .time(schedule.getScheduleTime())
                 .status(toDetailStatus(schedule, now.toLocalDate()))
@@ -161,13 +164,6 @@ public class ScheduleConverter {
                 .nickname(proposer.getDisplayName())
                 .familyRole(proposer.getFamilyRole())
                 .build();
-    }
-
-    private static Long resolveMissionId(Schedule schedule) {
-        if (schedule.getBucketItem() == null || schedule.getBucketItem().getMission() == null) {
-            return null;
-        }
-        return schedule.getBucketItem().getMission().getId();
     }
 
     private static ScheduleResDTO.ParticipantItem toParticipantItem(ScheduleParticipant participant,
