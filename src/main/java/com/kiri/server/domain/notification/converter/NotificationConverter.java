@@ -6,8 +6,10 @@ import com.kiri.server.domain.notification.entity.Notification;
 import com.kiri.server.domain.notification.enums.NotificationStatus;
 import com.kiri.server.domain.notification.enums.NotificationType;
 import com.kiri.server.domain.question.entity.FamilyQuestion;
+import com.kiri.server.domain.schedule.entity.Schedule;
 
 import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 
 public class NotificationConverter {
 
@@ -79,6 +81,26 @@ public class NotificationConverter {
                 .isRead(false)
                 .referenceId(mission.getId())
                 .referenceDate(referenceDate)
+                .build();
+    }
+
+    public static Notification toScheduleInvitation(Member receiver, Schedule schedule) {
+        String proposerNickname = schedule.getProposer().getNickname();
+        String missionTitle = schedule.getBucketItem().getMission().getTitle();
+
+        String scheduleDate = schedule.getScheduleDate().format(DateTimeFormatter.ofPattern("M월 d일"));
+
+        String scheduleTime = schedule.getScheduleTime().format(DateTimeFormatter.ofPattern("HH:mm"));
+
+        return Notification.builder()
+                .member(receiver)
+                .notificationType(NotificationType.SCHEDULE_INVITATION)
+                .title("초대장이 도착했어요! 💌")
+                .body(proposerNickname + "님이 '" + missionTitle + "'에 초대했어요. " + scheduleDate + " " + scheduleTime + "에 함께할지 알려주세요.")
+                .status(NotificationStatus.PENDING)
+                .isRead(false)
+                .referenceId(schedule.getId())
+                .referenceDate(schedule.getScheduleDate())
                 .build();
     }
 }

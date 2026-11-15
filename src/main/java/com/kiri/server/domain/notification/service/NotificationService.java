@@ -14,6 +14,9 @@ import com.kiri.server.domain.question.exception.QuestionException;
 import com.kiri.server.domain.question.exception.code.QuestionErrorCode;
 import com.kiri.server.domain.question.repository.FamilyQuestionRepository;
 import com.kiri.server.domain.question.repository.MemberAnswerRepository;
+import com.kiri.server.domain.schedule.entity.Schedule;
+import com.kiri.server.domain.schedule.entity.ScheduleParticipant;
+import com.kiri.server.domain.schedule.enums.ParticipantStatus;
 import com.kiri.server.domain.setting.entity.MemberSetting;
 import com.kiri.server.domain.setting.repository.MemberSettingRepository;
 import lombok.RequiredArgsConstructor;
@@ -155,5 +158,22 @@ public class NotificationService {
         List<Notification> notifications = members.stream().map(member -> NotificationConverter.toMissionChanged(member, mission, referenceDate)).toList();
 
         notificationRepository.saveAll(notifications);
+    }
+
+    @Transactional
+    public void createScheduleInvitationNotifications(
+            Schedule schedule,
+            List<ScheduleParticipant> participants
+    ) {
+        List<Notification> notifications = participants.stream()
+                .filter(participant -> participant.getStatus() == ParticipantStatus.PENDING)
+                .filter(participant -> participant.getMember() != null)
+                .map(participant -> NotificationConverter.toScheduleInvitation(participant.getMember(), schedule))
+                .filter(notification -> !notificationRepository.existsByMemberAndNotificationTypeAndReferenceId(notification.getMember(), NotificationType.SCHEDULE_INVITATION, schedule.getId()))
+                .toList();
+
+        if (!notifications.isEmpty()) {
+            notificationRepository.saveAll(notifications);
+        }
     }
 }

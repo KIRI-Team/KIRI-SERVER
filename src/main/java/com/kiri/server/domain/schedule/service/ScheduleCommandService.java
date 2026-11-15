@@ -14,6 +14,7 @@ import com.kiri.server.domain.mission.entity.Mission;
 import com.kiri.server.domain.mission.enums.MissionStatus;
 import com.kiri.server.domain.mission.enums.MissionType;
 import com.kiri.server.domain.mission.repository.FamilyMissionRecommendationRepository;
+import com.kiri.server.domain.notification.service.NotificationService;
 import com.kiri.server.domain.schedule.converter.ScheduleConverter;
 import com.kiri.server.domain.schedule.dto.ScheduleReqDTO;
 import com.kiri.server.domain.schedule.dto.ScheduleResDTO;
@@ -54,6 +55,7 @@ public class ScheduleCommandService {
     private final ScheduleConditionRepository scheduleConditionRepository;
     private final FamilyMissionRecommendationRepository familyMissionRecommendationRepository;
     private final Clock clock;
+    private final NotificationService notificationService;
 
     @Transactional
     public ScheduleResDTO.Created create(Long memberId, Long bucketItemId, ScheduleReqDTO.Create request) {
@@ -116,6 +118,10 @@ public class ScheduleCommandService {
                 bucketItem.getMission(), now);
         List<Long> participantMemberIds = resolveParticipants(request.participantMemberIds(), proposer, family);
 
+        if (participantMemberIds.isEmpty()) {
+            throw new ScheduleException(ScheduleErrorCode.INVITEE_REQUIRED);
+        }
+
         LocalDateTime responseDeadline = calculateDeadline(startAt, now);
         Schedule schedule = scheduleRepository.save(Schedule.create(
                 family, bucketItem, proposer,
@@ -127,6 +133,8 @@ public class ScheduleCommandService {
                 participants.add(ScheduleParticipant.of(schedule, memberRepository.getReferenceById(id),
                         ParticipantStatus.PENDING, null)));
         scheduleParticipantRepository.saveAll(participants);
+
+        notificationService.createScheduleInvitationNotifications(schedule, participants);
 
         bucketItem.markScheduled();
 
