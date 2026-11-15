@@ -420,9 +420,9 @@ public interface ScheduleControllerDocs {
     );
 
     @Operation(
-            summary = "근처 놀거리 추천 조회 API",
+            summary = "일정 상세 근처 놀거리 조회 API",
             description = """
-                    # 근처 놀거리 추천 조회
+                    # 일정 상세 근처 놀거리 조회
 
                     ## 요청 형식
                     - 헤더: Authorization: Bearer {JWT 토큰}
@@ -455,6 +455,7 @@ public interface ScheduleControllerDocs {
                     - distance: 일정 장소로부터의 거리(km, 소수 첫째 자리)
                     - 추천할 장소가 없으면 빈 배열입니다.
                     - 같은 가족의 일정만 조회할 수 있으며, 다른 가족의 일정은 존재하지 않는 일정과 같이 404로 응답합니다.
+                    - 취소된 일정은 조회할 수 없습니다. (409)
                     """
     )
     @ApiResponses(value = {
@@ -600,6 +601,21 @@ public interface ScheduleControllerDocs {
                                                     """
                                     )
                             }
+                    )
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "409",
+                    description = "취소된 일정(SCHEDULE409_7)",
+                    content = @Content(
+                            mediaType = "application/json",
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "isSuccess": false,
+                                      "code": "SCHEDULE409_7",
+                                      "message": "취소된 일정입니다.",
+                                      "result": null
+                                    }
+                                    """)
                     )
             )
     })

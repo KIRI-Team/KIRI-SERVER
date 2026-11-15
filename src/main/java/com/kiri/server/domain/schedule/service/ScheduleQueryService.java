@@ -200,6 +200,9 @@ public class ScheduleQueryService {
 
         Schedule schedule = scheduleRepository.findWithMissionByIdAndFamilyId(scheduleId, family.getId())
                 .orElseThrow(() -> new ScheduleException(ScheduleErrorCode.SCHEDULE_NOT_FOUND));
+        if (schedule.getStatus() == ScheduleStatus.CANCELLED) {
+            throw new ScheduleException(ScheduleErrorCode.SCHEDULE_CANCELLED);
+        }
         Place base = schedule.getBucketItem().getMission().getPlace();
 
         List<Mission> candidates = nearbyMissionFinder.findCandidates(base, schedule.getScheduleDate());
