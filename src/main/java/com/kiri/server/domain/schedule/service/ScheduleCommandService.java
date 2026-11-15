@@ -22,6 +22,7 @@ import com.kiri.server.domain.schedule.entity.ScheduleCondition;
 import com.kiri.server.domain.schedule.entity.ScheduleParticipant;
 import com.kiri.server.domain.schedule.enums.ConditionType;
 import com.kiri.server.domain.schedule.enums.ParticipantStatus;
+import com.kiri.server.domain.schedule.enums.ScheduleChangeField;
 import com.kiri.server.domain.schedule.enums.ScheduleStatus;
 import com.kiri.server.domain.schedule.exception.ScheduleException;
 import com.kiri.server.domain.schedule.exception.code.ScheduleErrorCode;
@@ -255,9 +256,16 @@ public class ScheduleCommandService {
             }
         }
 
-        boolean coreChanged = !schedule.getScheduleDate().equals(request.scheduleDate())
-                || !schedule.getScheduleTime().equals(request.scheduleTime())
-                || !targetSet.equals(existingMemberIds);
+        EnumSet<ScheduleChangeField> changedFields = EnumSet.noneOf(ScheduleChangeField.class);
+        if (!schedule.getScheduleDate().equals(request.scheduleDate())) {
+            changedFields.add(ScheduleChangeField.DATE);
+        }
+        if (!schedule.getScheduleTime().equals(request.scheduleTime())) {
+            changedFields.add(ScheduleChangeField.TIME);
+        }
+        if (!targetSet.equals(existingMemberIds)) {
+            changedFields.add(ScheduleChangeField.PARTICIPANTS);
+        }
 
         if (!toRemove.isEmpty()) {
             scheduleParticipantRepository.deleteAll(toRemove);
@@ -272,8 +280,8 @@ public class ScheduleCommandService {
         if (!toAdd.isEmpty()) {
             scheduleParticipantRepository.saveAll(toAdd);
         }
-        if (coreChanged) {
-            keptAccepted.forEach(ScheduleParticipant::markReconfirmRequired);
+        if (!changedFields.isEmpty()) {
+            keptAccepted.forEach(participant -> participant.markReconfirmRequired(changedFields));
         }
 
         LocalDateTime responseDeadline = calculateDeadline(startAt, now);

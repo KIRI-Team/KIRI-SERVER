@@ -2,6 +2,7 @@ package com.kiri.server.domain.schedule.entity;
 
 import com.kiri.server.domain.member.entity.Member;
 import com.kiri.server.domain.schedule.enums.ParticipantStatus;
+import com.kiri.server.domain.schedule.enums.ScheduleChangeField;
 import com.kiri.server.global.entity.BaseEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -22,6 +23,9 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Set;
 
 @Entity
 @Table(
@@ -58,6 +62,18 @@ public class ScheduleParticipant extends BaseEntity {
     @Builder.Default
     private Boolean reconfirmRequired = false;
 
+    @Column(name = "is_date_changed", nullable = false)
+    @Builder.Default
+    private Boolean dateChanged = false;
+
+    @Column(name = "is_time_changed", nullable = false)
+    @Builder.Default
+    private Boolean timeChanged = false;
+
+    @Column(name = "is_participants_changed", nullable = false)
+    @Builder.Default
+    private Boolean participantsChanged = false;
+
     @Column(name = "responded_at")
     private LocalDateTime respondedAt;
 
@@ -75,10 +91,38 @@ public class ScheduleParticipant extends BaseEntity {
     public void respond(ParticipantStatus status, LocalDateTime respondedAt) {
         this.status = status;
         this.reconfirmRequired = false;
+        clearChangedFields();
         this.respondedAt = respondedAt;
     }
 
-    public void markReconfirmRequired() {
+    // 재확인 전에 또 바뀌면 이전 항목에 누적
+    public void markReconfirmRequired(Set<ScheduleChangeField> changedFields) {
+        if (!Boolean.TRUE.equals(reconfirmRequired)) {
+            clearChangedFields();
+        }
         this.reconfirmRequired = true;
+        this.dateChanged |= changedFields.contains(ScheduleChangeField.DATE);
+        this.timeChanged |= changedFields.contains(ScheduleChangeField.TIME);
+        this.participantsChanged |= changedFields.contains(ScheduleChangeField.PARTICIPANTS);
+    }
+
+    public List<ScheduleChangeField> getChangedFields() {
+        List<ScheduleChangeField> fields = new ArrayList<>();
+        if (Boolean.TRUE.equals(dateChanged)) {
+            fields.add(ScheduleChangeField.DATE);
+        }
+        if (Boolean.TRUE.equals(timeChanged)) {
+            fields.add(ScheduleChangeField.TIME);
+        }
+        if (Boolean.TRUE.equals(participantsChanged)) {
+            fields.add(ScheduleChangeField.PARTICIPANTS);
+        }
+        return fields;
+    }
+
+    private void clearChangedFields() {
+        this.dateChanged = false;
+        this.timeChanged = false;
+        this.participantsChanged = false;
     }
 }
