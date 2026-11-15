@@ -176,7 +176,7 @@ public class NotificationService {
                 .filter(participant -> participant.getStatus() == ParticipantStatus.PENDING)
                 .filter(participant -> participant.getMember() != null)
                 .map(participant -> NotificationConverter.toScheduleInvitation(participant.getMember(), schedule))
-                .filter(notification -> !notificationRepository.existsByMemberAndNotificationTypeAndReferenceId(notification.getMember(), NotificationType.SCHEDULE_INVITATION, schedule.getId()))
+                .filter(notification -> !notificationRepository.existsByMemberAndNotificationTypeAndReferenceIdAndReferenceVersion(notification.getMember(), NotificationType.SCHEDULE_INVITATION, schedule.getId(), schedule.getInviteVersion()))
                 .toList();
 
         if (!notifications.isEmpty()) {
@@ -275,5 +275,48 @@ public class NotificationService {
         notificationRepository.save(notification);
 
         log.info("일정 참여 응답 알림 생성 완료 scheduleId={}, responderId={}, response={}", schedule.getId(), responder.getId(), participant.getStatus());
+    }
+
+    @Transactional
+    public void createScheduleUpdateNotifications(Schedule schedule, List<ScheduleParticipant> existingParticipants, List<Member> removedMembers, List<ScheduleParticipant> addedParticipants) {
+        Long scheduleId = schedule.getId();
+        Integer inviteVersion = schedule.getInviteVersion();
+        Member proposer = schedule.getProposer();
+
+        Map<Long, Member> changedReceivers = new LinkedHashMap<>();
+
+        existingParticipants.stream()
+                .filter(participant -> participant.getMember() != null)
+                .filter(participant -> !participant.getMember().getId().equals(proposer.getId()))
+                .forEach(participant -> changedReceivers.putIfAbsent(participant.getMember().getId(), participant.getMember()));
+
+        List<Notification> changedNotifications = changedReceivers.values().stream()
+                .filter(member -> !notificationRepository.existsByMemberAndNotificationTypeAndReferenceIdAndReferenceVersion(member, NotificationType.SCHEDULE_CHANGED, scheduleId, inviteVersion))
+                .map(member -> NotificationConverter.toScheduleChanged(member, schedule))
+                .toList();
+
+        Map<Long, Member> removedReceivers = new LinkedHashMap<>();
+
+        removedMembers.stream()
+                .filter(member -> member != null)
+                .filter(member -> !member.getId().equals(proposer.getId()))
+                .forEach(member -> removedReceivers.putIfAbsent(member.getId(), member));
+
+        List<Notification> removedNotifications = removedReceivers.values().stream()
+                .filter(member -> !notificationRepository.existsByMemberAndNotificationTypeAndReferenceIdAndReferenceVersion(member, NotificationType.SCHEDULE_REMOVED, scheduleId, inviteVersion))
+                .map(member -> NotificationConverter.toScheduleRemoved(member, schedule))
+                .toList();
+
+        if (!changedNotifications.isEmpty()) {
+            notificationRepository.saveAll(changedNotifications);
+        }
+
+        if (!removedNotifications.isEmpty()) {
+            notificationRepository.saveAll(removedNotifications);
+        }
+
+        createScheduleInvitationNotifications(schedule, addedParticipants);
+
+        log.info("일정 변경 알림 생성 완료 scheduleId={}, changedCount={}, removedCount={}, addedCount={}", scheduleId, changedNotifications.size(), removedNotifications.size(), addedParticipants.stream().filter(participant -> participant.getStatus() == ParticipantStatus.PENDING).count());
     }
 }

@@ -267,6 +267,19 @@ public class ScheduleCommandService {
             }
         }
 
+        Set<Long> removedMemberIds = toRemove.stream()
+                .map(p -> p.getMember().getId())
+                .collect(Collectors.toSet());
+
+        List<ScheduleParticipant> keptParticipants = existing.stream()
+                .filter(p -> p.getMember() != null)
+                .filter(p -> !removedMemberIds.contains(p.getMember().getId()))
+                .toList();
+
+        List<Member> removedMembers = toRemove.stream()
+                .map(ScheduleParticipant::getMember)
+                .toList();
+
         boolean coreChanged = !schedule.getScheduleDate().equals(request.scheduleDate())
                 || !schedule.getScheduleTime().equals(request.scheduleTime())
                 || !targetSet.equals(existingMemberIds);
@@ -303,6 +316,10 @@ public class ScheduleCommandService {
                 .countBySchedule_IdAndStatusAndReconfirmRequiredFalseAndMember_IdNot(scheduleId,
                         ParticipantStatus.ACCEPTED, proposer.getId());
         schedule.recalculateStatus(acceptedExcludingProposer, now);
+
+        if (coreChanged) {
+            notificationService.createScheduleUpdateNotifications(schedule, keptParticipants, removedMembers, toAdd);
+        }
 
         return ScheduleConverter.toUpdated(schedule, targetIds);
     }

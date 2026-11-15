@@ -102,6 +102,7 @@ public class NotificationConverter {
                 .isRead(false)
                 .referenceId(schedule.getId())
                 .referenceDate(schedule.getScheduleDate())
+                .referenceVersion(schedule.getInviteVersion())
                 .build();
     }
 
@@ -159,6 +160,40 @@ public class NotificationConverter {
                 .isRead(false)
                 .referenceId(schedule.getId())
                 .referenceDate(schedule.getScheduleDate())
+                .build();
+    }
+
+    public static Notification toScheduleChanged(Member receiver, Schedule schedule) {
+        String missionTitle = schedule.getBucketItem().getMission().getTitle();
+        String scheduleDate = schedule.getScheduleDate().format(DateTimeFormatter.ofPattern("M월 d일"));
+        String scheduleTime = schedule.getScheduleTime().format(DateTimeFormatter.ofPattern("HH:mm"));
+
+        return Notification.builder()
+                .member(receiver)
+                .notificationType(NotificationType.SCHEDULE_CHANGED)
+                .title("일정이 변경됐어요!")
+                .body("'" + missionTitle + "' 일정이 " + scheduleDate + " " + scheduleTime + "으로 변경됐어요. 변경된 일정을 확인해 주세요.")
+                .status(NotificationStatus.PENDING)
+                .isRead(false)
+                .referenceId(schedule.getId())
+                .referenceDate(schedule.getScheduleDate())
+                .referenceVersion(schedule.getInviteVersion())
+                .build();
+    }
+
+    public static Notification toScheduleRemoved(Member receiver, Schedule schedule) {
+        String missionTitle = schedule.getBucketItem().getMission().getTitle();
+
+        return Notification.builder()
+                .member(receiver)
+                .notificationType(NotificationType.SCHEDULE_REMOVED)
+                .title("일정 참여 대상에서 제외됐어요.")
+                .body("'" + missionTitle + "' 일정의 참여 대상이 변경되어 더 이상 일정에 참여하지 않아요.")
+                .status(NotificationStatus.PENDING)
+                .isRead(false)
+                .referenceId(schedule.getId())
+                .referenceDate(schedule.getScheduleDate())
+                .referenceVersion(schedule.getInviteVersion())
                 .build();
     }
 }

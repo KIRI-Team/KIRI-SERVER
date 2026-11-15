@@ -574,14 +574,13 @@ class NotificationServiceTest {
         ScheduleParticipant participant1 = createParticipant(schedule, member, ParticipantStatus.PENDING);
         ScheduleParticipant participant2 = createParticipant(schedule, member2, ParticipantStatus.PENDING);
 
-        given(notificationRepository.existsByMemberAndNotificationTypeAndReferenceId(member, NotificationType.SCHEDULE_INVITATION, schedule.getId())).willReturn(false);
+        given(notificationRepository.existsByMemberAndNotificationTypeAndReferenceIdAndReferenceVersion(member, NotificationType.SCHEDULE_INVITATION, schedule.getId(), schedule.getInviteVersion())).willReturn(false);
 
-        given(notificationRepository.existsByMemberAndNotificationTypeAndReferenceId(member2, NotificationType.SCHEDULE_INVITATION, schedule.getId())).willReturn(false);
+        given(notificationRepository.existsByMemberAndNotificationTypeAndReferenceIdAndReferenceVersion(member2, NotificationType.SCHEDULE_INVITATION, schedule.getId(), schedule.getInviteVersion())).willReturn(false);
 
         notificationService.createScheduleInvitationNotifications(schedule, List.of(participant1, participant2));
 
         ArgumentCaptor<List<Notification>> captor = ArgumentCaptor.forClass(List.class);
-
         verify(notificationRepository).saveAll(captor.capture());
 
         List<Notification> saved = captor.getValue();
@@ -602,6 +601,10 @@ class NotificationServiceTest {
         assertThat(saved)
                 .extracting(Notification::getReferenceId)
                 .containsOnly(schedule.getId());
+
+        assertThat(saved)
+                .extracting(Notification::getReferenceVersion)
+                .containsOnly(schedule.getInviteVersion());
     }
 
     @Test
@@ -612,7 +615,7 @@ class NotificationServiceTest {
         ScheduleParticipant proposer = createParticipant(schedule, member, ParticipantStatus.ACCEPTED);
         ScheduleParticipant invitee = createParticipant(schedule, member2, ParticipantStatus.PENDING);
 
-        given(notificationRepository.existsByMemberAndNotificationTypeAndReferenceId(member2, NotificationType.SCHEDULE_INVITATION, schedule.getId())).willReturn(false);
+        given(notificationRepository.existsByMemberAndNotificationTypeAndReferenceIdAndReferenceVersion(member2, NotificationType.SCHEDULE_INVITATION, schedule.getId(), schedule.getInviteVersion())).willReturn(false);
 
         notificationService.createScheduleInvitationNotifications(schedule, List.of(proposer, invitee));
 
@@ -625,7 +628,7 @@ class NotificationServiceTest {
         assertThat(saved).hasSize(1);
         assertThat(saved.get(0).getMember()).isEqualTo(member2);
 
-        verify(notificationRepository, never()).existsByMemberAndNotificationTypeAndReferenceId(member, NotificationType.SCHEDULE_INVITATION, schedule.getId());
+        verify(notificationRepository, never()).existsByMemberAndNotificationTypeAndReferenceIdAndReferenceVersion(member, NotificationType.SCHEDULE_INVITATION, schedule.getId(), schedule.getInviteVersion());
     }
 
     @Test
@@ -649,7 +652,7 @@ class NotificationServiceTest {
 
         ScheduleParticipant participant = createParticipant(schedule, member2, ParticipantStatus.PENDING);
 
-        given(notificationRepository.existsByMemberAndNotificationTypeAndReferenceId(member2, NotificationType.SCHEDULE_INVITATION, schedule.getId())).willReturn(true);
+        given(notificationRepository.existsByMemberAndNotificationTypeAndReferenceIdAndReferenceVersion(member2, NotificationType.SCHEDULE_INVITATION, schedule.getId(), schedule.getInviteVersion())).willReturn(true);
 
         notificationService.createScheduleInvitationNotifications(schedule, List.of(participant));
 
@@ -931,6 +934,94 @@ class NotificationServiceTest {
         verify(notificationRepository, never()).save(any(Notification.class));
     }
 
+
+    @Test
+    @DisplayName("SC-05. 기존 참여자에게 일정 변경 알림을 생성하고 제안자는 제외한다.")
+    void createScheduleUpdateNotificationsChangedParticipants() {
+        Schedule schedule = createSchedule();
+
+        ScheduleParticipant proposer = createParticipant(schedule, member, ParticipantStatus.ACCEPTED);
+        ScheduleParticipant existingParticipant = createParticipant(schedule, member2, ParticipantStatus.ACCEPTED);
+
+        given(notificationRepository.existsByMemberAndNotificationTypeAndReferenceIdAndReferenceVersion(member2, NotificationType.SCHEDULE_CHANGED, schedule.getId(), schedule.getInviteVersion())).willReturn(false);
+
+        notificationService.createScheduleUpdateNotifications(schedule, List.of(proposer, existingParticipant), List.of(), List.of());
+
+        ArgumentCaptor<List<Notification>> captor = ArgumentCaptor.forClass(List.class);
+        verify(notificationRepository).saveAll(captor.capture());
+
+        List<Notification> saved = captor.getValue();
+
+        assertThat(saved).hasSize(1);
+        assertThat(saved.get(0).getMember()).isEqualTo(member2);
+        assertThat(saved.get(0).getNotificationType()).isEqualTo(NotificationType.SCHEDULE_CHANGED);
+        assertThat(saved.get(0).getStatus()).isEqualTo(NotificationStatus.PENDING);
+        assertThat(saved.get(0).getReferenceId()).isEqualTo(schedule.getId());
+        assertThat(saved.get(0).getReferenceVersion()).isEqualTo(schedule.getInviteVersion());
+
+        verify(notificationRepository, never()).existsByMemberAndNotificationTypeAndReferenceIdAndReferenceVersion(member, NotificationType.SCHEDULE_CHANGED, schedule.getId(), schedule.getInviteVersion());
+    }
+
+    @Test
+    @DisplayName("SC-05. 일정에서 제외된 참여자에게 참여 제외 알림을 생성한다.")
+    void createScheduleUpdateNotificationsRemovedParticipants() {
+        Schedule schedule = createSchedule();
+
+        given(notificationRepository.existsByMemberAndNotificationTypeAndReferenceIdAndReferenceVersion(member2, NotificationType.SCHEDULE_REMOVED, schedule.getId(), schedule.getInviteVersion())).willReturn(false);
+
+        notificationService.createScheduleUpdateNotifications(schedule, List.of(), List.of(member2), List.of());
+
+        ArgumentCaptor<List<Notification>> captor = ArgumentCaptor.forClass(List.class);
+        verify(notificationRepository).saveAll(captor.capture());
+
+        List<Notification> saved = captor.getValue();
+
+        assertThat(saved).hasSize(1);
+        assertThat(saved.get(0).getMember()).isEqualTo(member2);
+        assertThat(saved.get(0).getNotificationType()).isEqualTo(NotificationType.SCHEDULE_REMOVED);
+        assertThat(saved.get(0).getStatus()).isEqualTo(NotificationStatus.PENDING);
+        assertThat(saved.get(0).getReferenceId()).isEqualTo(schedule.getId());
+        assertThat(saved.get(0).getReferenceVersion()).isEqualTo(schedule.getInviteVersion());
+    }
+
+    @Test
+    @DisplayName("SC-05. 새로 추가된 참여자에게 일정 초대 알림을 생성한다.")
+    void createScheduleUpdateNotificationsAddedParticipants() {
+        Schedule schedule = createSchedule();
+
+        ScheduleParticipant addedParticipant = createParticipant(schedule, member2, ParticipantStatus.PENDING);
+
+        given(notificationRepository.existsByMemberAndNotificationTypeAndReferenceIdAndReferenceVersion(member2, NotificationType.SCHEDULE_INVITATION, schedule.getId(), schedule.getInviteVersion())).willReturn(false);
+
+        notificationService.createScheduleUpdateNotifications(schedule, List.of(), List.of(), List.of(addedParticipant));
+
+        ArgumentCaptor<List<Notification>> captor = ArgumentCaptor.forClass(List.class);
+        verify(notificationRepository).saveAll(captor.capture());
+
+        List<Notification> saved = captor.getValue();
+
+        assertThat(saved).hasSize(1);
+        assertThat(saved.get(0).getMember()).isEqualTo(member2);
+        assertThat(saved.get(0).getNotificationType()).isEqualTo(NotificationType.SCHEDULE_INVITATION);
+        assertThat(saved.get(0).getStatus()).isEqualTo(NotificationStatus.PENDING);
+        assertThat(saved.get(0).getReferenceId()).isEqualTo(schedule.getId());
+        assertThat(saved.get(0).getReferenceVersion()).isEqualTo(schedule.getInviteVersion());
+    }
+
+    @Test
+    @DisplayName("SC-05. 동일한 일정 버전의 변경 및 제외 알림이 이미 존재하면 중복 생성하지 않는다.")
+    void createScheduleUpdateNotificationsPreventDuplicate() {
+        Schedule schedule = createSchedule();
+
+        given(notificationRepository.existsByMemberAndNotificationTypeAndReferenceIdAndReferenceVersion(member2, NotificationType.SCHEDULE_CHANGED, schedule.getId(), schedule.getInviteVersion())).willReturn(true);
+
+        given(notificationRepository.existsByMemberAndNotificationTypeAndReferenceIdAndReferenceVersion(member3, NotificationType.SCHEDULE_REMOVED, schedule.getId(), schedule.getInviteVersion())).willReturn(true);
+
+        notificationService.createScheduleUpdateNotifications(schedule, List.of(createParticipant(schedule, member2, ParticipantStatus.ACCEPTED)), List.of(member3), List.of());
+
+        verify(notificationRepository, never()).saveAll(anyList());
+    }
+
     private MemberSetting createSetting(boolean enabled, LocalTime notificationTime) {
         return MemberSetting.builder()
                 .member(member)
@@ -965,6 +1056,7 @@ class NotificationServiceTest {
                 .proposer(member)
                 .scheduleDate(TODAY)
                 .scheduleTime(LocalTime.of(14, 0))
+                .inviteVersion(1)
                 .build();
     }
 

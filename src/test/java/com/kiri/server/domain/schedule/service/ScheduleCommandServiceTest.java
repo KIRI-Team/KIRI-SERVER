@@ -367,6 +367,8 @@ class ScheduleCommandServiceTest {
         assertThat(result.participantMemberIds()).containsExactly(2L, 3L);
         assertThat(m2p.getReconfirmRequired()).isTrue();
         verify(scheduleParticipantRepository).saveAll(any());
+        verify(notificationService).cancelScheduleInvitationReminders(SCHEDULE_ID);
+        verify(notificationService).createScheduleUpdateNotifications(eq(schedule), anyList(), anyList(), anyList());
     }
 
     @Test
@@ -391,6 +393,46 @@ class ScheduleCommandServiceTest {
         verify(scheduleParticipantRepository).deleteAll(removed.capture());
         assertThat(removed.getValue()).containsExactly(m2p);
         verify(scheduleParticipantRepository).saveAll(any());
+
+        ArgumentCaptor<List<ScheduleParticipant>> keptCaptor = ArgumentCaptor.forClass(List.class);
+        ArgumentCaptor<List<Member>> removedCaptor = ArgumentCaptor.forClass(List.class);
+        ArgumentCaptor<List<ScheduleParticipant>> addedCaptor = ArgumentCaptor.forClass(List.class);
+
+        verify(notificationService).createScheduleUpdateNotifications(eq(schedule), keptCaptor.capture(), removedCaptor.capture(), addedCaptor.capture());
+
+        assertThat(removedCaptor.getValue()).extracting(Member::getId).containsExactly(2L);
+
+        assertThat(addedCaptor.getValue()).extracting(p -> p.getMember().getId()).containsExactly(3L);
+    }
+
+    @Test
+    @DisplayName("메모만 변경하면 재확인 처리와 일정 변경 알림을 생성하지 않는다.")
+    void update_messageOnly() {
+        Schedule schedule = updatableSchedule(ScheduleStatus.CONFIRMED, LocalDate.of(2026, 12, 20), LocalTime.of(14, 0));
+
+        ScheduleParticipant m2p = participant(schedule, m2, ParticipantStatus.ACCEPTED);
+
+        given(memberRepository.findById(PROPOSER_ID)).willReturn(Optional.of(proposer));
+        given(scheduleRepository.findByIdForUpdate(SCHEDULE_ID)).willReturn(Optional.of(schedule));
+        given(memberRepository.findAllByFamilyAndDeletedAtIsNull(family)).willReturn(List.of(proposer, m2, m3));
+        given(scheduleParticipantRepository.findBySchedule_Id(SCHEDULE_ID)).willReturn(List.of(participant(schedule, proposer, ParticipantStatus.ACCEPTED), m2p));
+        given(scheduleParticipantRepository.countBySchedule_IdAndStatusAndReconfirmRequiredFalseAndMember_IdNot(SCHEDULE_ID, ParticipantStatus.ACCEPTED, PROPOSER_ID)).willReturn(1L);
+
+        ScheduleReqDTO.Update request = ScheduleReqDTO.Update.builder()
+                .scheduleDate(LocalDate.of(2026, 12, 20))
+                .scheduleTime(LocalTime.of(14, 0))
+                .participantMemberIds(List.of(2L))
+                .requestMessage("변경된 메모")
+                .build();
+
+        ScheduleResDTO.Updated result = service.update(PROPOSER_ID, SCHEDULE_ID, request);
+
+        assertThat(result.status()).isEqualTo(ScheduleStatus.CONFIRMED);
+        assertThat(m2p.getReconfirmRequired()).isFalse();
+
+        verifyNoInteractions(notificationService);
+        verify(scheduleParticipantRepository, never()).saveAll(any());
+        verify(scheduleParticipantRepository, never()).deleteAll(anyList());
     }
 
     @Test
