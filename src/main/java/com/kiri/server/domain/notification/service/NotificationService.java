@@ -564,6 +564,28 @@ public class NotificationService {
         }
     }
 
+    @Transactional
+    public void createReviewCreatedNotifications(Schedule schedule, ScheduleParticipant writerParticipant) {
+        Member writer = writerParticipant.getMember();
+
+        List<ScheduleParticipant> participants = scheduleParticipantRepository.findAllConfirmedWithMemberByScheduleIdAndStatus(schedule.getId(), ParticipantStatus.ACCEPTED);
+
+        List<Notification> notifications = participants.stream()
+                .filter(participant -> participant.getMember() != null)
+                .filter(participant -> !participant.getMember().getId().equals(writer.getId()))
+                .filter(participant -> participant.getMember().getDeletedAt() == null)
+                .filter(participant -> !notificationRepository
+                        .existsByMemberAndNotificationTypeAndReferenceId(participant.getMember(), NotificationType.RECORD_CREATED, schedule.getId()))
+                .map(participant -> NotificationConverter.toRecordCreated(participant.getMember(), schedule, writer))
+                .toList();
+
+        if (!notifications.isEmpty()) {
+            notificationRepository.saveAll(notifications);
+        }
+
+        log.info("기록 작성 알림 생성 완료 scheduleId={}, writerId={}, notificationCount={}", schedule.getId(), writer.getId(), notifications.size());
+    }
+
     private LocalDateTime calculateRecordReminderAt(LocalDateTime scheduleStartAt) {
         LocalDateTime reminderAt = scheduleStartAt.plusHours(6);
         LocalTime reminderTime = reminderAt.toLocalTime();

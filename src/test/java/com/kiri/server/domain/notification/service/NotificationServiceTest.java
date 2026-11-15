@@ -1818,6 +1818,116 @@ class NotificationServiceTest {
         verify(notificationRepository, never()).saveAll(anyIterable());
     }
 
+    @Test
+    @DisplayName("RC-02. 기록 작성 시 다른 확정 참여자에게 알림을 생성한다.")
+    void createReviewCreatedNotificationsSuccess() {
+        Schedule schedule = createSchedule();
+
+        ScheduleParticipant writerParticipant = createParticipant(schedule, member, ParticipantStatus.ACCEPTED);
+        ScheduleParticipant participant = createParticipant(schedule, member2, ParticipantStatus.ACCEPTED);
+
+        given(scheduleParticipantRepository.findAllConfirmedWithMemberByScheduleIdAndStatus(schedule.getId(), ParticipantStatus.ACCEPTED)).willReturn(List.of(writerParticipant, participant));
+
+        given(notificationRepository.existsByMemberAndNotificationTypeAndReferenceId(member2, NotificationType.RECORD_CREATED, schedule.getId())).willReturn(false);
+
+        notificationService.createReviewCreatedNotifications(schedule, writerParticipant);
+
+        verify(notificationRepository).saveAll(notificationsCaptor.capture());
+
+        List<Notification> saved = StreamSupport.stream(notificationsCaptor.getValue().spliterator(), false).toList();
+
+        assertThat(saved).hasSize(1);
+
+        Notification notification = saved.get(0);
+
+        assertThat(notification.getMember()).isEqualTo(member2);
+        assertThat(notification.getNotificationType()).isEqualTo(NotificationType.RECORD_CREATED);
+        assertThat(notification.getTitle()).isEqualTo("'철수'님이 오늘 미션에 추억을 남겼어요!");
+        assertThat(notification.getBody()).isEqualTo("'공원 산책' 활동에 새로운 사진과 기록이 등록됐어요. 들어가서 확인해 보세요.");
+        assertThat(notification.getStatus()).isEqualTo(NotificationStatus.PENDING);
+        assertThat(notification.getIsRead()).isFalse();
+        assertThat(notification.getReferenceId()).isEqualTo(schedule.getId());
+        assertThat(notification.getReferenceDate()).isEqualTo(schedule.getScheduleDate());
+    }
+
+    @Test
+    @DisplayName("RC-02. 기록 작성자 본인에게는 알림을 생성하지 않는다.")
+    void createReviewCreatedNotificationsExcludesWriter() {
+        Schedule schedule = createSchedule();
+
+        ScheduleParticipant writerParticipant = createParticipant(schedule, member, ParticipantStatus.ACCEPTED);
+
+        given(scheduleParticipantRepository.findAllConfirmedWithMemberByScheduleIdAndStatus(schedule.getId(), ParticipantStatus.ACCEPTED)).willReturn(List.of(writerParticipant));
+
+        notificationService.createReviewCreatedNotifications(schedule, writerParticipant);
+
+        verify(notificationRepository, never()).saveAll(any(Iterable.class));
+    }
+
+    @Test
+    @DisplayName("RC-02. 탈퇴한 회원에게는 알림을 생성하지 않는다.")
+    void createReviewCreatedNotificationsExcludesDeletedMember() {
+        Schedule schedule = createSchedule();
+
+        ScheduleParticipant writerParticipant = createParticipant(schedule, member, ParticipantStatus.ACCEPTED);
+
+        ScheduleParticipant deletedParticipant = createParticipant(schedule, member3, ParticipantStatus.ACCEPTED);
+
+        ReflectionTestUtils.setField(member3, "deletedAt", LocalDateTime.now());
+
+        given(scheduleParticipantRepository.findAllConfirmedWithMemberByScheduleIdAndStatus(schedule.getId(), ParticipantStatus.ACCEPTED)).willReturn(List.of(writerParticipant, deletedParticipant));
+
+        notificationService.createReviewCreatedNotifications(schedule, writerParticipant);
+
+        verify(notificationRepository, never()).saveAll(any(Iterable.class));
+    }
+
+    @Test
+    @DisplayName("RC-02. 재확인이 필요한 참여자에게는 알림을 생성하지 않는다.")
+    void createReviewCreatedNotificationsExcludesReconfirmRequiredParticipant() {
+        Schedule schedule = createSchedule();
+
+        ScheduleParticipant writerParticipant = createParticipant(schedule, member, ParticipantStatus.ACCEPTED);
+
+        given(scheduleParticipantRepository.findAllConfirmedWithMemberByScheduleIdAndStatus(schedule.getId(), ParticipantStatus.ACCEPTED)).willReturn(List.of(writerParticipant));
+
+        notificationService.createReviewCreatedNotifications(schedule, writerParticipant);
+
+        verify(notificationRepository, never()).saveAll(any(Iterable.class));
+    }
+
+    @Test
+    @DisplayName("RC-02. 이미 기록 작성 알림이 존재하면 중복 생성하지 않는다.")
+    void createReviewCreatedNotificationsDoesNotCreateDuplicate() {
+        Schedule schedule = createSchedule();
+
+        ScheduleParticipant writerParticipant = createParticipant(schedule, member, ParticipantStatus.ACCEPTED);
+
+        ScheduleParticipant participant = createParticipant(schedule, member2, ParticipantStatus.ACCEPTED);
+
+        given(scheduleParticipantRepository.findAllConfirmedWithMemberByScheduleIdAndStatus(schedule.getId(), ParticipantStatus.ACCEPTED)).willReturn(List.of(writerParticipant, participant));
+
+        given(notificationRepository.existsByMemberAndNotificationTypeAndReferenceId(member2, NotificationType.RECORD_CREATED, schedule.getId())).willReturn(true);
+
+        notificationService.createReviewCreatedNotifications(schedule, writerParticipant);
+
+        verify(notificationRepository, never()).saveAll(any(Iterable.class));
+    }
+
+    @Test
+    @DisplayName("RC-02. 알림 대상자가 없으면 알림을 저장하지 않는다.")
+    void createReviewCreatedNotificationsDoesNotSaveWhenNoRecipients() {
+        Schedule schedule = createSchedule();
+
+        ScheduleParticipant writerParticipant = createParticipant(schedule, member, ParticipantStatus.ACCEPTED);
+
+        given(scheduleParticipantRepository.findAllConfirmedWithMemberByScheduleIdAndStatus(schedule.getId(), ParticipantStatus.ACCEPTED)).willReturn(List.of(writerParticipant));
+
+        notificationService.createReviewCreatedNotifications(schedule, writerParticipant);
+
+        verify(notificationRepository, never()).saveAll(any(Iterable.class));
+    }
+
     private MemberSetting createSetting(boolean enabled, LocalTime notificationTime) {
         return MemberSetting.builder()
                 .member(member)

@@ -12,6 +12,7 @@ import com.kiri.server.domain.member.exception.MemberException;
 import com.kiri.server.domain.member.exception.code.MemberErrorCode;
 import com.kiri.server.domain.member.repository.MemberRepository;
 import com.kiri.server.domain.mission.repository.FamilyMissionRecommendationRepository;
+import com.kiri.server.domain.notification.service.NotificationService;
 import com.kiri.server.domain.review.converter.ReviewConverter;
 import com.kiri.server.domain.review.converter.ReviewPhotoConverter;
 import com.kiri.server.domain.review.dto.ReviewReqDTO;
@@ -55,6 +56,7 @@ public class ReviewService {
     private final FamilyMissionRecommendationRepository familyMissionRecommendationRepository;
     private final ApplicationEventPublisher eventPublisher;
     private final MemberRepository memberRepository;
+    private final NotificationService notificationService;
 
     @Transactional
     public ReviewResDTO.Create createReview(Long memberId, Long scheduleId, ReviewReqDTO.Create dto) {
@@ -101,6 +103,8 @@ public class ReviewService {
                         .ifPresent(recommendation -> recommendation.markCompleted(now));
             }
         }
+
+        notificationService.createReviewCreatedNotifications(schedule, scheduleParticipant);
 
         return ReviewConverter.toCreateResponse(review);
     }

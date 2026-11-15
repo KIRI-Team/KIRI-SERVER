@@ -16,6 +16,7 @@ public enum NotificationType {
     SCHEDULE_D0_REMINDER,
     POKE,
     RECORD,
+    RECORD_CREATED,
     MISSION,
     MISSION_CHANGED
 }

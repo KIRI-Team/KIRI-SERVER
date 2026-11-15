@@ -293,4 +293,20 @@ public class NotificationConverter {
                 .referenceDate(schedule.getScheduleDate())
                 .build();
     }
+
+    public static Notification toRecordCreated(Member member, Schedule schedule, Member writer) {
+        String writerNickname = writer.getNickname();
+        String missionTitle = schedule.getBucketItem().getMission().getTitle();
+
+        return Notification.builder()
+                .member(member)
+                .notificationType(NotificationType.RECORD_CREATED)
+                .title("'" + writerNickname + "'님이 오늘 미션에 추억을 남겼어요!")
+                .body("'" + missionTitle + "' 활동에 새로운 사진과 기록이 등록됐어요. 들어가서 확인해 보세요.")
+                .status(NotificationStatus.PENDING)
+                .isRead(false)
+                .referenceId(schedule.getId())
+                .referenceDate(schedule.getScheduleDate())
+                .build();
+    }
 }
