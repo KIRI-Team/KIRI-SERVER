@@ -14,6 +14,7 @@ import com.kiri.server.domain.question.exception.QuestionException;
 import com.kiri.server.domain.question.exception.code.QuestionErrorCode;
 import com.kiri.server.domain.question.repository.FamilyQuestionRepository;
 import com.kiri.server.domain.question.repository.MemberAnswerRepository;
+import com.kiri.server.domain.review.repository.ReviewRepository;
 import com.kiri.server.domain.schedule.entity.Schedule;
 import com.kiri.server.domain.schedule.entity.ScheduleParticipant;
 import com.kiri.server.domain.schedule.enums.ParticipantStatus;
@@ -50,6 +51,7 @@ public class NotificationService {
     private final NotificationRepository notificationRepository;
     private final ScheduleRepository scheduleRepository;
     private final ScheduleParticipantRepository scheduleParticipantRepository;
+    private final ReviewRepository reviewRepository;
 
     @Transactional
     public void createQuestionReminderNotifications(LocalDate today, LocalTime currentTime) {
@@ -528,5 +530,52 @@ public class NotificationService {
         List<Notification> notifications = notificationRepository.findAllByNotificationTypeAndReferenceIdAndStatus(NotificationType.SCHEDULE_D0_REMINDER, scheduleId, NotificationStatus.PENDING);
 
         notifications.forEach(Notification::cancel);
+    }
+
+    @Transactional
+    public void createRecordReminderNotifications(LocalDateTime now) {
+        List<Schedule> schedules = scheduleRepository.findAllForRecordReminder(now.toLocalDate().minusDays(2), now.toLocalDate(), List.of(ScheduleStatus.CONFIRMED, ScheduleStatus.COMPLETED));
+
+        for (Schedule schedule : schedules) {
+            LocalDateTime scheduleStartAt = LocalDateTime.of(schedule.getScheduleDate(), schedule.getScheduleTime());
+
+            LocalDateTime reminderAt = calculateRecordReminderAt(scheduleStartAt);
+
+            if (reminderAt.isAfter(now)) {
+                continue;
+            }
+
+            List<ScheduleParticipant> participants = scheduleParticipantRepository.findAllConfirmedWithMemberByScheduleIdAndStatus(schedule.getId(), ParticipantStatus.ACCEPTED);
+
+            List<Notification> notifications = participants.stream()
+                    .filter(participant -> participant.getMember() != null)
+                    .filter(participant -> participant.getMember().getDeletedAt() == null)
+                    .filter(participant -> !reviewRepository.existsBySchedule_IdAndScheduleParticipant_Id(schedule.getId(), participant.getId()))
+                    .filter(participant -> !notificationRepository
+                            .existsByMemberAndNotificationTypeAndReferenceId(participant.getMember(), NotificationType.RECORD, schedule.getId()))
+                    .map(participant -> NotificationConverter.toRecordReminder(participant.getMember(), schedule))
+                    .toList();
+
+            if (!notifications.isEmpty()) {
+                notificationRepository.saveAll(notifications);
+            }
+
+            log.info("활동 기록 알림 생성 완료 scheduleId={}, notificationCount={}", schedule.getId(), notifications.size());
+        }
+    }
+
+    private LocalDateTime calculateRecordReminderAt(LocalDateTime scheduleStartAt) {
+        LocalDateTime reminderAt = scheduleStartAt.plusHours(6);
+        LocalTime reminderTime = reminderAt.toLocalTime();
+
+        if (!reminderTime.isBefore(LocalTime.of(22, 0))) {
+            return reminderAt.toLocalDate().plusDays(1).atTime(9, 0);
+        }
+
+        if (reminderTime.isBefore(LocalTime.of(9, 0))) {
+            return reminderAt.toLocalDate().atTime(9, 0);
+        }
+
+        return reminderAt;
     }
 }

@@ -14,6 +14,7 @@ import com.kiri.server.domain.question.entity.MemberAnswer;
 import com.kiri.server.domain.question.exception.QuestionException;
 import com.kiri.server.domain.question.repository.FamilyQuestionRepository;
 import com.kiri.server.domain.question.repository.MemberAnswerRepository;
+import com.kiri.server.domain.review.repository.ReviewRepository;
 import com.kiri.server.domain.schedule.entity.Schedule;
 import com.kiri.server.domain.schedule.entity.ScheduleParticipant;
 import com.kiri.server.domain.schedule.enums.ParticipantStatus;
@@ -83,6 +84,9 @@ class NotificationServiceTest {
     @Mock
     private ScheduleParticipantRepository scheduleParticipantRepository;
 
+    @Mock
+    private ReviewRepository reviewRepository;
+
     private NotificationService notificationService;
 
     private final Family family = Family.builder()
@@ -117,7 +121,7 @@ class NotificationServiceTest {
 
     @BeforeEach
     void setUp() {
-        notificationService = new NotificationService(familyQuestionRepository, memberRepository, memberSettingRepository, memberAnswerRepository, notificationRepository, scheduleRepository, scheduleParticipantRepository);
+        notificationService = new NotificationService(familyQuestionRepository, memberRepository, memberSettingRepository, memberAnswerRepository, notificationRepository, scheduleRepository, scheduleParticipantRepository, reviewRepository);
     }
 
     @Test
@@ -1675,6 +1679,144 @@ class NotificationServiceTest {
         then(notificationRepository).should().findAllByNotificationTypeAndReferenceIdAndStatus(NotificationType.SCHEDULE_D0_REMINDER, scheduleId, NotificationStatus.PENDING);
     }
 
+    @Test
+    @DisplayName("RC-01. 일정 시작 6시간 후 기록을 작성하지 않은 확정 참여자에게 알림을 생성한다.")
+    void createRecordReminderNotificationsSuccess() {
+        Schedule schedule = createRecordReminderSchedule(
+                TODAY,
+                LocalTime.of(10, 0),
+                ScheduleStatus.CONFIRMED
+        );
+
+        ScheduleParticipant participant = createParticipant(
+                schedule,
+                member2,
+                ParticipantStatus.ACCEPTED
+        );
+
+        LocalDateTime reminderTime = TODAY.atTime(16, 0);
+
+        given(scheduleRepository.findAllForRecordReminder(
+                TODAY.minusDays(2),
+                TODAY,
+                List.of(ScheduleStatus.CONFIRMED, ScheduleStatus.COMPLETED)
+        )).willReturn(List.of(schedule));
+
+        given(scheduleParticipantRepository.findAllConfirmedWithMemberByScheduleIdAndStatus(
+                schedule.getId(),
+                ParticipantStatus.ACCEPTED
+        )).willReturn(List.of(participant));
+
+        given(reviewRepository.existsBySchedule_IdAndScheduleParticipant_Id(
+                schedule.getId(),
+                participant.getId()
+        )).willReturn(false);
+
+        given(notificationRepository.existsByMemberAndNotificationTypeAndReferenceId(
+                member2,
+                NotificationType.RECORD,
+                schedule.getId()
+        )).willReturn(false);
+
+        notificationService.createRecordReminderNotifications(reminderTime);
+
+        ArgumentCaptor<Iterable<Notification>> captor =
+                ArgumentCaptor.forClass(Iterable.class);
+
+        verify(notificationRepository).saveAll(captor.capture());
+
+        List<Notification> saved = StreamSupport.stream(
+                captor.getValue().spliterator(),
+                false
+        ).toList();
+
+        assertThat(saved).hasSize(1);
+
+        Notification notification = saved.get(0);
+
+        assertThat(notification.getMember()).isEqualTo(member2);
+        assertThat(notification.getNotificationType()).isEqualTo(NotificationType.RECORD);
+        assertThat(notification.getTitle()).isEqualTo("오늘 가족과 함께한 순간을 남겨보세요!");
+        assertThat(notification.getBody()).isEqualTo(
+                "'공원 산책' 활동은 어떠셨나요? 사진과 기록으로 오늘의 추억을 남겨보세요."
+        );
+        assertThat(notification.getStatus()).isEqualTo(NotificationStatus.PENDING);
+        assertThat(notification.getIsRead()).isFalse();
+        assertThat(notification.getReferenceId()).isEqualTo(schedule.getId());
+        assertThat(notification.getReferenceDate()).isEqualTo(TODAY);
+    }
+
+    @Test
+    @DisplayName("RC-01. 기록 알림 예정 시각이 22시 이후이면 다음 날 오전 9시에 알림을 생성한다.")
+    void createRecordReminderNotificationsAfterQuietHours() {
+        Schedule schedule = createRecordReminderSchedule(TODAY, LocalTime.of(16, 0), ScheduleStatus.CONFIRMED);
+
+        ScheduleParticipant participant = createParticipant(schedule, member2, ParticipantStatus.ACCEPTED);
+
+        LocalDateTime reminderTime = TODAY.plusDays(1).atTime(9, 0);
+
+        given(scheduleRepository.findAllForRecordReminder(TODAY.minusDays(1), TODAY.plusDays(1), List.of(ScheduleStatus.CONFIRMED, ScheduleStatus.COMPLETED))).willReturn(List.of(schedule));
+
+        given(scheduleParticipantRepository.findAllConfirmedWithMemberByScheduleIdAndStatus(schedule.getId(), ParticipantStatus.ACCEPTED)).willReturn(List.of(participant));
+
+        given(reviewRepository.existsBySchedule_IdAndScheduleParticipant_Id(schedule.getId(), participant.getId())).willReturn(false);
+
+        given(notificationRepository.existsByMemberAndNotificationTypeAndReferenceId(member2, NotificationType.RECORD, schedule.getId())).willReturn(false);
+
+        notificationService.createRecordReminderNotifications(reminderTime);
+
+        verify(notificationRepository).saveAll(anyIterable());
+    }
+
+    @Test
+    @DisplayName("RC-01. 기록을 이미 작성한 참여자에게는 알림을 생성하지 않는다.")
+    void createRecordReminderNotificationsAlreadyReviewed() {
+        Schedule schedule = createRecordReminderSchedule(TODAY, LocalTime.of(10, 0), ScheduleStatus.CONFIRMED);
+
+        ScheduleParticipant participant = createParticipant(schedule, member2, ParticipantStatus.ACCEPTED);
+
+        given(scheduleRepository.findAllForRecordReminder(TODAY.minusDays(2), TODAY, List.of(ScheduleStatus.CONFIRMED, ScheduleStatus.COMPLETED))).willReturn(List.of(schedule));
+
+        given(scheduleParticipantRepository.findAllConfirmedWithMemberByScheduleIdAndStatus(schedule.getId(), ParticipantStatus.ACCEPTED)).willReturn(List.of(participant));
+
+        given(reviewRepository.existsBySchedule_IdAndScheduleParticipant_Id(schedule.getId(), participant.getId())).willReturn(true);
+
+        notificationService.createRecordReminderNotifications(TODAY.atTime(16, 0));
+
+        verify(notificationRepository, never()).saveAll(anyIterable());
+    }
+
+    @Test
+    @DisplayName("RC-01. 이미 기록 알림이 생성된 참여자에게는 중복 알림을 생성하지 않는다.")
+    void createRecordReminderNotificationsPreventDuplicate() {
+        Schedule schedule = createRecordReminderSchedule(TODAY, LocalTime.of(10, 0), ScheduleStatus.CONFIRMED);
+
+        ScheduleParticipant participant = createParticipant(schedule, member2, ParticipantStatus.ACCEPTED);
+
+        given(scheduleRepository.findAllForRecordReminder(TODAY.minusDays(2), TODAY, List.of(ScheduleStatus.CONFIRMED, ScheduleStatus.COMPLETED))).willReturn(List.of(schedule));
+
+        given(scheduleParticipantRepository.findAllConfirmedWithMemberByScheduleIdAndStatus(schedule.getId(), ParticipantStatus.ACCEPTED)).willReturn(List.of(participant));
+
+        given(reviewRepository.existsBySchedule_IdAndScheduleParticipant_Id(schedule.getId(), participant.getId())).willReturn(false);
+
+        given(notificationRepository.existsByMemberAndNotificationTypeAndReferenceId(member2, NotificationType.RECORD, schedule.getId())).willReturn(true);
+
+        notificationService.createRecordReminderNotifications(TODAY.atTime(16, 0));
+
+        verify(notificationRepository, never()).saveAll(anyIterable());
+    }
+
+    @Test
+    @DisplayName("RC-01. 기록 알림 대상 일정이 없으면 알림을 생성하지 않는다.")
+    void createRecordReminderNotificationsNoSchedules() {
+        given(scheduleRepository.findAllForRecordReminder(TODAY.minusDays(2), TODAY, List.of(ScheduleStatus.CONFIRMED, ScheduleStatus.COMPLETED))).willReturn(List.of());
+
+        notificationService.createRecordReminderNotifications(TODAY.atTime(16, 0));
+
+        verify(scheduleParticipantRepository, never()).findAllConfirmedWithMemberByScheduleIdAndStatus(anyLong(), any());
+
+        verify(notificationRepository, never()).saveAll(anyIterable());
+    }
 
     private MemberSetting createSetting(boolean enabled, LocalTime notificationTime) {
         return MemberSetting.builder()
@@ -1824,6 +1966,29 @@ class NotificationServiceTest {
                 .scheduleTime(scheduleTime)
                 .status(status)
                 .inviteVersion(inviteVersion)
+                .build();
+    }
+
+    private Schedule createRecordReminderSchedule(LocalDate scheduleDate, LocalTime scheduleTime, ScheduleStatus status) {
+        Mission mission = Mission.builder()
+                .id(100L)
+                .title("공원 산책")
+                .build();
+
+        BucketItem bucketItem = BucketItem.builder()
+                .id(200L)
+                .mission(mission)
+                .build();
+
+        return Schedule.builder()
+                .id(300L)
+                .family(family)
+                .bucketItem(bucketItem)
+                .proposer(member)
+                .scheduleDate(scheduleDate)
+                .scheduleTime(scheduleTime)
+                .status(status)
+                .inviteVersion(1)
                 .build();
     }
 }

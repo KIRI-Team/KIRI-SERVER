@@ -278,4 +278,19 @@ public class NotificationConverter {
                 .referenceDate(schedule.getScheduleDate())
                 .build();
     }
+
+    public static Notification toRecordReminder(Member member, Schedule schedule) {
+        String missionTitle = schedule.getBucketItem().getMission().getTitle();
+
+        return Notification.builder()
+                .member(member)
+                .notificationType(NotificationType.RECORD)
+                .title("오늘 가족과 함께한 순간을 남겨보세요!")
+                .body("'" + missionTitle + "' 활동은 어떠셨나요? 사진과 기록으로 오늘의 추억을 남겨보세요.")
+                .status(NotificationStatus.PENDING)
+                .isRead(false)
+                .referenceId(schedule.getId())
+                .referenceDate(schedule.getScheduleDate())
+                .build();
+    }
 }
