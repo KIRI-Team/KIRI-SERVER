@@ -1,5 +1,7 @@
 package com.kiri.server.domain.schedule.converter;
 
+import com.kiri.server.domain.member.entity.Member;
+import com.kiri.server.domain.member.enums.FamilyRole;
 import com.kiri.server.domain.mission.entity.Mission;
 import com.kiri.server.domain.schedule.dto.ScheduleResDTO;
 import com.kiri.server.domain.schedule.entity.Schedule;
@@ -7,15 +9,16 @@ import com.kiri.server.domain.schedule.entity.ScheduleCondition;
 import com.kiri.server.domain.schedule.entity.ScheduleParticipant;
 import com.kiri.server.domain.schedule.enums.CalendarMyStatus;
 import com.kiri.server.domain.schedule.enums.ConditionType;
-import com.kiri.server.domain.schedule.enums.ParticipantStatus;
 import com.kiri.server.domain.schedule.enums.ScheduleDetailStatus;
 import com.kiri.server.domain.schedule.enums.UpcomingCardType;
 import com.kiri.server.domain.schedule.exception.ScheduleException;
 import com.kiri.server.domain.schedule.exception.code.ScheduleErrorCode;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.Map;
 
 public class ScheduleConverter {
 
@@ -121,27 +124,55 @@ public class ScheduleConverter {
     }
 
     public static ScheduleResDTO.Detail toDetail(Schedule schedule, List<ScheduleParticipant> participants,
-                                                 LocalDate today) {
+                                                 Map<FamilyRole, String> characterImageUrls,
+                                                 Long memberId, LocalDateTime now) {
+        ScheduleParticipant myParticipant = participants.stream()
+                .filter(participant -> participant.getMember() != null
+                        && memberId.equals(participant.getMember().getId()))
+                .findFirst()
+                .orElse(null);
+        boolean isProposer = schedule.isProposer(memberId);
+        Mission mission = schedule.getBucketItem() == null ? null : schedule.getBucketItem().getMission();
+
         return ScheduleResDTO.Detail.builder()
-                .missionId(resolveMissionId(schedule))
+                .missionId(mission == null ? null : mission.getId())
+                .missionTitle(mission == null ? null : mission.getTitle())
+                .missionDescription(mission == null ? null : mission.getDescription())
                 .date(schedule.getScheduleDate())
                 .time(schedule.getScheduleTime())
-                .status(toDetailStatus(schedule, today))
-                .participants(participants.stream().map(ScheduleConverter::toParticipantItem).toList())
+                .status(toDetailStatus(schedule, now.toLocalDate()))
+                .proposer(toProposer(schedule.getProposer()))
+                .requestMessage(schedule.getRequestMessage())
+                .myStatus(toMyStatus(myParticipant))
+                .changedFields(myParticipant == null || !Boolean.TRUE.equals(myParticipant.getReconfirmRequired())
+                        ? List.of() : myParticipant.getChangedFields())
+                .canRespond(myParticipant != null && !isProposer && schedule.isResponseOpen(now))
+                .canEdit(isProposer && schedule.isUpdatable() && !schedule.hasStarted(now))
+                .canCancel(isProposer && schedule.isCancelable())
+                .participants(participants.stream()
+                        .map(participant -> toParticipantItem(participant, characterImageUrls))
+                        .toList())
                 .build();
     }
 
-    private static Long resolveMissionId(Schedule schedule) {
-        if (schedule.getBucketItem() == null || schedule.getBucketItem().getMission() == null) {
+    private static ScheduleResDTO.Proposer toProposer(Member proposer) {
+        if (proposer == null) {
             return null;
         }
-        return schedule.getBucketItem().getMission().getId();
+        return ScheduleResDTO.Proposer.builder()
+                .memberId(proposer.getId())
+                .nickname(proposer.getDisplayName())
+                .familyRole(proposer.getFamilyRole())
+                .build();
     }
 
-    private static ScheduleResDTO.ParticipantItem toParticipantItem(ScheduleParticipant participant) {
+    private static ScheduleResDTO.ParticipantItem toParticipantItem(ScheduleParticipant participant,
+                                                                    Map<FamilyRole, String> characterImageUrls) {
+        Member member = participant.getMember();
         return ScheduleResDTO.ParticipantItem.builder()
-                .nickname(participant.getMember() == null ? "탈퇴한 사용자" : participant.getMember().getDisplayName())
-                .accepted(participant.getStatus() == ParticipantStatus.ACCEPTED)
+                .nickname(member == null ? "탈퇴한 사용자" : member.getDisplayName())
+                .status(toMyStatus(participant))
+                .characterImageUrl(member == null ? null : characterImageUrls.get(member.getFamilyRole()))
                 .build();
     }
 

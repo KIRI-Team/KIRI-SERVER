@@ -21,6 +21,7 @@ import com.kiri.server.domain.schedule.entity.ScheduleCondition;
 import com.kiri.server.domain.schedule.entity.ScheduleParticipant;
 import com.kiri.server.domain.schedule.enums.ConditionType;
 import com.kiri.server.domain.schedule.enums.ParticipantStatus;
+import com.kiri.server.domain.schedule.enums.ScheduleChangeField;
 import com.kiri.server.domain.schedule.enums.ScheduleStatus;
 import com.kiri.server.domain.schedule.exception.ScheduleException;
 import com.kiri.server.domain.schedule.exception.code.ScheduleErrorCode;
@@ -374,6 +375,8 @@ class ScheduleCommandServiceTest {
         assertThat(result.status()).isEqualTo(ScheduleStatus.PENDING_RESPONSE);
         assertThat(result.participantMemberIds()).containsExactly(2L, 3L);
         assertThat(m2p.getReconfirmRequired()).isTrue();
+        assertThat(m2p.getChangedFields())
+                .containsExactly(ScheduleChangeField.DATE, ScheduleChangeField.PARTICIPANTS);
         verify(scheduleParticipantRepository).saveAll(any());
         verify(notificationService).cancelScheduleInvitationReminders(SCHEDULE_ID);
         verify(notificationService).cancelScheduleD1Reminders(SCHEDULE_ID);
@@ -381,6 +384,26 @@ class ScheduleCommandServiceTest {
         verify(notificationService).createScheduleUpdateNotifications(eq(schedule), anyList(), anyList(), anyList());
         assertThat(schedule.getInviteVersion()).isEqualTo(2);
         assertThat(schedule.getReconfirmReminderAt()).isEqualTo(LocalDateTime.of(2026, 12, 20, 11, 0));
+    }
+
+    @Test
+    @DisplayName("시간만 바꾸면 기존 수락자의 바뀐 항목은 TIME만 기록된다.")
+    void update_timeOnlyChange() {
+        Schedule schedule = updatableSchedule(ScheduleStatus.CONFIRMED, LocalDate.of(2026, 12, 20), LocalTime.of(14, 0));
+        ScheduleParticipant m2p = participant(schedule, m2, ParticipantStatus.ACCEPTED);
+        given(memberRepository.findById(PROPOSER_ID)).willReturn(Optional.of(proposer));
+        given(scheduleRepository.findByIdForUpdate(SCHEDULE_ID)).willReturn(Optional.of(schedule));
+        given(memberRepository.findAllByFamilyAndDeletedAtIsNull(family)).willReturn(List.of(proposer, m2, m3));
+        given(scheduleParticipantRepository.findBySchedule_Id(SCHEDULE_ID))
+                .willReturn(List.of(participant(schedule, proposer, ParticipantStatus.ACCEPTED), m2p));
+        given(scheduleParticipantRepository.countBySchedule_IdAndStatusAndReconfirmRequiredFalseAndMember_IdNot(
+                SCHEDULE_ID, ParticipantStatus.ACCEPTED, PROPOSER_ID)).willReturn(0L);
+
+        service.update(PROPOSER_ID, SCHEDULE_ID,
+                updateReq(LocalDate.of(2026, 12, 20), LocalTime.of(15, 0), List.of(2L)));
+
+        assertThat(m2p.getReconfirmRequired()).isTrue();
+        assertThat(m2p.getChangedFields()).containsExactly(ScheduleChangeField.TIME);
     }
 
     @Test

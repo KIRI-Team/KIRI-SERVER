@@ -282,6 +282,20 @@ class ScheduleControllerTest {
     }
 
     @Test
+    @DisplayName("로그인 회원 ID와 경로의 일정 ID로 조회해 SCHEDULE200_10과 맞춤템 목록을 반환한다.")
+    void getEssentials_success() throws Exception {
+        given(scheduleQueryService.getEssentials(MEMBER_ID, 118L)).willReturn(List.of(
+                MissionResDTO.ChecklistItem.builder().title("우산").description("강수확률이 70%예요.").build()));
+
+        mockMvc.perform(get("/api/v1/schedules/118/essentials")
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value("SCHEDULE200_10"))
+                .andExpect(jsonPath("$.result[0].title").value("우산"))
+                .andExpect(jsonPath("$.result[0].description").value("강수확률이 70%예요."));
+    }
+
+    @Test
     @DisplayName("없거나 다른 가족의 일정이면 근처 놀거리 조회도 SCHEDULE404_2로 응답한다.")
     void getNearby_scheduleNotFound() throws Exception {
         given(scheduleQueryService.getNearby(any(), any()))
@@ -301,8 +315,8 @@ class ScheduleControllerTest {
                 .time(LocalTime.of(14, 50))
                 .status(ScheduleDetailStatus.CONFIRMED)
                 .participants(List.of(
-                        ScheduleResDTO.ParticipantItem.builder().nickname("엄마").accepted(true).build(),
-                        ScheduleResDTO.ParticipantItem.builder().nickname("첫째").accepted(false).build()))
+                        ScheduleResDTO.ParticipantItem.builder().nickname("엄마").status(CalendarMyStatus.ACCEPTED).build(),
+                        ScheduleResDTO.ParticipantItem.builder().nickname("첫째").status(CalendarMyStatus.PENDING).build()))
                 .build());
 
         mockMvc.perform(get("/api/v1/schedules/118")
@@ -313,9 +327,9 @@ class ScheduleControllerTest {
                 .andExpect(jsonPath("$.result.time").value("14:50"))
                 .andExpect(jsonPath("$.result.status").value("CONFIRMED"))
                 .andExpect(jsonPath("$.result.participants[0].nickname").value("엄마"))
-                .andExpect(jsonPath("$.result.participants[0].accepted").value(true))
+                .andExpect(jsonPath("$.result.participants[0].status").value("ACCEPTED"))
                 .andExpect(jsonPath("$.result.participants[1].nickname").value("첫째"))
-                .andExpect(jsonPath("$.result.participants[1].accepted").value(false));
+                .andExpect(jsonPath("$.result.participants[1].status").value("PENDING"));
     }
 
     @Test

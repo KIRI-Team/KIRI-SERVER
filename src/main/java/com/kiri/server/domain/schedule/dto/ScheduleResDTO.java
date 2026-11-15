@@ -2,10 +2,12 @@ package com.kiri.server.domain.schedule.dto;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import com.fasterxml.jackson.annotation.JsonFormat;
+import com.kiri.server.domain.member.enums.FamilyRole;
 import com.kiri.server.domain.mission.enums.WalkingLevel;
 import com.kiri.server.domain.schedule.enums.CalendarMyStatus;
 import com.kiri.server.domain.schedule.enums.ConditionType;
 import com.kiri.server.domain.schedule.enums.ParticipantStatus;
+import com.kiri.server.domain.schedule.enums.ScheduleChangeField;
 import com.kiri.server.domain.schedule.enums.ScheduleDetailStatus;
 import com.kiri.server.domain.schedule.enums.ScheduleStatus;
 import com.kiri.server.domain.schedule.enums.UpcomingCardType;
@@ -122,19 +124,37 @@ public class ScheduleResDTO {
     @Schema(name = "ScheduleDetailResponse", description = "일정 상세 조회 응답")
     public record Detail(
             Long missionId,
+            String missionTitle,
+            String missionDescription,
             @JsonFormat(pattern = "yyyy-MM-dd")
             LocalDate date,
             @JsonFormat(pattern = "HH:mm")
             LocalTime time,
             ScheduleDetailStatus status,
+            Proposer proposer,
+            String requestMessage,
+            CalendarMyStatus myStatus,
+            List<ScheduleChangeField> changedFields,
+            boolean canRespond,
+            boolean canEdit,
+            boolean canCancel,
             List<ParticipantItem> participants
+    ) {
+    }
+
+    @Builder
+    public record Proposer(
+            Long memberId,
+            String nickname,
+            FamilyRole familyRole
     ) {
     }
 
     @Builder
     public record ParticipantItem(
             String nickname,
-            boolean accepted
+            CalendarMyStatus status,
+            String characterImageUrl
     ) {
     }
 }

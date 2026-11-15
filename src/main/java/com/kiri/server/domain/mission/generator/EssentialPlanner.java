@@ -3,6 +3,9 @@ package com.kiri.server.domain.mission.generator;
 import com.kiri.server.domain.external.converter.SourceTextParser;
 import com.kiri.server.domain.external.converter.SourceTextParser.MinuteRange;
 import com.kiri.server.domain.external.dto.NormalizedContent;
+import com.kiri.server.domain.mission.converter.MissionConverter;
+import com.kiri.server.domain.mission.dto.MissionResDTO;
+import com.kiri.server.domain.mission.entity.MissionChecklistItem;
 import com.kiri.server.domain.mission.enums.ChecklistSource;
 import com.kiri.server.domain.mission.enums.IndoorOutdoor;
 import com.kiri.server.domain.mission.enums.ItemType;
@@ -74,6 +77,24 @@ public class EssentialPlanner {
             putIfRoom(drafts, ChecklistSource.ORIGIN, new Essential(item, BENEFIT_DESCRIPTION));
         }
         return List.copyOf(drafts.values());
+    }
+
+    // 추가 항목(날씨 등)은 공식 준비물 바로 뒤에. 같은 제목은 앞 항목만 남김
+    public static List<MissionResDTO.ChecklistItem> combine(List<MissionChecklistItem> saved,
+                                                            List<MissionResDTO.ChecklistItem> extras) {
+        int insertAt = 0;
+        for (int i = 0; i < saved.size(); i++) {
+            if (OFFICIAL_DESCRIPTION.equals(saved.get(i).getDescription())) {
+                insertAt = i + 1;
+            }
+        }
+        List<MissionResDTO.ChecklistItem> ordered = new ArrayList<>(
+                saved.stream().map(MissionConverter::toChecklistItem).toList());
+        ordered.addAll(insertAt, extras);
+
+        Map<String, MissionResDTO.ChecklistItem> essentials = new LinkedHashMap<>();
+        ordered.forEach(item -> essentials.putIfAbsent(item.title(), item));
+        return essentials.values().stream().limit(MAX_ESSENTIALS).toList();
     }
 
     private static String activityText(NormalizedContent content) {
