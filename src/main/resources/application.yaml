@@ -110,6 +110,12 @@ tour-api:
   max-calls-per-run: 240
   sync-cron: "0 0 */6 * * *"
 
+kma:
+  base-url: https://apihub.kma.go.kr/api/typ02/openApi/VilageFcstInfoService_2.0
+  auth-key: ${KMA_API_KEY:}
+  connect-timeout: 2s
+  read-timeout: 3s
+
 aws:
   s3:
     region: ap-northeast-2

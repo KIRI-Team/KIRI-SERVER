@@ -1,5 +1,6 @@
 package com.kiri.server.global.config;
 
+import com.kiri.server.domain.external.client.kma.KmaProperties;
 import com.kiri.server.domain.external.client.tourapi.TourApiProperties;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
@@ -9,8 +10,20 @@ import org.springframework.web.client.RestClient;
 import org.springframework.web.util.DefaultUriBuilderFactory;
 
 @Configuration
-@EnableConfigurationProperties(TourApiProperties.class)
+@EnableConfigurationProperties({TourApiProperties.class, KmaProperties.class})
 public class RestClientConfig {
+
+    @Bean
+    public RestClient kmaRestClient(KmaProperties properties) {
+        SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
+        requestFactory.setConnectTimeout(properties.connectTimeout());
+        requestFactory.setReadTimeout(properties.readTimeout());
+
+        return RestClient.builder()
+                .uriBuilderFactory(strictUriBuilderFactory(properties.baseUrl()))
+                .requestFactory(requestFactory)
+                .build();
+    }
 
     @Bean
     public RestClient tourApiRestClient(TourApiProperties properties) {
