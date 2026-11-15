@@ -148,9 +148,9 @@ public class MissionQueryService {
         Mission mission = missionRepository.findWithPlaceById(missionId)
                 .filter(found -> DETAIL_STATUSES.contains(found.getStatus()))
                 .orElseThrow(() -> new MissionException(MissionErrorCode.NOT_FOUND));
-        return MissionConverter.toEssentials(
+        return EssentialPlanner.combine(
                 missionChecklistItemRepository.findAllByMissionAndItemTypeOrderByDisplayOrderAsc(mission, ItemType.PREPARE),
-                EssentialPlanner.MAX_ESSENTIALS);
+                List.of());
     }
 
     // 근거가 거리뿐이라 가까우면 거리 문구, 아니면 미션 소개 문구

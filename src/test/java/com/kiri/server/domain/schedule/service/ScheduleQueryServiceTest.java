@@ -7,9 +7,13 @@ import com.kiri.server.domain.member.entity.Member;
 import com.kiri.server.domain.member.exception.MemberException;
 import com.kiri.server.domain.member.repository.MemberRepository;
 import com.kiri.server.domain.mission.entity.Mission;
+import com.kiri.server.domain.mission.entity.MissionChecklistItem;
+import com.kiri.server.domain.mission.enums.ChecklistSource;
 import com.kiri.server.domain.mission.enums.Category;
 import com.kiri.server.domain.mission.enums.IndoorOutdoor;
+import com.kiri.server.domain.mission.enums.ItemType;
 import com.kiri.server.domain.mission.enums.WalkingLevel;
+import com.kiri.server.domain.mission.repository.MissionChecklistItemRepository;
 import com.kiri.server.domain.mission.repository.MissionRepository;
 import com.kiri.server.domain.mission.service.NearbyMissionFinder;
 import com.kiri.server.domain.place.entity.Place;
@@ -36,6 +40,8 @@ import com.kiri.server.domain.schedule.repository.ScheduleRepository;
 import com.kiri.server.domain.taste.dto.TasteProfileDTO;
 import com.kiri.server.domain.taste.service.FamilyTasteScoreService;
 import com.kiri.server.domain.taste.service.TasteProfileService;
+import com.kiri.server.domain.weather.dto.WeatherSummary;
+import com.kiri.server.domain.weather.service.WeatherService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -44,6 +50,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.transaction.PlatformTransactionManager;
 
 import java.math.BigDecimal;
 import java.time.Clock;
@@ -102,6 +109,15 @@ class ScheduleQueryServiceTest {
     @Mock
     private ImageUrlService imageUrlService;
 
+    @Mock
+    private MissionChecklistItemRepository missionChecklistItemRepository;
+
+    @Mock
+    private WeatherService weatherService;
+
+    @Mock
+    private PlatformTransactionManager transactionManager;
+
     private ScheduleQueryService scheduleQueryService;
 
     @BeforeEach
@@ -109,7 +125,8 @@ class ScheduleQueryServiceTest {
         scheduleQueryService = new ScheduleQueryService(
                 scheduleRepository, scheduleParticipantRepository, scheduleConditionRepository, memberRepository,
                 new NearbyMissionFinder(missionRepository), familyTasteScoreService, tasteProfileService,
-                reviewPhotoRepository, imageUrlService, CLOCK);
+                reviewPhotoRepository, imageUrlService, CLOCK, missionChecklistItemRepository, weatherService,
+                transactionManager);
     }
 
     private ScheduleReqDTO.CalendarCondition condition(int year, int month) {
@@ -958,5 +975,120 @@ class ScheduleQueryServiceTest {
         ScheduleResDTO.Detail result = scheduleQueryService.getDetail(MEMBER_ID, 118L);
 
         assertThat(result.missionId()).isEqualTo(42L);
+    }
+
+    // 맞춤템: CLOCK 기준 오늘은 2026-11-01
+    private static final LocalDate ESSENTIAL_DATE = LocalDate.of(2026, 11, 2);
+    private static final LocalTime ESSENTIAL_TIME = LocalTime.of(14, 0);
+    private static final LocalDateTime ESSENTIAL_START = ESSENTIAL_DATE.atTime(ESSENTIAL_TIME);
+    private static final MissionChecklistItem COMFORTABLE_SHOES = MissionChecklistItem.builder()
+            .itemType(ItemType.PREPARE).source(ChecklistSource.KIRI).title("편한 신발").description("많이 걷는 일정이에요.")
+            .build();
+
+    private Mission essentialMission(IndoorOutdoor indoorOutdoor, Integer durationMaxMinutes) {
+        return Mission.builder().id(42L).place(basePlace).indoorOutdoor(indoorOutdoor)
+                .durationMaxMinutes(durationMaxMinutes).build();
+    }
+
+    private void stubEssentialSchedule(Mission mission, LocalDate date, ScheduleStatus status) {
+        Family family = Family.builder().id(FAMILY_ID).build();
+        Schedule schedule = Schedule.builder().id(SCHEDULE_ID).family(family)
+                .bucketItem(BucketItem.builder().mission(mission).build())
+                .scheduleDate(date).scheduleTime(ESSENTIAL_TIME).status(status).build();
+        given(memberRepository.findById(MEMBER_ID)).willReturn(Optional.of(Member.builder().family(family).build()));
+        given(scheduleRepository.findWithMissionByIdAndFamilyId(SCHEDULE_ID, FAMILY_ID)).willReturn(Optional.of(schedule));
+    }
+
+    private List<String> titles(List<MissionResDTO.ChecklistItem> items) {
+        return items.stream().map(MissionResDTO.ChecklistItem::title).toList();
+    }
+
+    @Test
+    @DisplayName("일정 맞춤템 조회: 야외 미션은 일정 장소 좌표와 일정 시작~최대 소요시간 구간 날씨를 미션 준비물과 합친다.")
+    void getEssentials_outdoorWithWeather() {
+        Mission mission = essentialMission(IndoorOutdoor.OUTDOOR, 120);
+        stubEssentialSchedule(mission, ESSENTIAL_DATE, ScheduleStatus.CONFIRMED);
+        given(missionChecklistItemRepository.findAllByMissionAndItemTypeOrderByDisplayOrderAsc(mission, ItemType.PREPARE))
+                .willReturn(List.of(COMFORTABLE_SHOES));
+        given(weatherService.summarize(basePlace.getLatitude(), basePlace.getLongitude(),
+                ESSENTIAL_START, ESSENTIAL_START.plusMinutes(120)))
+                .willReturn(Optional.of(new WeatherSummary(15, 10, 80, false)));
+
+        List<MissionResDTO.ChecklistItem> result = scheduleQueryService.getEssentials(MEMBER_ID, SCHEDULE_ID);
+
+        assertThat(titles(result)).containsExactly("우산", "편한 신발");
+    }
+
+    @Test
+    @DisplayName("일정 맞춤템 조회: 미션 소요시간이 없으면 일정 시작부터 3시간 구간 날씨를 본다.")
+    void getEssentials_defaultActivityWindow() {
+        Mission mission = essentialMission(IndoorOutdoor.BOTH, null);
+        stubEssentialSchedule(mission, ESSENTIAL_DATE, ScheduleStatus.CONFIRMED);
+        given(missionChecklistItemRepository.findAllByMissionAndItemTypeOrderByDisplayOrderAsc(mission, ItemType.PREPARE))
+                .willReturn(List.of());
+        given(weatherService.summarize(basePlace.getLatitude(), basePlace.getLongitude(),
+                ESSENTIAL_START, ESSENTIAL_START.plusHours(3)))
+                .willReturn(Optional.empty());
+
+        assertThat(scheduleQueryService.getEssentials(MEMBER_ID, SCHEDULE_ID)).isEmpty();
+    }
+
+    @Test
+    @DisplayName("일정 맞춤템 조회: 실내 미션은 날씨를 조회하지 않고 미션 준비물만 반환한다.")
+    void getEssentials_indoorSkipsWeather() {
+        Mission mission = essentialMission(IndoorOutdoor.INDOOR, 120);
+        stubEssentialSchedule(mission, ESSENTIAL_DATE, ScheduleStatus.CONFIRMED);
+        given(missionChecklistItemRepository.findAllByMissionAndItemTypeOrderByDisplayOrderAsc(mission, ItemType.PREPARE))
+                .willReturn(List.of(COMFORTABLE_SHOES));
+
+        assertThat(titles(scheduleQueryService.getEssentials(MEMBER_ID, SCHEDULE_ID))).containsExactly("편한 신발");
+        verifyNoInteractions(weatherService);
+    }
+
+    @ParameterizedTest(name = "{0} {1}")
+    @CsvSource({
+            "2026-10-31, CONFIRMED",
+            "2026-11-02, COMPLETED"
+    })
+    @DisplayName("일정 맞춤템 조회: 지난 일정이나 완료된 일정은 날씨를 조회하지 않는다.")
+    void getEssentials_overSkipsWeather(LocalDate date, ScheduleStatus status) {
+        Mission mission = essentialMission(IndoorOutdoor.OUTDOOR, 120);
+        stubEssentialSchedule(mission, date, status);
+        given(missionChecklistItemRepository.findAllByMissionAndItemTypeOrderByDisplayOrderAsc(mission, ItemType.PREPARE))
+                .willReturn(List.of(COMFORTABLE_SHOES));
+
+        assertThat(titles(scheduleQueryService.getEssentials(MEMBER_ID, SCHEDULE_ID))).containsExactly("편한 신발");
+        verifyNoInteractions(weatherService);
+    }
+
+    @Test
+    @DisplayName("근처 놀거리 조회: 취소된 일정이면 SCHEDULE409_7로 예외를 던지고 후보를 찾지 않는다.")
+    void getNearby_cancelled() {
+        Family family = Family.builder().id(FAMILY_ID).build();
+        Schedule schedule = Schedule.builder().id(SCHEDULE_ID).family(family)
+                .bucketItem(BucketItem.builder().mission(Mission.builder().place(basePlace).build()).build())
+                .scheduleDate(SCHEDULE_DATE).status(ScheduleStatus.CANCELLED).build();
+        given(memberRepository.findById(MEMBER_ID)).willReturn(Optional.of(Member.builder().family(family).build()));
+        given(scheduleRepository.findWithMissionByIdAndFamilyId(SCHEDULE_ID, FAMILY_ID)).willReturn(Optional.of(schedule));
+
+        assertThatThrownBy(() -> scheduleQueryService.getNearby(MEMBER_ID, SCHEDULE_ID))
+                .isInstanceOf(ScheduleException.class)
+                .extracting(e -> ((ScheduleException) e).getErrorCode())
+                .isEqualTo(ScheduleErrorCode.SCHEDULE_CANCELLED);
+
+        verifyNoInteractions(missionRepository);
+    }
+
+    @Test
+    @DisplayName("일정 맞춤템 조회: 취소된 일정이면 SCHEDULE409_7로 예외를 던진다.")
+    void getEssentials_cancelled() {
+        stubEssentialSchedule(essentialMission(IndoorOutdoor.OUTDOOR, 120), ESSENTIAL_DATE, ScheduleStatus.CANCELLED);
+
+        assertThatThrownBy(() -> scheduleQueryService.getEssentials(MEMBER_ID, SCHEDULE_ID))
+                .isInstanceOf(ScheduleException.class)
+                .extracting(e -> ((ScheduleException) e).getErrorCode())
+                .isEqualTo(ScheduleErrorCode.SCHEDULE_CANCELLED);
+
+        verifyNoInteractions(missionChecklistItemRepository, weatherService);
     }
 }

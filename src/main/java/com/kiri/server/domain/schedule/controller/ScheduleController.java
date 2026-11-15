@@ -68,6 +68,17 @@ public class ScheduleController implements ScheduleControllerDocs {
         );
     }
 
+    @GetMapping("/{scheduleId}/essentials")
+    public ApiResponse<List<MissionResDTO.ChecklistItem>> getEssentials(
+            @AuthenticationPrincipal Long memberId,
+            @PathVariable Long scheduleId
+    ) {
+        return ApiResponse.onSuccess(
+                ScheduleSuccessCode.ESSENTIALS_SUCCESS,
+                scheduleQueryService.getEssentials(memberId, scheduleId)
+        );
+    }
+
     @GetMapping("/{scheduleId}")
     public ApiResponse<ScheduleResDTO.Detail> getDetail(
             @AuthenticationPrincipal Long memberId,
