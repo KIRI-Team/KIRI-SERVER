@@ -824,26 +824,40 @@ public interface ScheduleControllerDocs {
     @Operation(
             summary = "일정 상세 조회 API",
             description = """
-                    # 일정 화면 헤더 조회
+                    # 일정 상세 조회
 
                     ## 요청 형식
                     - 헤더: Authorization: Bearer {JWT 토큰}
                     - Path: scheduleId
 
-                    일정 화면 헤더의 날짜, 시작 시간, 일정 상태와 참여자별 수락 여부를 조회합니다.
-                    인원 확인과 참여 상태 확인 모두 이 API로 처리합니다.
-                    미션 정보(제목, 장소, 걸음 수, 활동 시간)는 미션 상세 조회 API를 사용합니다.
+                    일정의 미션명·행사 설명, 날짜, 시작 시간, 일정 상태, 초대 정보(제안자, 가족에게 한 줄), 내 응답 상태와 버튼 노출 여부, 참여자별 응답 상태를 조회합니다.
+                    초대받은 화면, 약속 확정·당일 화면, 일정 취소 확인 화면 모두 이 API로 처리합니다.
+                    장소, 걸음 수, 활동 시간은 미션 상세 조회 API를 사용합니다.
 
                     ## 응답 규칙
+                    - missionTitle, missionDescription: 일정에 연결된 미션의 제목과 설명. 미션이 숨김·취소 상태여도 반환하며, 연결된 미션이 없으면 null입니다.
                     - date: yyyy-MM-dd, time: HH:mm
                     - status: 화면 표시용 일정 상태
                       - SCHEDULED: 약속 예정 (응답 대기 / 미확정)
                       - CONFIRMED: 약속 확정 (확정, 일정 당일이 아님)
                       - TODAY: 약속 당일이에요! (확정, 일정 날짜가 오늘)
                       - COMPLETED: 약속 완료
+                    - proposer: 일정을 제안한 구성원. 탈퇴한 회원은 nickname이 "탈퇴한 사용자", familyRole이 null입니다.
+                    - requestMessage: 가족에게 한 줄. 입력하지 않았으면 null입니다.
+                    - myStatus: 조회한 사용자의 응답 상태
+                      - NOT_INVITED: 초대받지 않음
+                      - PENDING: 미응답
+                      - ACCEPTED: 수락
+                      - DECLINED: 거절
+                      - RECONFIRM_REQUIRED: 일정 변경으로 재확인 필요
+                    - changedFields: myStatus가 RECONFIRM_REQUIRED일 때 바뀐 항목 (DATE / TIME / PARTICIPANTS). 그 외에는 빈 배열입니다.
+                    - canRespond: 수락·거절 가능 여부 (초대 대상이고 응답 마감 전)
+                    - canEdit: 일정 변경 가능 여부 (제안자이고 시작 전인 응답 대기·확정 일정)
+                    - canCancel: 일정 취소 가능 여부 (제안자이고 응답 대기·확정 일정)
                     - participants: 제안자가 맨 앞이며, 이후 초대 순서입니다.
                       - nickname: 탈퇴한 회원은 "탈퇴한 사용자"로 표시합니다.
-                      - accepted: 수락했으면 true, 응답 대기·거절이면 false
+                      - status: 구성원별 응답 상태 (myStatus와 같은 값, NOT_INVITED는 나오지 않음)
+                      - characterImageUrl: 가족 역할별 캐릭터 이미지. 역할이 없거나 탈퇴한 회원은 null입니다.
                     - 같은 가족의 일정이면 초대받지 않은 구성원도 조회할 수 있으며, 다른 가족의 일정은 존재하지 않는 일정과 같이 404로 응답합니다.
                     - 취소된 일정은 조회할 수 없습니다. (409)
                     """
@@ -861,13 +875,26 @@ public interface ScheduleControllerDocs {
                                       "message": "일정 상세 조회 성공",
                                       "result": {
                                         "missionId": 42,
+                                        "missionTitle": "한강 뚜벅뚜벅 축제 가보기",
+                                        "missionDescription": "잠수교를 보행교로 전환해 시민이 직접 걸으며 공연·체험·미식을 즐기는 한강 축제입니다.",
                                         "date": "2026-11-17",
                                         "time": "14:50",
-                                        "status": "CONFIRMED",
+                                        "status": "SCHEDULED",
+                                        "proposer": {
+                                          "memberId": 3,
+                                          "nickname": "첫째",
+                                          "familyRole": "DAUGHTER"
+                                        },
+                                        "requestMessage": "엄마, 아빠 나 여기 가고싶은데 같이 갈래요??",
+                                        "myStatus": "PENDING",
+                                        "changedFields": [],
+                                        "canRespond": true,
+                                        "canEdit": false,
+                                        "canCancel": false,
                                         "participants": [
-                                          { "nickname": "엄마", "accepted": true },
-                                          { "nickname": "아빠", "accepted": true },
-                                          { "nickname": "첫째", "accepted": false }
+                                          { "nickname": "첫째", "status": "ACCEPTED", "characterImageUrl": "https://cdn.kiri.app/characters/daughter.png" },
+                                          { "nickname": "엄마", "status": "PENDING", "characterImageUrl": "https://cdn.kiri.app/characters/mother.png" },
+                                          { "nickname": "아빠", "status": "DECLINED", "characterImageUrl": "https://cdn.kiri.app/characters/father.png" }
                                         ]
                                       }
                                     }

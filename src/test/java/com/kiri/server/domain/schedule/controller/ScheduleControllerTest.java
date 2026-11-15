@@ -315,8 +315,8 @@ class ScheduleControllerTest {
                 .time(LocalTime.of(14, 50))
                 .status(ScheduleDetailStatus.CONFIRMED)
                 .participants(List.of(
-                        ScheduleResDTO.ParticipantItem.builder().nickname("엄마").accepted(true).build(),
-                        ScheduleResDTO.ParticipantItem.builder().nickname("첫째").accepted(false).build()))
+                        ScheduleResDTO.ParticipantItem.builder().nickname("엄마").status(CalendarMyStatus.ACCEPTED).build(),
+                        ScheduleResDTO.ParticipantItem.builder().nickname("첫째").status(CalendarMyStatus.PENDING).build()))
                 .build());
 
         mockMvc.perform(get("/api/v1/schedules/118")
@@ -327,9 +327,9 @@ class ScheduleControllerTest {
                 .andExpect(jsonPath("$.result.time").value("14:50"))
                 .andExpect(jsonPath("$.result.status").value("CONFIRMED"))
                 .andExpect(jsonPath("$.result.participants[0].nickname").value("엄마"))
-                .andExpect(jsonPath("$.result.participants[0].accepted").value(true))
+                .andExpect(jsonPath("$.result.participants[0].status").value("ACCEPTED"))
                 .andExpect(jsonPath("$.result.participants[1].nickname").value("첫째"))
-                .andExpect(jsonPath("$.result.participants[1].accepted").value(false));
+                .andExpect(jsonPath("$.result.participants[1].status").value("PENDING"));
     }
 
     @Test
