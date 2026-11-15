@@ -8,6 +8,7 @@ locals {
     "SENTRY_DSN",
     "GEMINI_API_KEY",
     "KMA_API_KEY",
+    "TOUR_API_KEY",
     "FIREBASE_SERVICE_ACCOUNT_B64",
     "CLOUDFRONT_PRIVATE_KEY"
   ]
