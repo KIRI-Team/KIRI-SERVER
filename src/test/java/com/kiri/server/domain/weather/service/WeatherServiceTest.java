@@ -56,7 +56,7 @@ class WeatherServiceTest {
                 item("TMP", start, "10"),
                 item("TMP", start.plusHours(1), "16"),
                 item("TMP", start.plusHours(2), "12"),
-                item("TMP", start.plusHours(3), "-5"),
+                item("TMP", start.plusHours(4), "-5"),
                 item("POP", start, "20"),
                 item("POP", start.plusHours(2), "70"),
                 item("PTY", start, "0"),
@@ -64,6 +64,20 @@ class WeatherServiceTest {
 
         assertThat(weatherService.summarize(LATITUDE, LONGITUDE, start, start.plusHours(3)))
                 .contains(new WeatherSummary(16, 10, 70, true));
+    }
+
+    @Test
+    @DisplayName("정시에 걸치지 않는 일정은 앞뒤 정시 예보까지 넓혀 본다.")
+    void summarize_widensToWholeHours() {
+        LocalDateTime start = TODAY.plusDays(1).atTime(14, 30);
+        given(forecastLoader.load(GRID, LATEST_BASE)).willReturn(List.of(
+                item("TMP", start.minusMinutes(30), "15"),
+                item("TMP", start.plusMinutes(30), "13"),
+                item("PTY", start.plusMinutes(90), "1"),
+                item("PTY", start.plusMinutes(150), "3")));
+
+        assertThat(weatherService.summarize(LATITUDE, LONGITUDE, start, start.plusHours(1)))
+                .contains(new WeatherSummary(15, 13, 0, true));
     }
 
     @Test

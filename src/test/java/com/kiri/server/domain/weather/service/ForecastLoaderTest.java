@@ -74,6 +74,19 @@ class ForecastLoaderTest {
     }
 
     @Test
+    @DisplayName("예보가 비어 있으면 캐시하지 않고 예외로 넘겨 다음 요청에서 다시 호출한다.")
+    void load_emptyNotCached() {
+        given(kmaForecastClient.fetchVillageForecast(GRID, BASE_TIME))
+                .willReturn(List.of())
+                .willReturn(List.of(item("TMP")));
+
+        assertThatThrownBy(() -> forecastLoader.load(GRID, BASE_TIME))
+                .isInstanceOf(ExternalException.class);
+        assertThat(forecastLoader.load(GRID, BASE_TIME)).hasSize(1);
+        verify(kmaForecastClient, times(2)).fetchVillageForecast(GRID, BASE_TIME);
+    }
+
+    @Test
     @DisplayName("기온·강수확률·강수형태만 남긴다.")
     void load_keepsUsedCategories() {
         given(kmaForecastClient.fetchVillageForecast(GRID, BASE_TIME)).willReturn(List.of(
