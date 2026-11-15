@@ -20,6 +20,7 @@ import com.kiri.server.domain.external.enums.ProcessStatus;
 import com.kiri.server.domain.external.enums.ReviewReason;
 import com.kiri.server.domain.mission.entity.Mission;
 import com.kiri.server.domain.mission.enums.MissionStatus;
+import com.kiri.server.domain.mission.service.FamilyMissionRecommendationService;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.LockModeType;
 import lombok.RequiredArgsConstructor;
@@ -53,6 +54,7 @@ public class AdminReviewCommandService {
     private final AdminAuditLogger auditLogger;
     private final ObjectMapper objectMapper;
     private final Clock clock;
+    private final FamilyMissionRecommendationService familyMissionRecommendationService;
 
     // ===== 탭 ① 검증 실패 =====
 
@@ -95,11 +97,13 @@ public class AdminReviewCommandService {
             written = missionWriter.createApproved(form, suggestion);
             written.mission().endIfPeriodOver(today);
         } else {
+            MissionStatus beforeStatus = existing.getStatus();
             written = missionWriter.update(existing, form);
             // 종료·취소·숨김 미션은 검수 승인만으로 다시 공개하지 않는다.
             if (!KEEP_STATUSES.contains(existing.getStatus())) {
                 existing.publishFromCheck(today);
             }
+            replaceIfMissionEnded(existing, beforeStatus);
         }
         Mission mission = written.mission();
         ReviewReason reason = record.getReviewReason();
@@ -152,7 +156,9 @@ public class AdminReviewCommandService {
     @Transactional
     public ReviewDTO.PublishResult publish(Long adminId, Long missionId) {
         Mission mission = lockPendingPublish(missionId);
+        MissionStatus beforeStatus = mission.getStatus();
         mission.publishFromCheck(LocalDate.now(clock));
+        replaceIfMissionEnded(mission, beforeStatus);
         auditLogger.log(adminId, AuditAction.PUBLISH, AuditTargetType.MISSION, missionId, null,
                 Map.of("status", MissionStatus.CHECK_REQUIRED), Map.of("status", mission.getStatus()));
         return new ReviewDTO.PublishResult(missionId, mission.getStatus());
@@ -246,5 +252,11 @@ public class AdminReviewCommandService {
         Map<String, Object> map = new LinkedHashMap<>();
         map.put(key, value);
         return map;
+    }
+
+    private void replaceIfMissionEnded(Mission mission, MissionStatus beforeStatus) {
+        if (beforeStatus != MissionStatus.ENDED && mission.getStatus() == MissionStatus.ENDED) {
+            familyMissionRecommendationService.replaceWeeklyMissionsByMissionId(mission.getId());
+        }
     }
 }

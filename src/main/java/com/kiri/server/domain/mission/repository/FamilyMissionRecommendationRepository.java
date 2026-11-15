@@ -30,4 +30,13 @@ public interface FamilyMissionRecommendationRepository extends JpaRepository<Fam
             ORDER BY fmr.startedAt DESC
             """)
     Optional<FamilyMissionRecommendation> findCurrentRecommendationForUpdate(@Param("familyId") Long familyId, @Param("now") LocalDateTime now);
+
+    @Query("""
+    SELECT DISTINCT fmr.family.id
+    FROM FamilyMissionRecommendation fmr
+    WHERE fmr.mission.id = :missionId
+      AND fmr.startedAt <= :now
+      AND fmr.endedAt > :now
+    """)
+    List<Long> findCurrentFamilyIdsByMissionId(@Param("missionId") Long missionId, @Param("now") LocalDateTime now);
 }

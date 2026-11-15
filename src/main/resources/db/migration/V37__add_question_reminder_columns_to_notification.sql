@@ -5,4 +5,4 @@ ALTER TABLE notification
 
 CREATE UNIQUE INDEX uk_notification_member_type_reference_date
     ON notification (member_id, notification_type, reference_date)
-    WHERE notification_type <> 'POKE';
+    WHERE notification_type NOT IN ('POKE', 'MISSION_CHANGED');

@@ -125,4 +125,15 @@ public class FamilyMissionRecommendationService {
         notificationService.createMissionChangedNotifications(recommendation.getFamily(), replacementMission, recommendation.getStartedAt().toLocalDate());
     }
 
+    @Transactional
+    public void replaceWeeklyMissionsByMissionId(Long missionId) {
+        LocalDateTime now = LocalDateTime.now(SEOUL_ZONE);
+
+        List<Long> familyIds = familyMissionRecommendationRepository.findCurrentFamilyIdsByMissionId(missionId, now);
+
+        for (Long familyId : familyIds) {
+            replaceWeeklyMission(familyId);
+        }
+    }
+
 }

@@ -86,4 +86,13 @@ public interface MissionRepository extends JpaRepository<Mission, Long> {
       )
     """)
     List<Mission> findAllRecommendableMissions(@Param("today") LocalDate today);
+
+    @Query("""
+        SELECT m.id
+        FROM Mission m
+        WHERE m.status = com.kiri.server.domain.mission.enums.MissionStatus.ACTIVE
+          AND m.missionType = com.kiri.server.domain.mission.enums.MissionType.PERIOD
+          AND m.endDate < :today
+        """)
+    List<Long> findExpiredMissionIds(@Param("today") LocalDate today);
 }

@@ -20,6 +20,7 @@ import com.kiri.server.domain.mission.enums.LockedField;
 import com.kiri.server.domain.mission.enums.MissionStatus;
 import com.kiri.server.domain.mission.repository.MissionChecklistItemRepository;
 import com.kiri.server.domain.mission.repository.MissionRepository;
+import com.kiri.server.domain.mission.service.FamilyMissionRecommendationService;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.LockModeType;
 import jakarta.persistence.TypedQuery;
@@ -46,6 +47,7 @@ public class AdminMissionService {
     private final MissionWriter missionWriter;
     private final AdminAuditLogger auditLogger;
     private final Clock clock;
+    private final FamilyMissionRecommendationService familyMissionRecommendationService;
 
     @Transactional(readOnly = true)
     public AdminPageResponse<ContentDTO.MissionItem> search(ContentDTO.MissionCondition c) {
@@ -137,7 +139,9 @@ public class AdminMissionService {
         if (!result.valid()) {
             throw new AdminValidationException(result.errors());
         }
+        MissionStatus beforeStatus = mission.getStatus();
         mission.publishDraft(LocalDate.now(clock));
+        replaceIfMissionEnded(mission, beforeStatus);
         auditLogger.log(adminId, AuditAction.PUBLISH, AuditTargetType.MISSION, missionId, null,
                 Map.of("status", MissionStatus.DRAFT), Map.of("status", mission.getStatus()));
         return toDetail(mission);
@@ -165,7 +169,9 @@ public class AdminMissionService {
         if (mission.getStatus() != MissionStatus.HIDDEN) {
             throw new AdminException(AdminErrorCode.INVALID_STATUS);
         }
+        MissionStatus beforeStatus = mission.getStatus();
         mission.restore(LocalDate.now(clock));
+        replaceIfMissionEnded(mission, beforeStatus);
         auditLogger.log(adminId, AuditAction.RESTORE, AuditTargetType.MISSION, missionId, validReason,
                 Map.of("status", MissionStatus.HIDDEN), Map.of("status", mission.getStatus()));
         return toDetail(mission);
@@ -233,5 +239,11 @@ public class AdminMissionService {
 
     static List<LockedField> lockedFields(Mission mission) {
         return Arrays.stream(LockedField.values()).filter(mission::isLocked).toList();
+    }
+
+    private void replaceIfMissionEnded(Mission mission, MissionStatus beforeStatus) {
+        if (beforeStatus != MissionStatus.ENDED && mission.getStatus() == MissionStatus.ENDED) {
+            familyMissionRecommendationService.replaceWeeklyMissionsByMissionId(mission.getId());
+        }
     }
 }

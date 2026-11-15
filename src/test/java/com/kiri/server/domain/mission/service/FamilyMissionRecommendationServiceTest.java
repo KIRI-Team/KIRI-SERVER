@@ -18,6 +18,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
@@ -317,6 +319,54 @@ class FamilyMissionRecommendationServiceTest {
         verify(notificationService, never()).createMissionChangedNotifications(any(), any(), any());
 
         verify(missionRepository, never()).findById(anyLong());
+    }
+
+    @ParameterizedTest
+    @EnumSource(
+            value = MissionStatus.class,
+            names = {"HIDDEN", "CHECK_REQUIRED", "DRAFT"}
+    )
+    @DisplayName("교체 대상이 아닌 미션 상태에서는 대체 미션으로 변경하지 않는다.")
+    void replaceWeeklyMissionNotReplaceableStatus(MissionStatus status) {
+        Mission currentMission = createMission(1L);
+        when(currentMission.getStatus()).thenReturn(status);
+
+        FamilyMissionRecommendation recommendation = createWeeklyRecommendation(currentMission);
+
+        when(familyMissionRecommendationRepository.findCurrentRecommendationForUpdate(eq(FAMILY_ID), any(LocalDateTime.class))).thenReturn(Optional.of(recommendation));
+
+        familyMissionRecommendationService.replaceWeeklyMission(FAMILY_ID);
+
+        assertEquals(1L, recommendation.getMission().getId());
+        assertEquals(new BigDecimal("0.8"), recommendation.getRecommendationScore());
+
+        verify(missionRecommendationService, never()).recommendByFamilyId(anyLong(), anyLong());
+
+        verify(notificationService, never()).createMissionChangedNotifications(any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("대체 미션이 존재하지 않으면 예외를 발생시킨다.")
+    void replaceWeeklyMissionThrowsExceptionWhenReplacementNotFound() {
+        Mission currentMission = createMission(1L);
+        when(currentMission.getStatus()).thenReturn(MissionStatus.CANCELLED);
+
+        FamilyMissionRecommendation recommendation = createWeeklyRecommendation(currentMission);
+
+        MissionResDTO.Recommendation replacement = createRecommendation(2L, "0.95");
+
+        when(familyMissionRecommendationRepository.findCurrentRecommendationForUpdate(eq(FAMILY_ID), any(LocalDateTime.class))).thenReturn(Optional.of(recommendation));
+
+        when(missionRecommendationService.recommendByFamilyId(FAMILY_ID, 1L)).thenReturn(List.of(replacement));
+
+        when(missionRepository.findById(2L)).thenReturn(Optional.empty());
+
+        assertThrows(MissionException.class, () -> familyMissionRecommendationService.replaceWeeklyMission(FAMILY_ID));
+
+        assertEquals(1L, recommendation.getMission().getId());
+        assertEquals(new BigDecimal("0.8"), recommendation.getRecommendationScore());
+
+        verify(notificationService, never()).createMissionChangedNotifications(any(), any(), any());
     }
 
     private Mission createMission(Long missionId) {

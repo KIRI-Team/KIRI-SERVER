@@ -60,6 +60,9 @@ class MissionGenerationServiceTest {
     @Mock
     private MissionChecklistItemRepository missionChecklistItemRepository;
 
+    @Mock
+    private FamilyMissionRecommendationService familyMissionRecommendationService;
+
     @Test
     @DisplayName("자동 공개가 켜져 있으면 새 원본으로 장소·미션·필수 활동을 만들고 ACTIVE로 공개한다.")
     void apply_newMission() {
@@ -325,9 +328,23 @@ class MissionGenerationServiceTest {
         assertThat(meters).isCloseTo(100.0, within(1.0));
     }
 
+    @Test
+    @DisplayName("외부 취소된 미션에 대해 주간 추천 미션 교체를 요청한다.")
+    void apply_externalCancelledReplacesWeeklyMission() {
+        Mission mission = periodMission(place(PLACE_NAME, ADDRESS, LATITUDE), TODAY, TODAY.plusDays(2));
+        ExternalRecord record = newRecord();
+        record.markProcessed(mission);
+
+        service(true).apply(record, new DraftResult.Ignored(ReviewReason.EXTERNAL_CANCELLED), TODAY);
+
+        assertThat(mission.getStatus()).isEqualTo(MissionStatus.CANCELLED);
+
+        verify(familyMissionRecommendationService).replaceWeeklyMissionsByMissionId(mission.getId());
+    }
+
     private MissionGenerationService service(boolean autoPublish) {
         return new MissionGenerationService(placeRepository, missionRepository, missionChecklistItemRepository,
-                new MissionProperties(autoPublish));
+                new MissionProperties(autoPublish), familyMissionRecommendationService);
     }
 
     private void givenNoPlaces() {
