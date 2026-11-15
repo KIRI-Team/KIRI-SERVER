@@ -5,6 +5,7 @@ import com.kiri.server.domain.character.repository.CharacterRepository;
 import com.kiri.server.domain.family.entity.Family;
 import com.kiri.server.domain.image.service.ImageUrlService;
 import com.kiri.server.domain.member.entity.Member;
+import com.kiri.server.domain.member.enums.FamilyRole;
 import com.kiri.server.domain.member.exception.MemberException;
 import com.kiri.server.domain.member.repository.MemberRepository;
 import com.kiri.server.domain.mission.entity.Mission;
@@ -30,6 +31,7 @@ import com.kiri.server.domain.schedule.entity.ScheduleParticipant;
 import com.kiri.server.domain.schedule.enums.CalendarMyStatus;
 import com.kiri.server.domain.schedule.enums.ConditionType;
 import com.kiri.server.domain.schedule.enums.ParticipantStatus;
+import com.kiri.server.domain.schedule.enums.ScheduleChangeField;
 import com.kiri.server.domain.schedule.enums.ScheduleDetailStatus;
 import com.kiri.server.domain.schedule.enums.ScheduleStatus;
 import com.kiri.server.domain.schedule.enums.UpcomingCardType;
@@ -64,6 +66,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -920,11 +923,18 @@ class ScheduleQueryServiceTest {
                 .scheduleDate(LocalDate.of(2026, 11, 3)).scheduleTime(LocalTime.of(14, 50))
                 .status(ScheduleStatus.CONFIRMED).build();
         given(scheduleRepository.findById(118L)).willReturn(Optional.of(schedule));
+        given(characterRepository.findAll()).willReturn(List.of(
+                com.kiri.server.domain.character.entity.Character.builder()
+                        .role(FamilyRole.MOTHER).imageUrl("mother.png").build(),
+                com.kiri.server.domain.character.entity.Character.builder()
+                        .role(FamilyRole.DAUGHTER).imageUrl("daughter.png").build()));
         Member withdrawn = Member.builder().deletedAt(LocalDateTime.of(2026, 10, 30, 12, 0)).build();
         given(scheduleParticipantRepository.findAllWithMemberByScheduleId(118L)).willReturn(List.of(
-                ScheduleParticipant.builder().schedule(schedule).member(Member.builder().nickname("엄마").build())
+                ScheduleParticipant.builder().schedule(schedule)
+                        .member(Member.builder().nickname("엄마").familyRole(FamilyRole.MOTHER).build())
                         .status(ParticipantStatus.ACCEPTED).build(),
-                ScheduleParticipant.builder().schedule(schedule).member(Member.builder().nickname("첫째").build())
+                ScheduleParticipant.builder().schedule(schedule)
+                        .member(Member.builder().nickname("첫째").familyRole(FamilyRole.DAUGHTER).build())
                         .status(ParticipantStatus.PENDING).build(),
                 ScheduleParticipant.builder().schedule(schedule).member(Member.builder().nickname("둘째").build())
                         .status(ParticipantStatus.DECLINED).build(),
@@ -942,6 +952,108 @@ class ScheduleQueryServiceTest {
         assertThat(result.participants()).extracting(ScheduleResDTO.ParticipantItem::status)
                 .containsExactly(CalendarMyStatus.ACCEPTED, CalendarMyStatus.PENDING, CalendarMyStatus.DECLINED,
                         CalendarMyStatus.ACCEPTED, CalendarMyStatus.ACCEPTED);
+        assertThat(result.participants()).extracting(ScheduleResDTO.ParticipantItem::characterImageUrl)
+                .containsExactly("mother.png", "daughter.png", null, null, null);
+    }
+
+    private Schedule detailSchedule(Family family, Member proposer, LocalDateTime responseDeadline) {
+        return Schedule.builder().id(118L).family(family).proposer(proposer)
+                .scheduleDate(LocalDate.of(2026, 11, 3)).scheduleTime(LocalTime.of(14, 50))
+                .status(ScheduleStatus.PENDING_RESPONSE).requestMessage("같이 가요")
+                .responseDeadline(responseDeadline).build();
+    }
+
+    private void givenDetail(Family family, Schedule schedule, ScheduleParticipant... participants) {
+        given(memberRepository.findById(MEMBER_ID))
+                .willReturn(Optional.of(Member.builder().id(MEMBER_ID).family(family).build()));
+        given(scheduleRepository.findById(118L)).willReturn(Optional.of(schedule));
+        given(scheduleParticipantRepository.findAllWithMemberByScheduleId(118L)).willReturn(List.of(participants));
+    }
+
+    @Test
+    @DisplayName("일정 상세 조회: 제안자가 보면 제안자 정보와 가족에게 한 줄을 반환하고, 수정·취소만 가능하다.")
+    void getDetail_proposer() {
+        Family family = Family.builder().id(10L).build();
+        Member me = Member.builder().id(MEMBER_ID).nickname("첫째").familyRole(FamilyRole.DAUGHTER).build();
+        Schedule schedule = detailSchedule(family, me, LocalDateTime.of(2026, 11, 2, 14, 50));
+        givenDetail(family, schedule,
+                ScheduleParticipant.builder().schedule(schedule).member(me).status(ParticipantStatus.ACCEPTED).build(),
+                ScheduleParticipant.builder().schedule(schedule).member(Member.builder().id(2L).build())
+                        .status(ParticipantStatus.PENDING).build());
+
+        ScheduleResDTO.Detail result = scheduleQueryService.getDetail(MEMBER_ID, 118L);
+
+        assertThat(result.proposer().memberId()).isEqualTo(MEMBER_ID);
+        assertThat(result.proposer().nickname()).isEqualTo("첫째");
+        assertThat(result.proposer().familyRole()).isEqualTo(FamilyRole.DAUGHTER);
+        assertThat(result.requestMessage()).isEqualTo("같이 가요");
+        assertThat(result.myStatus()).isEqualTo(CalendarMyStatus.ACCEPTED);
+        assertThat(result.canEdit()).isTrue();
+        assertThat(result.canCancel()).isTrue();
+        assertThat(result.canRespond()).isFalse();
+    }
+
+    @ParameterizedTest(name = "응답 마감 {0} → 응답 가능 {1}")
+    @CsvSource({
+            "2026-11-02T14:50, true",
+            "2026-10-31T23:00, false"
+    })
+    @DisplayName("일정 상세 조회: 초대받은 사람은 응답 마감 전에만 응답할 수 있고, 수정·취소는 할 수 없다.")
+    void getDetail_invitee(LocalDateTime responseDeadline, boolean canRespond) {
+        Family family = Family.builder().id(10L).build();
+        Member proposer = Member.builder().id(3L).build();
+        Schedule schedule = detailSchedule(family, proposer, responseDeadline);
+        givenDetail(family, schedule,
+                ScheduleParticipant.builder().schedule(schedule).member(proposer).status(ParticipantStatus.ACCEPTED).build(),
+                ScheduleParticipant.builder().schedule(schedule).member(Member.builder().id(MEMBER_ID).build())
+                        .status(ParticipantStatus.PENDING).build());
+
+        ScheduleResDTO.Detail result = scheduleQueryService.getDetail(MEMBER_ID, 118L);
+
+        assertThat(result.myStatus()).isEqualTo(CalendarMyStatus.PENDING);
+        assertThat(result.canRespond()).isEqualTo(canRespond);
+        assertThat(result.canEdit()).isFalse();
+        assertThat(result.canCancel()).isFalse();
+    }
+
+    @Test
+    @DisplayName("일정 상세 조회: 일정 변경으로 재확인이 필요하면 바뀐 항목을 반환한다.")
+    void getDetail_reconfirmRequired() {
+        Family family = Family.builder().id(10L).build();
+        Member proposer = Member.builder().id(3L).build();
+        Schedule schedule = detailSchedule(family, proposer, LocalDateTime.of(2026, 11, 2, 14, 50));
+        ScheduleParticipant mine = ScheduleParticipant.builder().schedule(schedule)
+                .member(Member.builder().id(MEMBER_ID).build()).status(ParticipantStatus.ACCEPTED).build();
+        mine.markReconfirmRequired(Set.of(ScheduleChangeField.DATE));
+        givenDetail(family, schedule,
+                ScheduleParticipant.builder().schedule(schedule).member(proposer).status(ParticipantStatus.ACCEPTED).build(),
+                mine);
+
+        ScheduleResDTO.Detail result = scheduleQueryService.getDetail(MEMBER_ID, 118L);
+
+        assertThat(result.myStatus()).isEqualTo(CalendarMyStatus.RECONFIRM_REQUIRED);
+        assertThat(result.changedFields()).containsExactly(ScheduleChangeField.DATE);
+        assertThat(result.canRespond()).isTrue();
+    }
+
+    @Test
+    @DisplayName("일정 상세 조회: 초대받지 않은 가족은 NOT_INVITED이고 어떤 동작도 할 수 없다.")
+    void getDetail_notInvited() {
+        Family family = Family.builder().id(10L).build();
+        Member proposer = Member.builder().id(3L).build();
+        Schedule schedule = detailSchedule(family, proposer, LocalDateTime.of(2026, 11, 2, 14, 50));
+        givenDetail(family, schedule,
+                ScheduleParticipant.builder().schedule(schedule).member(proposer).status(ParticipantStatus.ACCEPTED).build(),
+                ScheduleParticipant.builder().schedule(schedule).member(Member.builder().id(2L).build())
+                        .status(ParticipantStatus.PENDING).build());
+
+        ScheduleResDTO.Detail result = scheduleQueryService.getDetail(MEMBER_ID, 118L);
+
+        assertThat(result.myStatus()).isEqualTo(CalendarMyStatus.NOT_INVITED);
+        assertThat(result.changedFields()).isEmpty();
+        assertThat(result.canRespond()).isFalse();
+        assertThat(result.canEdit()).isFalse();
+        assertThat(result.canCancel()).isFalse();
     }
 
     @ParameterizedTest(name = "{0}, {1} → {2}")
