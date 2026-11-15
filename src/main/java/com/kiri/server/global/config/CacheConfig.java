@@ -24,7 +24,8 @@ public class CacheConfig {
         CaffeineCacheManager cacheManager = new CaffeineCacheManager(KMA_FORECAST);
         cacheManager.setCaffeine(Caffeine.newBuilder()
                 .expireAfterWrite(KMA_FORECAST_TTL)
-                .maximumSize(KMA_FORECAST_MAX_SIZE));
+                .maximumSize(KMA_FORECAST_MAX_SIZE)
+                .recordStats());
         return cacheManager;
     }
 }
