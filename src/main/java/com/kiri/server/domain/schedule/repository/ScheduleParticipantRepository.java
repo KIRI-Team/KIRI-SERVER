@@ -42,11 +42,20 @@ public interface ScheduleParticipantRepository extends JpaRepository<SchedulePar
     List<ScheduleParticipant> findAllWithMemberByScheduleIdAndStatus(@Param("scheduleId") Long scheduleId, @Param("status") ParticipantStatus status);
 
     @Query("""
+            SELECT p FROM ScheduleParticipant p
+            JOIN FETCH p.member
+            WHERE p.schedule.id = :scheduleId
+              AND p.status = :status
+              AND p.reconfirmRequired = true
+            """)
+    List<ScheduleParticipant> findAllReconfirmRequiredWithMemberByScheduleIdAndStatus(@Param("scheduleId") Long scheduleId, @Param("status") ParticipantStatus status);
+
+    @Query("""
     SELECT p FROM ScheduleParticipant p
     JOIN FETCH p.member
     WHERE p.schedule.id = :scheduleId
       AND p.status = :status
-      AND p.reconfirmRequired = true
+      AND p.reconfirmRequired = false
     """)
-    List<ScheduleParticipant> findAllReconfirmRequiredWithMemberByScheduleIdAndStatus(@Param("scheduleId") Long scheduleId, @Param("status") ParticipantStatus status);
+    List<ScheduleParticipant> findAllConfirmedWithMemberByScheduleIdAndStatus(@Param("scheduleId") Long scheduleId, @Param("status") ParticipantStatus status);
 }

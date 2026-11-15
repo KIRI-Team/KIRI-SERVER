@@ -95,6 +95,17 @@ public interface ScheduleRepository extends JpaRepository<Schedule, Long> {
 
     List<Schedule> findAllByReconfirmReminderAtLessThanEqualAndStatusInOrderByReconfirmReminderAtAsc(LocalDateTime now, Collection<ScheduleStatus> statuses);
 
+    @Query("""
+        SELECT s FROM Schedule s
+        LEFT JOIN FETCH s.bucketItem bi
+        LEFT JOIN FETCH bi.mission
+        LEFT JOIN FETCH s.proposer
+        WHERE s.scheduleDate = :scheduleDate
+          AND s.status = :status
+          AND s.createdAt <= :createdBefore
+        """)
+    List<Schedule> findAllForD1Reminder(@Param("scheduleDate") LocalDate scheduleDate, @Param("status") ScheduleStatus status, @Param("createdBefore") LocalDateTime createdBefore);
+
     interface BucketSchedule {
 
         Long getBucketItemId();

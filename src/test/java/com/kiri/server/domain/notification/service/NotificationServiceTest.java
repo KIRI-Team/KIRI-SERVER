@@ -1322,6 +1322,209 @@ class NotificationServiceTest {
         then(notificationRepository).should(never()).existsByMemberAndNotificationTypeAndReferenceId(any(Member.class), any(NotificationType.class), anyLong());
     }
 
+    @Test
+    @DisplayName("SC-09. 내일 일정이 확정된 제안자와 수락한 참여자에게 D-1 알림을 생성한다.")
+    void createScheduleD1ReminderNotificationsSuccess() {
+        LocalDate scheduleDate = TODAY.plusDays(1);
+        Schedule schedule = createD1Schedule(scheduleDate, ScheduleStatus.CONFIRMED, 1);
+
+        ScheduleParticipant accepted = createParticipant(schedule, member2, ParticipantStatus.ACCEPTED);
+        ScheduleParticipant declined = createParticipant(schedule, member3, ParticipantStatus.DECLINED);
+
+        given(scheduleRepository.findAllForD1Reminder(scheduleDate, ScheduleStatus.CONFIRMED, NOW)).willReturn(List.of(schedule));
+
+        given(scheduleParticipantRepository.findAllConfirmedWithMemberByScheduleIdAndStatus(schedule.getId(), ParticipantStatus.ACCEPTED)).willReturn(List.of(accepted));
+
+        given(notificationRepository.existsByMemberAndNotificationTypeAndReferenceIdAndReferenceVersion(member, NotificationType.SCHEDULE_D1_REMINDER, schedule.getId(), 1)).willReturn(false);
+
+        given(notificationRepository.existsByMemberAndNotificationTypeAndReferenceIdAndReferenceVersion(member2, NotificationType.SCHEDULE_D1_REMINDER, schedule.getId(), 1)).willReturn(false);
+
+        notificationService.createScheduleD1ReminderNotifications(scheduleDate, NOW);
+
+        ArgumentCaptor<Iterable<Notification>> captor = ArgumentCaptor.forClass(Iterable.class);
+        verify(notificationRepository).saveAll(captor.capture());
+
+        List<Notification> saved = StreamSupport.stream(captor.getValue().spliterator(), false).toList();
+
+        assertThat(saved).hasSize(2);
+        assertThat(saved)
+                .extracting(Notification::getMember)
+                .containsExactlyInAnyOrder(member, member2);
+
+        assertThat(saved)
+                .extracting(Notification::getNotificationType)
+                .containsOnly(NotificationType.SCHEDULE_D1_REMINDER);
+
+        assertThat(saved)
+                .extracting(Notification::getTitle)
+                .containsOnly("내일은 가족과 함께하는 날이에요!");
+
+        assertThat(saved)
+                .extracting(Notification::getBody)
+                .containsOnly("내일 오후 2:00에 '공원 산책' 일정이 있어요. 미리 준비해 보세요.");
+
+        assertThat(saved)
+                .extracting(Notification::getStatus)
+                .containsOnly(NotificationStatus.PENDING);
+
+        assertThat(saved)
+                .extracting(Notification::getIsRead)
+                .containsOnly(false);
+
+        assertThat(saved)
+                .extracting(Notification::getReferenceId)
+                .containsOnly(schedule.getId());
+
+        assertThat(saved)
+                .extracting(Notification::getReferenceDate)
+                .containsOnly(scheduleDate);
+
+        assertThat(saved)
+                .extracting(Notification::getReferenceVersion)
+                .containsOnly(1);
+
+        verify(scheduleParticipantRepository).findAllConfirmedWithMemberByScheduleIdAndStatus(schedule.getId(), ParticipantStatus.ACCEPTED);
+    }
+
+    @Test
+    @DisplayName("SC-09. 동일한 일정 버전의 D-1 알림이 이미 존재하면 중복 생성하지 않는다.")
+    void createScheduleD1ReminderNotificationsPreventDuplicate() {
+        LocalDate scheduleDate = TODAY.plusDays(1);
+        Schedule schedule = createD1Schedule(scheduleDate, ScheduleStatus.CONFIRMED, 1);
+
+        ScheduleParticipant accepted = createParticipant(schedule, member2, ParticipantStatus.ACCEPTED);
+
+        given(scheduleRepository.findAllForD1Reminder(scheduleDate, ScheduleStatus.CONFIRMED, NOW)).willReturn(List.of(schedule));
+
+        given(scheduleParticipantRepository.findAllConfirmedWithMemberByScheduleIdAndStatus(schedule.getId(), ParticipantStatus.ACCEPTED)).willReturn(List.of(accepted));
+
+        given(notificationRepository.existsByMemberAndNotificationTypeAndReferenceIdAndReferenceVersion(member, NotificationType.SCHEDULE_D1_REMINDER, schedule.getId(), 1)).willReturn(true);
+
+        given(notificationRepository.existsByMemberAndNotificationTypeAndReferenceIdAndReferenceVersion(member2, NotificationType.SCHEDULE_D1_REMINDER, schedule.getId(), 1)).willReturn(true);
+
+        notificationService.createScheduleD1ReminderNotifications(scheduleDate, NOW);
+
+        verify(notificationRepository, never()).saveAll(anyList());
+    }
+
+    @Test
+    @DisplayName("SC-09. 내일 확정된 일정이 없으면 D-1 알림을 생성하지 않는다.")
+    void createScheduleD1ReminderNotificationsNoSchedules() {
+        LocalDate scheduleDate = TODAY.plusDays(1);
+
+        given(scheduleRepository.findAllForD1Reminder(scheduleDate, ScheduleStatus.CONFIRMED, NOW)).willReturn(List.of());
+
+        notificationService.createScheduleD1ReminderNotifications(scheduleDate, NOW);
+
+        verify(scheduleParticipantRepository, never()).findAllConfirmedWithMemberByScheduleIdAndStatus(anyLong(), any());
+
+        verify(notificationRepository, never()).saveAll(anyList());
+    }
+
+    @Test
+    @DisplayName("SC-09. D-1 알림 발송 시각이 지난 후 일정이 확정되면 즉시 알림을 생성한다.")
+    void createScheduleD1ReminderIfDueSuccess() {
+        Schedule schedule = createD1Schedule(TODAY, ScheduleStatus.CONFIRMED, 2);
+
+        ScheduleParticipant accepted = createParticipant(schedule, member2, ParticipantStatus.ACCEPTED);
+
+        given(scheduleParticipantRepository.findAllConfirmedWithMemberByScheduleIdAndStatus(schedule.getId(), ParticipantStatus.ACCEPTED)).willReturn(List.of(accepted));
+
+        given(notificationRepository.existsByMemberAndNotificationTypeAndReferenceIdAndReferenceVersion(member, NotificationType.SCHEDULE_D1_REMINDER, schedule.getId(), 2)).willReturn(false);
+
+        given(notificationRepository.existsByMemberAndNotificationTypeAndReferenceIdAndReferenceVersion(member2, NotificationType.SCHEDULE_D1_REMINDER, schedule.getId(), 2)).willReturn(false);
+
+        notificationService.createScheduleD1ReminderIfDue(schedule, NOW);
+
+        ArgumentCaptor<Iterable<Notification>> captor = ArgumentCaptor.forClass(Iterable.class);
+        verify(notificationRepository).saveAll(captor.capture());
+
+        List<Notification> saved = StreamSupport.stream(captor.getValue().spliterator(), false).toList();
+
+        assertThat(saved).hasSize(2);
+        assertThat(saved)
+                .extracting(Notification::getMember)
+                .containsExactlyInAnyOrder(member, member2);
+
+        assertThat(saved)
+                .extracting(Notification::getReferenceVersion)
+                .containsOnly(2);
+    }
+
+    @Test
+    @DisplayName("SC-09. 재확인이 필요한 참여자는 제외하고 제안자에게만 D-1 알림을 생성한다.")
+    void createScheduleD1ReminderIfDueExcludesReconfirmRequired() {
+        Schedule schedule = createD1Schedule(TODAY, ScheduleStatus.CONFIRMED, 2);
+
+        ScheduleParticipant reconfirmRequired = createReconfirmParticipant(schedule, member2);
+
+        given(scheduleParticipantRepository.findAllConfirmedWithMemberByScheduleIdAndStatus(schedule.getId(), ParticipantStatus.ACCEPTED)).willReturn(List.of());
+
+        given(notificationRepository.existsByMemberAndNotificationTypeAndReferenceIdAndReferenceVersion(member, NotificationType.SCHEDULE_D1_REMINDER, schedule.getId(), 2)).willReturn(false);
+
+        notificationService.createScheduleD1ReminderIfDue(schedule, NOW);
+
+        ArgumentCaptor<Iterable<Notification>> captor = ArgumentCaptor.forClass(Iterable.class);
+        verify(notificationRepository).saveAll(captor.capture());
+
+        List<Notification> saved = StreamSupport.stream(captor.getValue().spliterator(), false).toList();
+
+        assertThat(saved).hasSize(1);
+        assertThat(saved.get(0).getMember()).isEqualTo(member);
+        assertThat(saved.get(0).getNotificationType()).isEqualTo(NotificationType.SCHEDULE_D1_REMINDER);
+
+        assertThat(saved)
+                .extracting(Notification::getMember)
+                .doesNotContain(member2);
+    }
+
+    @Test
+    @DisplayName("SC-09. D-1 알림 발송 시각이 아직 되지 않았다면 즉시 알림을 생성하지 않는다.")
+    void createScheduleD1ReminderIfDueNotDue() {
+        Schedule schedule = createD1Schedule(TODAY.plusDays(1), ScheduleStatus.CONFIRMED, 2);
+
+        notificationService.createScheduleD1ReminderIfDue(schedule, NOW);
+
+        verify(scheduleParticipantRepository, never()).findAllConfirmedWithMemberByScheduleIdAndStatus(anyLong(), any());
+
+        verify(notificationRepository, never()).saveAll(anyList());
+    }
+
+    @Test
+    @DisplayName("SC-09. 일정의 대기 중인 D-1 알림을 취소한다.")
+    void cancelScheduleD1RemindersSuccess() {
+        Schedule schedule = createD1Schedule(TODAY.plusDays(1), ScheduleStatus.CONFIRMED, 1);
+
+        Notification notification = Notification.builder()
+                .member(member)
+                .notificationType(NotificationType.SCHEDULE_D1_REMINDER)
+                .title("내일은 가족과 함께하는 날이에요!")
+                .body("내일 오후 2:00에 '공원 산책' 일정이 있어요. 미리 준비해 보세요.")
+                .status(NotificationStatus.PENDING)
+                .referenceId(schedule.getId())
+                .referenceDate(schedule.getScheduleDate())
+                .referenceVersion(schedule.getInviteVersion())
+                .build();
+
+        given(notificationRepository.findAllByNotificationTypeAndReferenceIdAndStatus(NotificationType.SCHEDULE_D1_REMINDER, schedule.getId(), NotificationStatus.PENDING)).willReturn(List.of(notification));
+
+        notificationService.cancelScheduleD1Reminders(schedule.getId());
+
+        assertThat(notification.getStatus()).isEqualTo(NotificationStatus.CANCELLED);
+    }
+
+    @Test
+    @DisplayName("SC-09. 취소할 대기 중인 D-1 알림이 없으면 아무 작업도 하지 않는다.")
+    void cancelScheduleD1RemindersNoNotification() {
+        Long scheduleId = 300L;
+
+        given(notificationRepository.findAllByNotificationTypeAndReferenceIdAndStatus(NotificationType.SCHEDULE_D1_REMINDER, scheduleId, NotificationStatus.PENDING)).willReturn(List.of());
+
+        notificationService.cancelScheduleD1Reminders(scheduleId);
+
+        verify(notificationRepository).findAllByNotificationTypeAndReferenceIdAndStatus(NotificationType.SCHEDULE_D1_REMINDER, scheduleId, NotificationStatus.PENDING);
+    }
+
     private MemberSetting createSetting(boolean enabled, LocalTime notificationTime) {
         return MemberSetting.builder()
                 .member(member)
@@ -1428,6 +1631,29 @@ class NotificationServiceTest {
                 .member(participant)
                 .status(ParticipantStatus.ACCEPTED)
                 .reconfirmRequired(true)
+                .build();
+    }
+
+    private Schedule createD1Schedule(LocalDate scheduleDate, ScheduleStatus status, Integer inviteVersion) {
+        Mission mission = Mission.builder()
+                .id(100L)
+                .title("공원 산책")
+                .build();
+
+        BucketItem bucketItem = BucketItem.builder()
+                .id(200L)
+                .mission(mission)
+                .build();
+
+        return Schedule.builder()
+                .id(300L)
+                .family(family)
+                .bucketItem(bucketItem)
+                .proposer(member)
+                .scheduleDate(scheduleDate)
+                .scheduleTime(LocalTime.of(14, 0))
+                .status(status)
+                .inviteVersion(inviteVersion)
                 .build();
     }
 }

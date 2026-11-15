@@ -11,6 +11,7 @@ import com.kiri.server.domain.schedule.enums.ParticipantStatus;
 
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
+import java.util.Locale;
 
 public class NotificationConverter {
 
@@ -241,6 +242,23 @@ public class NotificationConverter {
                 .status(NotificationStatus.PENDING)
                 .isRead(false)
                 .referenceId(schedule.getId())
+                .referenceDate(schedule.getScheduleDate())
+                .build();
+    }
+
+    public static Notification toScheduleD1Reminder(Member receiver, Schedule schedule) {
+        String missionTitle = schedule.getBucketItem().getMission().getTitle();
+        String scheduleTime = schedule.getScheduleTime().format(DateTimeFormatter.ofPattern("a h:mm", Locale.KOREAN));
+
+        return Notification.builder()
+                .member(receiver)
+                .notificationType(NotificationType.SCHEDULE_D1_REMINDER)
+                .title("내일은 가족과 함께하는 날이에요!")
+                .body("내일 " + scheduleTime + "에 '" + missionTitle + "' 일정이 있어요. 미리 준비해 보세요.")
+                .status(NotificationStatus.PENDING)
+                .isRead(false)
+                .referenceId(schedule.getId())
+                .referenceVersion(schedule.getInviteVersion())
                 .referenceDate(schedule.getScheduleDate())
                 .build();
     }

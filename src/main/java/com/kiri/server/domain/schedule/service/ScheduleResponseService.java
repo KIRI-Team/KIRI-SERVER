@@ -75,6 +75,7 @@ public class ScheduleResponseService {
 
         if (previousStatus == ScheduleStatus.PENDING_RESPONSE && schedule.getStatus() == ScheduleStatus.CONFIRMED) {
             notificationService.createScheduleConfirmedNotifications(schedule);
+            notificationService.createScheduleD1ReminderIfDue(schedule, now);
         }
 
         return ScheduleConverter.toResponded(schedule, participant);

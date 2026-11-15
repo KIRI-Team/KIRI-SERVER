@@ -402,4 +402,81 @@ public class NotificationService {
 
         notificationRepository.save(notification);
     }
+
+    @Transactional
+    public void createScheduleD1ReminderNotifications(LocalDate scheduleDate, LocalDateTime createdBefore) {
+        List<Schedule> schedules = scheduleRepository.findAllForD1Reminder(scheduleDate, ScheduleStatus.CONFIRMED, createdBefore);
+
+        for (Schedule schedule : schedules) {
+            Map<Long, Member> receivers = new LinkedHashMap<>();
+
+            Member proposer = schedule.getProposer();
+            if (proposer != null) {
+                receivers.put(proposer.getId(), proposer);
+            }
+
+            List<ScheduleParticipant> participants = scheduleParticipantRepository.findAllConfirmedWithMemberByScheduleIdAndStatus(schedule.getId(), ParticipantStatus.ACCEPTED);
+
+            participants.stream()
+                    .filter(participant -> participant.getMember() != null)
+                    .map(ScheduleParticipant::getMember)
+                    .forEach(member -> receivers.putIfAbsent(member.getId(), member));
+
+            List<Notification> notifications = receivers.values().stream()
+                    .map(member -> NotificationConverter.toScheduleD1Reminder(member, schedule))
+                    .filter(notification -> !notificationRepository.existsByMemberAndNotificationTypeAndReferenceIdAndReferenceVersion(notification.getMember(), NotificationType.SCHEDULE_D1_REMINDER, schedule.getId(), schedule.getInviteVersion()))
+                    .toList();
+
+            if (!notifications.isEmpty()) {
+                notificationRepository.saveAll(notifications);
+            }
+        }
+    }
+
+    @Transactional
+    public void cancelScheduleD1Reminders(Long scheduleId) {
+        List<Notification> notifications = notificationRepository.findAllByNotificationTypeAndReferenceIdAndStatus(NotificationType.SCHEDULE_D1_REMINDER, scheduleId, NotificationStatus.PENDING);
+
+        notifications.forEach(Notification::cancel);
+    }
+
+    @Transactional
+    public void createScheduleD1ReminderIfDue(Schedule schedule, LocalDateTime now) {
+        if (schedule.getStatus() != ScheduleStatus.CONFIRMED) {
+            return;
+        }
+
+        LocalDateTime reminderAt = schedule.getScheduleDate().minusDays(1).atTime(19, 0);
+
+        if (now.isBefore(reminderAt)) {
+            return;
+        }
+
+        if (schedule.getScheduleDate().isBefore(now.toLocalDate())) {
+            return;
+        }
+
+        Map<Long, Member> receivers = new LinkedHashMap<>();
+
+        Member proposer = schedule.getProposer();
+        if (proposer != null) {
+            receivers.put(proposer.getId(), proposer);
+        }
+
+        List<ScheduleParticipant> participants = scheduleParticipantRepository.findAllConfirmedWithMemberByScheduleIdAndStatus(schedule.getId(), ParticipantStatus.ACCEPTED);
+
+        participants.stream()
+                .filter(p -> p.getMember() != null)
+                .map(ScheduleParticipant::getMember)
+                .forEach(member -> receivers.putIfAbsent(member.getId(), member));
+
+        List<Notification> notifications = receivers.values().stream()
+                .map(member -> NotificationConverter.toScheduleD1Reminder(member, schedule))
+                .filter(notification -> !notificationRepository.existsByMemberAndNotificationTypeAndReferenceIdAndReferenceVersion(notification.getMember(), NotificationType.SCHEDULE_D1_REMINDER, schedule.getId(), schedule.getInviteVersion()))
+                .toList();
+
+        if (!notifications.isEmpty()) {
+            notificationRepository.saveAll(notifications);
+        }
+    }
 }

@@ -100,7 +100,7 @@ class ScheduleResponseServiceTest {
         assertThat(result.status()).isEqualTo(ScheduleStatus.CONFIRMED);
         verify(notificationService).createScheduleConfirmedNotifications(schedule);
         verify(notificationService).createScheduleResponseNotification(schedule, p);
-        verify(notificationService).createScheduleConfirmedNotifications(schedule);
+        verify(notificationService).createScheduleD1ReminderIfDue(schedule, LocalDateTime.now(CLOCK));
     }
 
     @Test
@@ -276,6 +276,7 @@ class ScheduleResponseServiceTest {
         assertThat(result.status()).isEqualTo(ScheduleStatus.CONFIRMED);
 
         verify(notificationService, never()).createScheduleConfirmedNotifications(any());
+        verify(notificationService, never()).createScheduleD1ReminderIfDue(any(), any());
     }
 
     @Test
@@ -302,6 +303,7 @@ class ScheduleResponseServiceTest {
 
         verify(notificationService, never()).createScheduleResponseNotification(any(), any());
         verify(notificationService, never()).createScheduleConfirmedNotifications(any());
+        verify(notificationService, never()).createScheduleD1ReminderIfDue(any(), any());
     }
 
     @Test
