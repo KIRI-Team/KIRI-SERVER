@@ -88,7 +88,7 @@ class NotificationDispatchServiceTest {
     @Test
     @DisplayName("질문 리마인더 날짜가 지나면 EXPIRED 처리한다")
     void dispatchPendingNotificationsExpiredQuestionReminder() throws Exception {
-        NotificationResDTO.NotificationProcessingTarget target = createTarget(NotificationType.QUESTION_REMINDER, LocalDate.now().minusDays(1));
+        NotificationResDTO.NotificationProcessingTarget target = createTarget(NotificationType.QUESTION_REMINDER, LocalDate.now(clock).minusDays(1));
 
         given(notificationService.claimPendingNotifications()).willReturn(List.of(target));
 
