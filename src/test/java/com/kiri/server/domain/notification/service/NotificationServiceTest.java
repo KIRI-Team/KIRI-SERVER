@@ -876,6 +876,61 @@ class NotificationServiceTest {
         verify(notificationRepository, never()).saveAll(anyList());
     }
 
+    @Test
+    @DisplayName("SC-04. 참여자가 일정을 수락하면 제안자에게 수락 알림을 생성한다.")
+    void createScheduleResponseNotificationAccepted() {
+        Schedule schedule = createSchedule();
+        ScheduleParticipant participant = createParticipant(schedule, member2, ParticipantStatus.ACCEPTED);
+
+        notificationService.createScheduleResponseNotification(schedule, participant);
+
+        ArgumentCaptor<Notification> captor = ArgumentCaptor.forClass(Notification.class);
+        verify(notificationRepository).save(captor.capture());
+
+        Notification saved = captor.getValue();
+
+        assertThat(saved.getMember()).isEqualTo(member);
+        assertThat(saved.getNotificationType()).isEqualTo(NotificationType.SCHEDULE_RESPONSE);
+        assertThat(saved.getTitle()).isEqualTo("일정 참여 응답이 도착했어요! 🎉");
+        assertThat(saved.getBody()).isEqualTo("영희님이 '공원 산책' 일정 참여를 수락했어요.");
+        assertThat(saved.getStatus()).isEqualTo(NotificationStatus.PENDING);
+        assertThat(saved.getIsRead()).isFalse();
+        assertThat(saved.getReferenceId()).isEqualTo(schedule.getId());
+    }
+
+    @Test
+    @DisplayName("SC-04. 참여자가 일정을 거절하면 제안자에게 거절 알림을 생성한다.")
+    void createScheduleResponseNotificationDeclined() {
+        Schedule schedule = createSchedule();
+        ScheduleParticipant participant = createParticipant(schedule, member2, ParticipantStatus.DECLINED);
+
+        notificationService.createScheduleResponseNotification(schedule, participant);
+
+        ArgumentCaptor<Notification> captor = ArgumentCaptor.forClass(Notification.class);
+        verify(notificationRepository).save(captor.capture());
+
+        Notification saved = captor.getValue();
+
+        assertThat(saved.getMember()).isEqualTo(member);
+        assertThat(saved.getNotificationType()).isEqualTo(NotificationType.SCHEDULE_RESPONSE);
+        assertThat(saved.getTitle()).isEqualTo("일정 참여 거절 응답이 도착했어요.");
+        assertThat(saved.getBody()).isEqualTo("영희님이 '공원 산책' 일정 참여를 거절했어요.");
+        assertThat(saved.getStatus()).isEqualTo(NotificationStatus.PENDING);
+        assertThat(saved.getIsRead()).isFalse();
+        assertThat(saved.getReferenceId()).isEqualTo(schedule.getId());
+    }
+
+    @Test
+    @DisplayName("SC-04. 제안자 본인의 응답에는 알림을 생성하지 않는다.")
+    void createScheduleResponseNotificationExcludeProposer() {
+        Schedule schedule = createSchedule();
+        ScheduleParticipant participant = createParticipant(schedule, member, ParticipantStatus.ACCEPTED);
+
+        notificationService.createScheduleResponseNotification(schedule, participant);
+
+        verify(notificationRepository, never()).save(any(Notification.class));
+    }
+
     private MemberSetting createSetting(boolean enabled, LocalTime notificationTime) {
         return MemberSetting.builder()
                 .member(member)

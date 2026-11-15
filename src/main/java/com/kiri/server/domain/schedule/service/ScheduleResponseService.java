@@ -54,7 +54,10 @@ public class ScheduleResponseService {
             throw new ScheduleException(ScheduleErrorCode.RESPONSE_CLOSED);
         }
 
-        participant.respond(request.action().toParticipantStatus(), now);
+        ParticipantStatus previousParticipantStatus = participant.getStatus();
+        ParticipantStatus newParticipantStatus = request.action().toParticipantStatus();
+
+        participant.respond(newParticipantStatus, now);
 
         ScheduleStatus previousStatus = schedule.getStatus();
 
@@ -65,6 +68,10 @@ public class ScheduleResponseService {
                         schedule.getProposer().getId());
 
         schedule.recalculateStatus(acceptedExcludingProposer, now);
+
+        if (previousParticipantStatus != newParticipantStatus) {
+            notificationService.createScheduleResponseNotification(schedule, participant);
+        }
 
         if (previousStatus == ScheduleStatus.PENDING_RESPONSE && schedule.getStatus() == ScheduleStatus.CONFIRMED) {
             notificationService.createScheduleConfirmedNotifications(schedule);

@@ -7,6 +7,7 @@ import com.kiri.server.domain.notification.enums.NotificationStatus;
 import com.kiri.server.domain.notification.enums.NotificationType;
 import com.kiri.server.domain.question.entity.FamilyQuestion;
 import com.kiri.server.domain.schedule.entity.Schedule;
+import com.kiri.server.domain.schedule.enums.ParticipantStatus;
 
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
@@ -107,10 +108,8 @@ public class NotificationConverter {
     public static Notification toScheduleInvitationReminder(Member receiver, Schedule schedule) {
         String proposerNickname = schedule.getProposer().getNickname();
         String missionTitle = schedule.getBucketItem().getMission().getTitle();
-        String scheduleDate = schedule.getScheduleDate()
-                .format(DateTimeFormatter.ofPattern("M월 d일"));
-        String scheduleTime = schedule.getScheduleTime()
-                .format(DateTimeFormatter.ofPattern("HH:mm"));
+        String scheduleDate = schedule.getScheduleDate().format(DateTimeFormatter.ofPattern("M월 d일"));
+        String scheduleTime = schedule.getScheduleTime().format(DateTimeFormatter.ofPattern("HH:mm"));
 
         return Notification.builder()
                 .member(receiver)
@@ -127,17 +126,35 @@ public class NotificationConverter {
 
     public static Notification toScheduleConfirmed(Member receiver, Schedule schedule) {
         String missionTitle = schedule.getBucketItem().getMission().getTitle();
-        String scheduleDate = schedule.getScheduleDate()
-                .format(DateTimeFormatter.ofPattern("M월 d일"));
-        String scheduleTime = schedule.getScheduleTime()
-                .format(DateTimeFormatter.ofPattern("HH:mm"));
+        String scheduleDate = schedule.getScheduleDate().format(DateTimeFormatter.ofPattern("M월 d일"));
+        String scheduleTime = schedule.getScheduleTime().format(DateTimeFormatter.ofPattern("HH:mm"));
 
         return Notification.builder()
                 .member(receiver)
                 .notificationType(NotificationType.SCHEDULE)
                 .title("일정이 확정됐어요! 🎉")
-                .body("'" + missionTitle + "' 일정이 확정됐어요. "
-                        + scheduleDate + " " + scheduleTime + "에 만나요!")
+                .body("'" + missionTitle + "' 일정이 확정됐어요. " + scheduleDate + " " + scheduleTime + "에 만나요!")
+                .status(NotificationStatus.PENDING)
+                .isRead(false)
+                .referenceId(schedule.getId())
+                .referenceDate(schedule.getScheduleDate())
+                .build();
+    }
+
+    public static Notification toScheduleResponse(Member receiver, Member responder, Schedule schedule, ParticipantStatus response) {
+        String responderNickname = responder.getNickname();
+
+        boolean accepted = response == ParticipantStatus.ACCEPTED;
+
+        String title = accepted ? "일정 참여 응답이 도착했어요! 🎉" : "일정 참여 거절 응답이 도착했어요.";
+
+        String body = accepted ? responderNickname + "님이 '" + schedule.getBucketItem().getMission().getTitle() + "' 일정 참여를 수락했어요." : responderNickname + "님이 '" + schedule.getBucketItem().getMission().getTitle() + "' 일정 참여를 거절했어요.";
+
+        return Notification.builder()
+                .member(receiver)
+                .notificationType(NotificationType.SCHEDULE_RESPONSE)
+                .title(title)
+                .body(body)
                 .status(NotificationStatus.PENDING)
                 .isRead(false)
                 .referenceId(schedule.getId())

@@ -99,6 +99,8 @@ class ScheduleResponseServiceTest {
         assertThat(result.myStatus()).isEqualTo(ParticipantStatus.ACCEPTED);
         assertThat(result.status()).isEqualTo(ScheduleStatus.CONFIRMED);
         verify(notificationService).createScheduleConfirmedNotifications(schedule);
+        verify(notificationService).createScheduleResponseNotification(schedule, p);
+        verify(notificationService).createScheduleConfirmedNotifications(schedule);
     }
 
     @Test
@@ -118,6 +120,8 @@ class ScheduleResponseServiceTest {
         assertThat(result.myStatus()).isEqualTo(ParticipantStatus.DECLINED);
         assertThat(result.status()).isEqualTo(ScheduleStatus.PENDING_RESPONSE);
         verify(notificationService, never()).createScheduleConfirmedNotifications(any());
+        verify(notificationService).createScheduleResponseNotification(schedule, p);
+        verify(notificationService, never()).createScheduleConfirmedNotifications(any());
     }
 
     @Test
@@ -135,6 +139,7 @@ class ScheduleResponseServiceTest {
         service.respond(MEMBER_ID, SCHEDULE_ID, req(ResponseAction.ACCEPT));
 
         assertThat(p.getReconfirmRequired()).isFalse();
+        verify(notificationService, never()).createScheduleResponseNotification(any(), any());
     }
 
     @Test
@@ -266,6 +271,32 @@ class ScheduleResponseServiceTest {
         assertThat(p.getStatus()).isEqualTo(ParticipantStatus.ACCEPTED);
         assertThat(result.status()).isEqualTo(ScheduleStatus.CONFIRMED);
 
+        verify(notificationService, never()).createScheduleConfirmedNotifications(any());
+    }
+
+    @Test
+    @DisplayName("이미 수락한 참여자가 다시 수락해도 응답 변경 알림을 생성하지 않는다.")
+    void respond_sameStatusDoesNotNotify() {
+        Schedule schedule = schedule(ScheduleStatus.CONFIRMED, future());
+
+        ScheduleParticipant p = ScheduleParticipant.builder()
+                .id(5L)
+                .schedule(schedule)
+                .member(me)
+                .status(ParticipantStatus.ACCEPTED)
+                .reconfirmRequired(false)
+                .build();
+
+        given(memberRepository.existsById(MEMBER_ID)).willReturn(true);
+        given(scheduleRepository.findByIdForUpdate(SCHEDULE_ID)).willReturn(Optional.of(schedule));
+        given(scheduleParticipantRepository.findBySchedule_IdAndMember_IdForUpdate(SCHEDULE_ID, MEMBER_ID)).willReturn(Optional.of(p));
+        given(scheduleParticipantRepository.countBySchedule_IdAndStatusAndReconfirmRequiredFalseAndMember_IdNot(SCHEDULE_ID, ParticipantStatus.ACCEPTED, PROPOSER_ID)).willReturn(1L);
+
+        service.respond(MEMBER_ID, SCHEDULE_ID, req(ResponseAction.ACCEPT));
+
+        assertThat(p.getStatus()).isEqualTo(ParticipantStatus.ACCEPTED);
+
+        verify(notificationService, never()).createScheduleResponseNotification(any(), any());
         verify(notificationService, never()).createScheduleConfirmedNotifications(any());
     }
 }

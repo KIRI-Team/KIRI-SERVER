@@ -256,4 +256,24 @@ public class NotificationService {
 
         log.info("일정 확정 알림 생성 완료 scheduleId={}, notificationCount={}", schedule.getId(), notifications.size());
     }
+
+    @Transactional
+    public void createScheduleResponseNotification(Schedule schedule, ScheduleParticipant participant) {
+        Member proposer = schedule.getProposer();
+        Member responder = participant.getMember();
+
+        if (proposer == null || responder == null) {
+            return;
+        }
+
+        if (proposer.getId().equals(responder.getId())) {
+            return;
+        }
+
+        Notification notification = NotificationConverter.toScheduleResponse(proposer, responder, schedule, participant.getStatus());
+
+        notificationRepository.save(notification);
+
+        log.info("일정 참여 응답 알림 생성 완료 scheduleId={}, responderId={}, response={}", schedule.getId(), responder.getId(), participant.getStatus());
+    }
 }

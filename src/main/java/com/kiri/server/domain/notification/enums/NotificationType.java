@@ -6,6 +6,7 @@ public enum NotificationType {
     SCHEDULE,
     SCHEDULE_INVITATION,
     SCHEDULE_INVITATION_REMINDER,
+    SCHEDULE_RESPONSE,
     POKE,
     RECORD,
     MISSION,
