@@ -13,6 +13,7 @@ import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Optional;
 import java.util.OptionalDouble;
@@ -31,7 +32,7 @@ public class WeatherService {
     private final ForecastLoader forecastLoader;
     private final Clock clock;
 
-    // [start, end) 구간 요약
+    // 일정 구간 요약
     public Optional<WeatherSummary> summarize(BigDecimal latitude, BigDecimal longitude,
                                               LocalDateTime start, LocalDateTime end) {
         if (latitude == null || longitude == null || start == null || !start.isBefore(end)) {
@@ -52,10 +53,18 @@ public class WeatherService {
             return Optional.empty();
         }
 
+        // 예보가 정시 값뿐이라 일정이 걸친 시간대를 앞뒤 정시까지 넓혀 봄
+        LocalDateTime from = start.truncatedTo(ChronoUnit.HOURS);
+        LocalDateTime to = ceilToHour(end);
         List<KmaResDTO.ForecastItem> inRange = forecasts.stream()
-                .filter(item -> !item.forecastAt().isBefore(start) && item.forecastAt().isBefore(end))
+                .filter(item -> !item.forecastAt().isBefore(from) && !item.forecastAt().isAfter(to))
                 .toList();
         return summarize(inRange);
+    }
+
+    private static LocalDateTime ceilToHour(LocalDateTime time) {
+        LocalDateTime hour = time.truncatedTo(ChronoUnit.HOURS);
+        return hour.isEqual(time) ? hour : hour.plusHours(1);
     }
 
     // 당일 일정은 그날 02시 발표분으로 고정해 조회할 때마다 맞춤템이 바뀌지 않게 함
