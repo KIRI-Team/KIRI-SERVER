@@ -2,6 +2,7 @@ package com.kiri.server.domain.schedule.dto;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import com.fasterxml.jackson.annotation.JsonFormat;
+import com.kiri.server.domain.member.enums.FamilyRole;
 import com.kiri.server.domain.mission.enums.WalkingLevel;
 import com.kiri.server.domain.schedule.enums.CalendarMyStatus;
 import com.kiri.server.domain.schedule.enums.ConditionType;
@@ -127,7 +128,17 @@ public class ScheduleResDTO {
             @JsonFormat(pattern = "HH:mm")
             LocalTime time,
             ScheduleDetailStatus status,
+            Proposer proposer,
+            String requestMessage,
             List<ParticipantItem> participants
+    ) {
+    }
+
+    @Builder
+    public record Proposer(
+            Long memberId,
+            String nickname,
+            FamilyRole familyRole
     ) {
     }
 

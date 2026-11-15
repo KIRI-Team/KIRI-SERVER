@@ -1,5 +1,6 @@
 package com.kiri.server.domain.schedule.converter;
 
+import com.kiri.server.domain.member.entity.Member;
 import com.kiri.server.domain.mission.entity.Mission;
 import com.kiri.server.domain.schedule.dto.ScheduleResDTO;
 import com.kiri.server.domain.schedule.entity.Schedule;
@@ -127,7 +128,20 @@ public class ScheduleConverter {
                 .date(schedule.getScheduleDate())
                 .time(schedule.getScheduleTime())
                 .status(toDetailStatus(schedule, today))
+                .proposer(toProposer(schedule.getProposer()))
+                .requestMessage(schedule.getRequestMessage())
                 .participants(participants.stream().map(ScheduleConverter::toParticipantItem).toList())
+                .build();
+    }
+
+    private static ScheduleResDTO.Proposer toProposer(Member proposer) {
+        if (proposer == null) {
+            return null;
+        }
+        return ScheduleResDTO.Proposer.builder()
+                .memberId(proposer.getId())
+                .nickname(proposer.getDisplayName())
+                .familyRole(proposer.getFamilyRole())
                 .build();
     }
 

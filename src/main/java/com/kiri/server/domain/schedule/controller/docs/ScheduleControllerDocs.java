@@ -824,15 +824,15 @@ public interface ScheduleControllerDocs {
     @Operation(
             summary = "일정 상세 조회 API",
             description = """
-                    # 일정 화면 헤더 조회
+                    # 일정 상세 조회
 
                     ## 요청 형식
                     - 헤더: Authorization: Bearer {JWT 토큰}
                     - Path: scheduleId
 
-                    일정 화면 헤더의 날짜, 시작 시간, 일정 상태와 참여자별 수락 여부를 조회합니다.
-                    인원 확인과 참여 상태 확인 모두 이 API로 처리합니다.
-                    미션 정보(제목, 장소, 걸음 수, 활동 시간)는 미션 상세 조회 API를 사용합니다.
+                    일정의 날짜, 시작 시간, 일정 상태, 초대 정보(제안자, 가족에게 한 줄)와 참여자별 수락 여부를 조회합니다.
+                    초대받은 화면, 약속 확정·당일 화면, 일정 취소 확인 화면 모두 이 API로 처리합니다.
+                    미션 정보(제목, 행사 설명, 장소, 걸음 수, 활동 시간)는 미션 상세 조회 API를 사용합니다.
 
                     ## 응답 규칙
                     - date: yyyy-MM-dd, time: HH:mm
@@ -841,6 +841,8 @@ public interface ScheduleControllerDocs {
                       - CONFIRMED: 약속 확정 (확정, 일정 당일이 아님)
                       - TODAY: 약속 당일이에요! (확정, 일정 날짜가 오늘)
                       - COMPLETED: 약속 완료
+                    - proposer: 일정을 제안한 구성원. 탈퇴한 회원은 nickname이 "탈퇴한 사용자", familyRole이 null입니다.
+                    - requestMessage: 가족에게 한 줄. 입력하지 않았으면 null입니다.
                     - participants: 제안자가 맨 앞이며, 이후 초대 순서입니다.
                       - nickname: 탈퇴한 회원은 "탈퇴한 사용자"로 표시합니다.
                       - accepted: 수락했으면 true, 응답 대기·거절이면 false
@@ -863,11 +865,17 @@ public interface ScheduleControllerDocs {
                                         "missionId": 42,
                                         "date": "2026-11-17",
                                         "time": "14:50",
-                                        "status": "CONFIRMED",
+                                        "status": "SCHEDULED",
+                                        "proposer": {
+                                          "memberId": 3,
+                                          "nickname": "첫째",
+                                          "familyRole": "DAUGHTER"
+                                        },
+                                        "requestMessage": "엄마, 아빠 나 여기 가고싶은데 같이 갈래요??",
                                         "participants": [
-                                          { "nickname": "엄마", "accepted": true },
-                                          { "nickname": "아빠", "accepted": true },
-                                          { "nickname": "첫째", "accepted": false }
+                                          { "nickname": "첫째", "accepted": true },
+                                          { "nickname": "엄마", "accepted": false },
+                                          { "nickname": "아빠", "accepted": false }
                                         ]
                                       }
                                     }
