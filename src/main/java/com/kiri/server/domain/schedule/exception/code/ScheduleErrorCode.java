@@ -13,6 +13,7 @@ public enum ScheduleErrorCode implements BaseErrorCode {
     PAST_SCHEDULE_DATETIME(HttpStatus.BAD_REQUEST, "SCHEDULE400_2", "지난 시각으로는 일정을 만들 수 없습니다."),
     OUT_OF_EVENT_PERIOD(HttpStatus.BAD_REQUEST, "SCHEDULE400_3", "행사 운영기간 안의 날짜만 선택할 수 있습니다."),
     INVALID_PARTICIPANT(HttpStatus.BAD_REQUEST, "SCHEDULE400_4", "같은 가족 구성원만 초대할 수 있습니다."),
+    INVITEE_REQUIRED(HttpStatus.BAD_REQUEST, "SCHEDULE400_5", "일정에 초대할 가족 구성원을 한 명 이상 선택해 주세요."),
 
     FAMILY_REQUIRED(HttpStatus.FORBIDDEN, "SCHEDULE403_1", "가족 공간이 없습니다."),
     BUCKET_FORBIDDEN(HttpStatus.FORBIDDEN, "SCHEDULE403_2", "같은 가족의 버킷 항목에서만 일정을 만들 수 있습니다."),

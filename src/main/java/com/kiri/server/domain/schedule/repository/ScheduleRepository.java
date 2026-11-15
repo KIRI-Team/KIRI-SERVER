@@ -91,6 +91,51 @@ public interface ScheduleRepository extends JpaRepository<Schedule, Long> {
     List<BucketSchedule> findActiveByBucketItemIds(@Param("bucketItemIds") Collection<Long> bucketItemIds,
                                                    @Param("statuses") Collection<ScheduleStatus> statuses);
 
+    List<Schedule> findAllByStatusAndResponseReminderAtLessThanEqualOrderByResponseReminderAtAsc(ScheduleStatus status, LocalDateTime now);
+
+    List<Schedule> findAllByReconfirmReminderAtLessThanEqualAndStatusInOrderByReconfirmReminderAtAsc(LocalDateTime now, Collection<ScheduleStatus> statuses);
+
+    @Query("""
+            SELECT s FROM Schedule s
+            LEFT JOIN FETCH s.bucketItem bi
+            LEFT JOIN FETCH bi.mission
+            LEFT JOIN FETCH s.proposer
+            WHERE s.scheduleDate = :scheduleDate
+              AND s.status = :status
+              AND s.createdAt <= :createdBefore
+            """)
+    List<Schedule> findAllForD1Reminder(@Param("scheduleDate") LocalDate scheduleDate, @Param("status") ScheduleStatus status, @Param("createdBefore") LocalDateTime createdBefore);
+
+    @Query("""
+        SELECT s FROM Schedule s
+        LEFT JOIN FETCH s.bucketItem bi
+        LEFT JOIN FETCH bi.mission
+        LEFT JOIN FETCH s.proposer
+        WHERE s.scheduleDate BETWEEN :startDate AND :endDate
+          AND s.status = :status
+        """)
+    List<Schedule> findAllForD0Reminder(@Param("startDate") LocalDate startDate, @Param("endDate") LocalDate endDate, @Param("status") ScheduleStatus status);
+
+    @Query("""
+            SELECT s FROM Schedule s
+            JOIN FETCH s.bucketItem bi
+            JOIN FETCH bi.mission
+            WHERE s.scheduleDate BETWEEN :startDate AND :endDate
+              AND s.status IN :statuses
+            ORDER BY s.scheduleDate ASC, s.scheduleTime ASC
+            """)
+    List<Schedule> findAllForRecordReminder(@Param("startDate") LocalDate startDate, @Param("endDate") LocalDate endDate, @Param("statuses") Collection<ScheduleStatus> statuses);
+
+    @Query("""
+        SELECT s FROM Schedule s
+        JOIN FETCH s.proposer
+        JOIN FETCH s.bucketItem bi
+        JOIN FETCH bi.mission
+        WHERE bi.mission.id = :missionId
+          AND s.status IN :statuses
+        """)
+    List<Schedule> findAllActiveByMissionId(@Param("missionId") Long missionId, @Param("statuses") Collection<ScheduleStatus> statuses);
+
     interface BucketSchedule {
 
         Long getBucketItemId();

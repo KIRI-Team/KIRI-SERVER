@@ -5,6 +5,7 @@ import com.kiri.server.domain.family.entity.Family;
 import com.kiri.server.domain.member.entity.Member;
 import com.kiri.server.domain.member.exception.MemberException;
 import com.kiri.server.domain.member.repository.MemberRepository;
+import com.kiri.server.domain.notification.service.NotificationService;
 import com.kiri.server.domain.schedule.dto.ScheduleReqDTO;
 import com.kiri.server.domain.schedule.dto.ScheduleResDTO;
 import com.kiri.server.domain.schedule.entity.Schedule;
@@ -33,7 +34,10 @@ import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 
 @ExtendWith(MockitoExtension.class)
 class ScheduleResponseServiceTest {
@@ -46,6 +50,7 @@ class ScheduleResponseServiceTest {
     @Mock private ScheduleRepository scheduleRepository;
     @Mock private ScheduleParticipantRepository scheduleParticipantRepository;
     @Mock private MemberRepository memberRepository;
+    @Mock private NotificationService notificationService;
 
     private ScheduleResponseService service;
 
@@ -54,7 +59,7 @@ class ScheduleResponseServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new ScheduleResponseService(scheduleRepository, scheduleParticipantRepository, memberRepository, CLOCK);
+        service = new ScheduleResponseService(scheduleRepository, scheduleParticipantRepository, memberRepository, CLOCK, notificationService);
         Family family = Family.builder().id(10L).name("가족").build();
         proposer = Member.builder().id(PROPOSER_ID).family(family).nickname("제안자").build();
         me = Member.builder().id(MEMBER_ID).family(family).nickname("엄마").build();
@@ -93,6 +98,9 @@ class ScheduleResponseServiceTest {
         assertThat(p.getStatus()).isEqualTo(ParticipantStatus.ACCEPTED);
         assertThat(result.myStatus()).isEqualTo(ParticipantStatus.ACCEPTED);
         assertThat(result.status()).isEqualTo(ScheduleStatus.CONFIRMED);
+        verify(notificationService).createScheduleConfirmedNotifications(schedule);
+        verify(notificationService).createScheduleResponseNotification(schedule, p);
+        verify(notificationService).createScheduleD1ReminderIfDue(schedule, LocalDateTime.now(CLOCK));
     }
 
     @Test
@@ -111,6 +119,9 @@ class ScheduleResponseServiceTest {
 
         assertThat(result.myStatus()).isEqualTo(ParticipantStatus.DECLINED);
         assertThat(result.status()).isEqualTo(ScheduleStatus.PENDING_RESPONSE);
+        verify(notificationService, never()).createScheduleConfirmedNotifications(any());
+        verify(notificationService).createScheduleResponseNotification(schedule, p);
+        verify(notificationService, never()).createScheduleConfirmedNotifications(any());
     }
 
     @Test
@@ -128,6 +139,7 @@ class ScheduleResponseServiceTest {
         service.respond(MEMBER_ID, SCHEDULE_ID, req(ResponseAction.ACCEPT));
 
         assertThat(p.getReconfirmRequired()).isFalse();
+        verify(notificationService, never()).createScheduleResponseNotification(any(), any());
     }
 
     @Test
@@ -206,6 +218,8 @@ class ScheduleResponseServiceTest {
         service.finalizeExpired(SCHEDULE_ID, now);
 
         assertThat(schedule.getStatus()).isEqualTo(ScheduleStatus.NOT_CONFIRMED);
+
+        verify(notificationService).createScheduleNotConfirmedNotification(schedule);
     }
 
     @Test
@@ -218,6 +232,8 @@ class ScheduleResponseServiceTest {
         service.finalizeExpired(SCHEDULE_ID, now);
 
         assertThat(schedule.getStatus()).isEqualTo(ScheduleStatus.CONFIRMED);
+
+        verify(notificationService, never()).createScheduleNotConfirmedNotification(any());
     }
 
     @Test
@@ -234,5 +250,148 @@ class ScheduleResponseServiceTest {
                 .isInstanceOf(ScheduleException.class)
                 .extracting(e -> ((ScheduleException) e).getErrorCode())
                 .isEqualTo(ScheduleErrorCode.RESPONSE_CLOSED);
+    }
+
+    @Test
+    @DisplayName("이미 확정된 일정에서 추가 참여자가 수락해도 확정 알림을 다시 생성하지 않는다.")
+    void respondAlreadyConfirmed() {
+        Schedule schedule = schedule(ScheduleStatus.CONFIRMED, future());
+
+        ScheduleParticipant p = ScheduleParticipant.builder()
+                .id(5L)
+                .schedule(schedule)
+                .member(me)
+                .status(ParticipantStatus.PENDING)
+                .reconfirmRequired(false)
+                .build();
+
+        given(memberRepository.existsById(MEMBER_ID)).willReturn(true);
+        given(scheduleRepository.findByIdForUpdate(SCHEDULE_ID)).willReturn(Optional.of(schedule));
+        given(scheduleParticipantRepository.findBySchedule_IdAndMember_IdForUpdate(SCHEDULE_ID, MEMBER_ID)).willReturn(Optional.of(p));
+        given(scheduleParticipantRepository.countBySchedule_IdAndStatusAndReconfirmRequiredFalseAndMember_IdNot(SCHEDULE_ID, ParticipantStatus.ACCEPTED, PROPOSER_ID)).willReturn(2L);
+
+        ScheduleResDTO.Responded result = service.respond(MEMBER_ID, SCHEDULE_ID, req(ResponseAction.ACCEPT));
+
+        assertThat(p.getStatus()).isEqualTo(ParticipantStatus.ACCEPTED);
+        assertThat(result.status()).isEqualTo(ScheduleStatus.CONFIRMED);
+
+        verify(notificationService, never()).createScheduleConfirmedNotifications(any());
+        verify(notificationService, never()).createScheduleD1ReminderIfDue(any(), any());
+    }
+
+    @Test
+    @DisplayName("이미 수락한 참여자가 다시 수락해도 응답 변경 알림을 생성하지 않는다.")
+    void respond_sameStatusDoesNotNotify() {
+        Schedule schedule = schedule(ScheduleStatus.CONFIRMED, future());
+
+        ScheduleParticipant p = ScheduleParticipant.builder()
+                .id(5L)
+                .schedule(schedule)
+                .member(me)
+                .status(ParticipantStatus.ACCEPTED)
+                .reconfirmRequired(false)
+                .build();
+
+        given(memberRepository.existsById(MEMBER_ID)).willReturn(true);
+        given(scheduleRepository.findByIdForUpdate(SCHEDULE_ID)).willReturn(Optional.of(schedule));
+        given(scheduleParticipantRepository.findBySchedule_IdAndMember_IdForUpdate(SCHEDULE_ID, MEMBER_ID)).willReturn(Optional.of(p));
+        given(scheduleParticipantRepository.countBySchedule_IdAndStatusAndReconfirmRequiredFalseAndMember_IdNot(SCHEDULE_ID, ParticipantStatus.ACCEPTED, PROPOSER_ID)).willReturn(1L);
+
+        service.respond(MEMBER_ID, SCHEDULE_ID, req(ResponseAction.ACCEPT));
+
+        assertThat(p.getStatus()).isEqualTo(ParticipantStatus.ACCEPTED);
+
+        verify(notificationService, never()).createScheduleResponseNotification(any(), any());
+        verify(notificationService, never()).createScheduleConfirmedNotifications(any());
+        verify(notificationService, never()).createScheduleD1ReminderIfDue(any(), any());
+    }
+
+    @Test
+    @DisplayName("마감이 지난 일정에 수락자가 있으면 CONFIRMED로 변경하고 미확정 알림을 생성하지 않는다.")
+    void finalizeExpired_confirmed() {
+        LocalDateTime now = LocalDateTime.now(CLOCK);
+        Schedule schedule = schedule(ScheduleStatus.PENDING_RESPONSE, now.minusHours(1));
+
+        given(scheduleRepository.findByIdForUpdate(SCHEDULE_ID)).willReturn(Optional.of(schedule));
+
+        given(scheduleParticipantRepository.countBySchedule_IdAndStatusAndReconfirmRequiredFalseAndMember_IdNot(SCHEDULE_ID, ParticipantStatus.ACCEPTED, PROPOSER_ID)).willReturn(1L);
+
+        service.finalizeExpired(SCHEDULE_ID, now);
+
+        assertThat(schedule.getStatus()).isEqualTo(ScheduleStatus.CONFIRMED);
+
+        verify(notificationService, never()).createScheduleNotConfirmedNotification(any());
+    }
+
+    @Test
+    @DisplayName("응답 마감 전이면 일정 상태를 유지하고 미확정 알림을 생성하지 않는다.")
+    void finalizeExpired_beforeDeadline() {
+        LocalDateTime now = LocalDateTime.now(CLOCK);
+        Schedule schedule = schedule(ScheduleStatus.PENDING_RESPONSE, now.plusHours(1));
+
+        given(scheduleRepository.findByIdForUpdate(SCHEDULE_ID)).willReturn(Optional.of(schedule));
+
+        given(scheduleParticipantRepository.countBySchedule_IdAndStatusAndReconfirmRequiredFalseAndMember_IdNot(SCHEDULE_ID, ParticipantStatus.ACCEPTED, PROPOSER_ID)).willReturn(0L);
+
+        service.finalizeExpired(SCHEDULE_ID, now);
+
+        assertThat(schedule.getStatus()).isEqualTo(ScheduleStatus.PENDING_RESPONSE);
+
+        verify(notificationService, never()).createScheduleNotConfirmedNotification(any());
+    }
+
+    @Test
+    @DisplayName("존재하지 않는 일정이면 finalizeExpired에서 종료한다.")
+    void finalizeExpired_scheduleNotFound() {
+        LocalDateTime now = LocalDateTime.now(CLOCK);
+
+        given(scheduleRepository.findByIdForUpdate(SCHEDULE_ID)).willReturn(Optional.empty());
+
+        service.finalizeExpired(SCHEDULE_ID, now);
+
+        verify(scheduleParticipantRepository, never()).countBySchedule_IdAndStatusAndReconfirmRequiredFalseAndMember_IdNot(any(), any(), any());
+
+        verify(notificationService, never()).createScheduleNotConfirmedNotification(any());
+    }
+
+    @Test
+    @DisplayName("취소된 일정은 finalizeExpired에서 건너뛴다.")
+    void finalizeExpired_skipCancelled() {
+        // given
+        LocalDateTime now = LocalDateTime.now(CLOCK);
+        Schedule schedule = schedule(ScheduleStatus.CANCELLED, now.minusHours(1));
+
+        given(scheduleRepository.findByIdForUpdate(SCHEDULE_ID))
+                .willReturn(Optional.of(schedule));
+
+        // when
+        service.finalizeExpired(SCHEDULE_ID, now);
+
+        // then
+        assertThat(schedule.getStatus()).isEqualTo(ScheduleStatus.CANCELLED);
+
+        verify(scheduleParticipantRepository, never())
+                .countBySchedule_IdAndStatusAndReconfirmRequiredFalseAndMember_IdNot(
+                        any(), any(), any());
+
+        verify(notificationService, never())
+                .createScheduleNotConfirmedNotification(any());
+    }
+
+    @Test
+    @DisplayName("완료된 일정은 finalizeExpired에서 건너뛴다.")
+    void finalizeExpired_skipCompleted() {
+        LocalDateTime now = LocalDateTime.now(CLOCK);
+        Schedule schedule = schedule(ScheduleStatus.COMPLETED, now.minusHours(1));
+
+        given(scheduleRepository.findByIdForUpdate(SCHEDULE_ID)).willReturn(Optional.of(schedule));
+
+        service.finalizeExpired(SCHEDULE_ID, now);
+
+        assertThat(schedule.getStatus()).isEqualTo(ScheduleStatus.COMPLETED);
+
+        verify(scheduleParticipantRepository, never()).countBySchedule_IdAndStatusAndReconfirmRequiredFalseAndMember_IdNot(any(), any(), any());
+
+        verify(notificationService, never()).createScheduleNotConfirmedNotification(any());
     }
 }

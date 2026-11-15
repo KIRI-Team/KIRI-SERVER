@@ -6,6 +6,7 @@ import com.kiri.server.domain.member.entity.Member;
 import com.kiri.server.domain.member.exception.MemberException;
 import com.kiri.server.domain.member.exception.code.MemberErrorCode;
 import com.kiri.server.domain.member.repository.MemberRepository;
+import com.kiri.server.domain.notification.service.NotificationService;
 import com.kiri.server.domain.question.converter.MemberAnswerConverter;
 import com.kiri.server.domain.question.converter.QuestionConverter;
 import com.kiri.server.domain.question.dto.PreferenceClassification;
@@ -61,6 +62,7 @@ public class QuestionService {
     private final FamilyRepository familyRepository;
     private final QuestionRepository questionRepository;
     private final AiService aiService;
+    private final NotificationService notificationService;
 
     @Transactional(readOnly = true)
     public QuestionResDTO.TodayQuestion getTodayQuestion(Long memberId) {
@@ -93,6 +95,9 @@ public class QuestionService {
 
         FamilyQuestion familyQuestion = getMyFamilyQuestion(member, questionId);
 
+        familyQuestion = familyQuestionRepository.findByIdForUpdate(familyQuestion.getId())
+                .orElseThrow(() -> new QuestionException(QuestionErrorCode.TODAY_QUESTION_NOT_FOUND));
+
         // 답변 작성/수정은 질문이 배정된 당일에만 가능
         if (!familyQuestion.getQuestionDate().equals(LocalDate.now(clock))) {
             throw new QuestionException(QuestionErrorCode.ANSWER_PERIOD_EXPIRED);
@@ -101,12 +106,21 @@ public class QuestionService {
         Optional<MemberAnswer> answer = memberAnswerRepository.findByFamilyQuestionAndMember(familyQuestion, member);
         if (answer.isPresent()) {
             answer.get().updateContent(request.answer());
+
+            // 기존 답변 수정 시에도 미발송 알림 취소
+            notificationService.cancelQuestionReminder(member, familyQuestion);
             return;
         }
 
         // 동시에 두 번 생성 요청이 오면 uk_member_answer 유니크 제약이 막으므로 409로 변환
         try {
             memberAnswerRepository.save(QuestionConverter.toMemberAnswer(request.answer(), familyQuestion, member));
+
+            // 신규 답변 저장 후 미발송 알림 취소
+            notificationService.cancelQuestionReminder(member, familyQuestion);
+
+            // 가족 전원 답변 완료 여부 확인 및 알림 생성
+            notificationService.createFamilyAnswerCompleteNotifications(member, familyQuestion);
         } catch (DataIntegrityViolationException e) {
             if (isDuplicateAnswer(e)) {
                 throw new QuestionException(QuestionErrorCode.DUPLICATE_ANSWER_REQUEST);
@@ -193,6 +207,8 @@ public class QuestionService {
             }
             throw e;
         }
+
+        notificationService.createPokeNotification(member, receiver, today);
 
         eventPublisher.publishEvent(new PokeEvent(memberId, receiverId));
     }

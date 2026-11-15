@@ -17,6 +17,7 @@ import com.kiri.server.domain.mission.generator.dto.DraftResult;
 import com.kiri.server.domain.mission.generator.dto.MissionDraft;
 import com.kiri.server.domain.mission.repository.MissionChecklistItemRepository;
 import com.kiri.server.domain.mission.repository.MissionRepository;
+import com.kiri.server.domain.notification.service.NotificationService;
 import com.kiri.server.domain.place.entity.Place;
 import com.kiri.server.domain.place.enums.PlaceType;
 import com.kiri.server.domain.place.repository.PlaceRepository;
@@ -59,6 +60,12 @@ class MissionGenerationServiceTest {
 
     @Mock
     private MissionChecklistItemRepository missionChecklistItemRepository;
+
+    @Mock
+    private FamilyMissionRecommendationService familyMissionRecommendationService;
+
+    @Mock
+    private NotificationService notificationService;
 
     @Test
     @DisplayName("자동 공개가 켜져 있으면 새 원본으로 장소·미션·필수 활동을 만들고 ACTIVE로 공개한다.")
@@ -268,6 +275,9 @@ class MissionGenerationServiceTest {
         assertThat(record.getReviewReason()).isEqualTo(ReviewReason.EXTERNAL_CANCELLED);
         assertThat(mission.getStatus()).isEqualTo(MissionStatus.CANCELLED);
         assertThat(mission.getCancelSource()).isEqualTo(CancelSource.EXTERNAL);
+
+        verify(notificationService).createExternalEventCancelledNotifications(mission);
+        verify(familyMissionRecommendationService).replaceWeeklyMissionsByMissionId(mission.getId());
     }
 
     @Test
@@ -325,9 +335,75 @@ class MissionGenerationServiceTest {
         assertThat(meters).isCloseTo(100.0, within(1.0));
     }
 
+    @Test
+    @DisplayName("외부 취소된 미션에 대해 주간 추천 미션 교체를 요청한다.")
+    void apply_externalCancelledReplacesWeeklyMission() {
+        Mission mission = periodMission(place(PLACE_NAME, ADDRESS, LATITUDE), TODAY, TODAY.plusDays(2));
+        ExternalRecord record = newRecord();
+        record.markProcessed(mission);
+
+        service(true).apply(record, new DraftResult.Ignored(ReviewReason.EXTERNAL_CANCELLED), TODAY);
+
+        assertThat(mission.getStatus()).isEqualTo(MissionStatus.CANCELLED);
+
+        verify(familyMissionRecommendationService).replaceWeeklyMissionsByMissionId(mission.getId());
+    }
+
+    @Test
+    @DisplayName("이미 외부 취소된 미션은 취소 알림을 중복 생성하지 않는다.")
+    void apply_externalCancelledAlreadyCancelled() {
+        Mission mission = periodMission(place(PLACE_NAME, ADDRESS, LATITUDE), TODAY, TODAY.plusDays(2));
+        mission.cancelByExternal("기존 외부 취소");
+
+        ExternalRecord record = newRecord();
+        record.markProcessed(mission);
+
+        service(true).apply(record, new DraftResult.Ignored(ReviewReason.EXTERNAL_CANCELLED), TODAY);
+
+        assertThat(mission.getStatus()).isEqualTo(MissionStatus.CANCELLED);
+
+        verify(notificationService, never()).createExternalEventCancelledNotifications(any());
+
+        verify(familyMissionRecommendationService, never()).replaceWeeklyMissionsByMissionId(any());
+    }
+
+    @Test
+    @DisplayName("원본이 비공개로 바뀐 경우 취소 알림을 생성하지 않는다.")
+    void hide_doesNotCreateExternalCancellationNotification() {
+        Mission mission = periodMission(place(PLACE_NAME, ADDRESS, LATITUDE), TODAY, TODAY.plusDays(2));
+        ExternalRecord record = newRecord();
+        record.markProcessed(mission);
+
+        service(true).hide(record);
+
+        assertThat(record.getReviewReason()).isEqualTo(ReviewReason.ORIGIN_UNAVAILABLE);
+        assertThat(mission.getStatus()).isEqualTo(MissionStatus.CHECK_REQUIRED);
+
+        verify(notificationService, never()).createExternalEventCancelledNotifications(any());
+
+        verify(familyMissionRecommendationService, never()).replaceWeeklyMissionsByMissionId(any());
+    }
+
+    @Test
+    @DisplayName("외부 취소가 아닌 일반 제외 사유에는 취소 알림을 생성하지 않는다.")
+    void apply_excludedTypeDoesNotCreateExternalCancellationNotification() {
+        Mission mission = periodMission(place(PLACE_NAME, ADDRESS, LATITUDE), TODAY, TODAY.plusDays(2));
+        ExternalRecord record = newRecord();
+        record.markProcessed(mission);
+
+        service(true).apply(record, new DraftResult.Ignored(ReviewReason.EXCLUDED_TYPE), TODAY);
+
+        assertThat(record.getReviewReason()).isEqualTo(ReviewReason.EXCLUDED_TYPE);
+        assertThat(mission.getStatus()).isEqualTo(MissionStatus.CHECK_REQUIRED);
+
+        verify(notificationService, never()).createExternalEventCancelledNotifications(any());
+
+        verify(familyMissionRecommendationService, never()).replaceWeeklyMissionsByMissionId(any());
+    }
+
     private MissionGenerationService service(boolean autoPublish) {
         return new MissionGenerationService(placeRepository, missionRepository, missionChecklistItemRepository,
-                new MissionProperties(autoPublish));
+                new MissionProperties(autoPublish), familyMissionRecommendationService, notificationService);
     }
 
     private void givenNoPlaces() {

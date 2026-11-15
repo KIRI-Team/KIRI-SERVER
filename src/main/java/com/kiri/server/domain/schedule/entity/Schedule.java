@@ -78,6 +78,16 @@ public class Schedule extends BaseEntity {
     @Column(name = "representative_review_photo_id")
     private Long representativeReviewPhotoId;
 
+    @Column(name = "response_reminder_at")
+    private LocalDateTime responseReminderAt;
+
+    @Column(name = "invite_version", nullable = false)
+    @Builder.Default
+    private Integer inviteVersion = 1;
+
+    @Column(name = "reconfirm_reminder_at")
+    private LocalDateTime reconfirmReminderAt;
+
     public static Schedule create(Family family, BucketItem bucketItem, Member proposer,
                                   LocalDate scheduleDate, LocalTime scheduleTime,
                                   String requestMessage, LocalDateTime responseDeadline) {
@@ -117,6 +127,8 @@ public class Schedule extends BaseEntity {
 
     public void cancel() {
         this.status = ScheduleStatus.CANCELLED;
+        this.responseReminderAt = null;
+        this.reconfirmReminderAt = null;
     }
 
     public boolean isProposer(Long memberId) {
@@ -156,5 +168,25 @@ public class Schedule extends BaseEntity {
         if (representativeReviewPhotoId != null && reviewPhotoIds.contains(representativeReviewPhotoId)) {
             this.representativeReviewPhotoId = null;
         }
+    }
+
+    public void updateResponseReminderAt(LocalDateTime responseReminderAt) {
+        this.responseReminderAt = responseReminderAt;
+    }
+
+    public void increaseInviteVersion() {
+        this.inviteVersion++;
+    }
+
+    public void clearResponseReminderAt() {
+        this.responseReminderAt = null;
+    }
+
+    public void updateReconfirmReminderAt(LocalDateTime reconfirmReminderAt) {
+        this.reconfirmReminderAt = reconfirmReminderAt;
+    }
+
+    public void clearReconfirmReminderAt() {
+        this.reconfirmReminderAt = null;
     }
 }

@@ -16,4 +16,6 @@ public interface MemberAnswerRepository extends JpaRepository<MemberAnswer, Long
 
     List<MemberAnswer> findAllByMemberId(Long memberId);
     List<MemberAnswer> findAllByMember_IdIn(Collection<Long> memberIds);
+
+    boolean existsByFamilyQuestionAndMember(FamilyQuestion familyQuestion, Member member);
 }

@@ -52,4 +52,9 @@ public class FamilyMissionRecommendation extends BaseEntity {
     public void markCompleted(LocalDateTime completedAt) {
         this.completedAt = completedAt;
     }
+
+    public void replaceMission(Mission mission, BigDecimal recommendationScore) {
+        this.mission = mission;
+        this.recommendationScore = recommendationScore;
+    }
 }

@@ -8,6 +8,7 @@ import com.kiri.server.domain.member.exception.MemberException;
 import com.kiri.server.domain.member.exception.code.MemberErrorCode;
 import com.kiri.server.domain.member.repository.MemberRepository;
 import com.kiri.server.domain.mission.enums.Category;
+import com.kiri.server.domain.notification.service.NotificationService;
 import com.kiri.server.domain.question.dto.PreferenceClassification;
 import com.kiri.server.domain.question.dto.QuestionReqDTO;
 import com.kiri.server.domain.question.dto.QuestionResDTO;
@@ -85,6 +86,9 @@ class QuestionServiceTest {
     @Mock
     private AiService aiService;
 
+    @Mock
+    private NotificationService notificationService;
+
     private QuestionService questionService;
 
     private final Clock clock = Clock.fixed(Instant.parse("2026-10-10T03:00:00Z"), ZoneId.of("Asia/Seoul"));
@@ -104,7 +108,7 @@ class QuestionServiceTest {
     @BeforeEach
     void setUp() {
         questionService = new QuestionService(
-                memberRepository, familyQuestionRepository, memberAnswerRepository, memberAnswerCategoryRepository, clock, pokeRepository, eventPublisher, familyRepository, questionRepository, aiService
+                memberRepository, familyQuestionRepository, memberAnswerRepository, memberAnswerCategoryRepository, clock, pokeRepository, eventPublisher, familyRepository, questionRepository, aiService, notificationService
         );
     }
 
@@ -253,12 +257,16 @@ class QuestionServiceTest {
                 .build();
         given(memberRepository.findById(MEMBER_ID)).willReturn(Optional.of(member));
         given(familyQuestionRepository.findById(FAMILY_QUESTION_ID)).willReturn(Optional.of(yesterdayQuestion));
+        given(familyQuestionRepository.findByIdForUpdate(FAMILY_QUESTION_ID))
+                .willReturn(Optional.of(yesterdayQuestion));
 
         assertThatThrownBy(() -> questionService.writeAnswer(MEMBER_ID, FAMILY_QUESTION_ID, WRITE_REQUEST))
                 .isInstanceOf(QuestionException.class)
                 .extracting("errorCode")
                 .isEqualTo(QuestionErrorCode.ANSWER_PERIOD_EXPIRED);
         verify(memberAnswerRepository, never()).findByFamilyQuestionAndMember(any(), any());
+        verify(notificationService, never()).cancelQuestionReminder(any(), any());
+        verify(notificationService, never()).createFamilyAnswerCompleteNotifications(any(), any());
     }
 
     @Test
@@ -268,6 +276,8 @@ class QuestionServiceTest {
         given(familyQuestionRepository.findById(FAMILY_QUESTION_ID)).willReturn(Optional.of(familyQuestion));
         given(memberAnswerRepository.findByFamilyQuestionAndMember(familyQuestion, member))
                 .willReturn(Optional.empty());
+        given(familyQuestionRepository.findByIdForUpdate(FAMILY_QUESTION_ID)).willReturn(Optional.of(familyQuestion));
+        given(familyQuestionRepository.findByIdForUpdate(FAMILY_QUESTION_ID)).willReturn(Optional.of(familyQuestion));
 
         questionService.writeAnswer(MEMBER_ID, FAMILY_QUESTION_ID, WRITE_REQUEST);
 
@@ -278,6 +288,10 @@ class QuestionServiceTest {
         assertThat(saved.getContent()).isEqualTo(WRITE_REQUEST.answer());
         assertThat(saved.getFamilyQuestion()).isEqualTo(familyQuestion);
         assertThat(saved.getMember()).isEqualTo(member);
+
+        verify(notificationService).cancelQuestionReminder(member, familyQuestion);
+
+        verify(notificationService).createFamilyAnswerCompleteNotifications(member, familyQuestion);
     }
 
     @Test
@@ -292,11 +306,14 @@ class QuestionServiceTest {
         given(familyQuestionRepository.findById(FAMILY_QUESTION_ID)).willReturn(Optional.of(familyQuestion));
         given(memberAnswerRepository.findByFamilyQuestionAndMember(familyQuestion, member))
                 .willReturn(Optional.of(existing));
+        given(familyQuestionRepository.findByIdForUpdate(FAMILY_QUESTION_ID)).willReturn(Optional.of(familyQuestion));
 
         questionService.writeAnswer(MEMBER_ID, FAMILY_QUESTION_ID, WRITE_REQUEST);
 
         assertThat(existing.getContent()).isEqualTo(WRITE_REQUEST.answer());
         verify(memberAnswerRepository, never()).save(any());
+        verify(notificationService).cancelQuestionReminder(member, familyQuestion);
+        verify(notificationService, never()).createFamilyAnswerCompleteNotifications(any(), any());
     }
 
     @Test
@@ -306,6 +323,7 @@ class QuestionServiceTest {
         given(familyQuestionRepository.findById(FAMILY_QUESTION_ID)).willReturn(Optional.of(familyQuestion));
         given(memberAnswerRepository.findByFamilyQuestionAndMember(familyQuestion, member))
                 .willReturn(Optional.empty());
+        given(familyQuestionRepository.findByIdForUpdate(FAMILY_QUESTION_ID)).willReturn(Optional.of(familyQuestion));
         // 조회 시점엔 없었지만 다른 요청이 먼저 저장한 상황
         given(memberAnswerRepository.save(any(MemberAnswer.class))).willThrow(new DataIntegrityViolationException(
                 "could not execute statement",
@@ -316,6 +334,9 @@ class QuestionServiceTest {
                 .isInstanceOf(QuestionException.class)
                 .extracting("errorCode")
                 .isEqualTo(QuestionErrorCode.DUPLICATE_ANSWER_REQUEST);
+
+        verify(notificationService, never()).cancelQuestionReminder(any(), any());
+        verify(notificationService, never()).createFamilyAnswerCompleteNotifications(any(), any());
     }
 
     @Test
@@ -331,8 +352,13 @@ class QuestionServiceTest {
                 new PSQLException(new ServerErrorMessage(
                         "SERROR\0C23503\0Minsert or update violates foreign key constraint\0nfk_member_answer_member\0"))));
 
+        given(familyQuestionRepository.findByIdForUpdate(FAMILY_QUESTION_ID)).willReturn(Optional.of(familyQuestion));
+
         assertThatThrownBy(() -> questionService.writeAnswer(MEMBER_ID, FAMILY_QUESTION_ID, WRITE_REQUEST))
                 .isInstanceOf(DataIntegrityViolationException.class);
+
+        verify(notificationService, never()).cancelQuestionReminder(any(), any());
+        verify(notificationService, never()).createFamilyAnswerCompleteNotifications(any(), any());
     }
 
     @Test
@@ -458,6 +484,7 @@ class QuestionServiceTest {
                 .extracting("errorCode")
                 .isEqualTo(QuestionErrorCode.SELF_POKE);
         verify(memberRepository, never()).findById(any());
+        verify(notificationService, never()).createPokeNotification(any(), any(), any());
     }
 
     @Test
@@ -469,6 +496,8 @@ class QuestionServiceTest {
                 .isInstanceOf(MemberException.class)
                 .extracting("errorCode")
                 .isEqualTo(MemberErrorCode.NOT_FOUND);
+
+        verify(notificationService, never()).createPokeNotification(any(), any(), any());
     }
 
     @Test
@@ -482,6 +511,7 @@ class QuestionServiceTest {
                 .extracting("errorCode")
                 .isEqualTo(QuestionErrorCode.FAMILY_REQUIRED);
         verify(memberRepository, never()).findById(RECEIVER_ID);
+        verify(notificationService, never()).createPokeNotification(any(), any(), any());
     }
 
     @Test
@@ -494,6 +524,8 @@ class QuestionServiceTest {
                 .isInstanceOf(QuestionException.class)
                 .extracting("errorCode")
                 .isEqualTo(QuestionErrorCode.POKE_RECEIVER_NOT_FOUND);
+
+        verify(notificationService, never()).createPokeNotification(any(), any(), any());
     }
 
     @Test
@@ -509,6 +541,7 @@ class QuestionServiceTest {
                 .extracting("errorCode")
                 .isEqualTo(QuestionErrorCode.POKE_RECEIVER_NOT_FOUND);
         verify(pokeRepository, never()).save(any());
+        verify(notificationService, never()).createPokeNotification(any(), any(), any());
     }
 
     @Test
@@ -522,6 +555,8 @@ class QuestionServiceTest {
                 .isInstanceOf(QuestionException.class)
                 .extracting("errorCode")
                 .isEqualTo(QuestionErrorCode.POKE_RECEIVER_NOT_FOUND);
+
+        verify(notificationService, never()).createPokeNotification(any(), any(), any());
     }
 
     @Test
@@ -536,6 +571,7 @@ class QuestionServiceTest {
                 .extracting("errorCode")
                 .isEqualTo(QuestionErrorCode.ALREADY_POKED);
         verify(pokeRepository, never()).save(any());
+        verify(notificationService, never()).createPokeNotification(any(), any(), any());
         verify(eventPublisher, never()).publishEvent(any(Object.class));
     }
 
@@ -556,6 +592,7 @@ class QuestionServiceTest {
         assertThat(saved.getReceiver()).isEqualTo(receiver);
         assertThat(saved.getPokeDate()).isEqualTo(today);
 
+        verify(notificationService).createPokeNotification(member, receiver, today);
         verify(eventPublisher).publishEvent(new PokeEvent(MEMBER_ID, RECEIVER_ID));
     }
 
@@ -574,6 +611,7 @@ class QuestionServiceTest {
                 .isInstanceOf(QuestionException.class)
                 .extracting("errorCode")
                 .isEqualTo(QuestionErrorCode.ALREADY_POKED);
+        verify(notificationService, never()).createPokeNotification(any(), any(), any());
         verify(eventPublisher, never()).publishEvent(any(Object.class));
     }
 
@@ -591,6 +629,8 @@ class QuestionServiceTest {
 
         assertThatThrownBy(() -> questionService.poke(MEMBER_ID, RECEIVER_ID))
                 .isInstanceOf(DataIntegrityViolationException.class);
+
+        verify(notificationService, never()).createPokeNotification(any(), any(), any());
     }
 
     @Test

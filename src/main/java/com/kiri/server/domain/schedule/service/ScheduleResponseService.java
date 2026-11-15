@@ -3,6 +3,7 @@ package com.kiri.server.domain.schedule.service;
 import com.kiri.server.domain.member.exception.MemberException;
 import com.kiri.server.domain.member.exception.code.MemberErrorCode;
 import com.kiri.server.domain.member.repository.MemberRepository;
+import com.kiri.server.domain.notification.service.NotificationService;
 import com.kiri.server.domain.schedule.converter.ScheduleConverter;
 import com.kiri.server.domain.schedule.dto.ScheduleReqDTO;
 import com.kiri.server.domain.schedule.dto.ScheduleResDTO;
@@ -29,6 +30,7 @@ public class ScheduleResponseService {
     private final ScheduleParticipantRepository scheduleParticipantRepository;
     private final MemberRepository memberRepository;
     private final Clock clock;
+    private final NotificationService notificationService;
 
     @Transactional
     public ScheduleResDTO.Responded respond(Long memberId, Long scheduleId, ScheduleReqDTO.Response request) {
@@ -52,12 +54,29 @@ public class ScheduleResponseService {
             throw new ScheduleException(ScheduleErrorCode.RESPONSE_CLOSED);
         }
 
-        participant.respond(request.action().toParticipantStatus(), now);
+        ParticipantStatus previousParticipantStatus = participant.getStatus();
+        ParticipantStatus newParticipantStatus = request.action().toParticipantStatus();
+
+        participant.respond(newParticipantStatus, now);
+
+        ScheduleStatus previousStatus = schedule.getStatus();
 
         long acceptedExcludingProposer = scheduleParticipantRepository
-                .countBySchedule_IdAndStatusAndReconfirmRequiredFalseAndMember_IdNot(scheduleId,
-                        ParticipantStatus.ACCEPTED, schedule.getProposer().getId());
+                .countBySchedule_IdAndStatusAndReconfirmRequiredFalseAndMember_IdNot(
+                        scheduleId,
+                        ParticipantStatus.ACCEPTED,
+                        schedule.getProposer().getId());
+
         schedule.recalculateStatus(acceptedExcludingProposer, now);
+
+        if (previousParticipantStatus != newParticipantStatus) {
+            notificationService.createScheduleResponseNotification(schedule, participant);
+        }
+
+        if (previousStatus == ScheduleStatus.PENDING_RESPONSE && schedule.getStatus() == ScheduleStatus.CONFIRMED) {
+            notificationService.createScheduleConfirmedNotifications(schedule);
+            notificationService.createScheduleD1ReminderIfDue(schedule, now);
+        }
 
         return ScheduleConverter.toResponded(schedule, participant);
     }
@@ -73,6 +92,11 @@ public class ScheduleResponseService {
         long acceptedExcludingProposer = scheduleParticipantRepository
                 .countBySchedule_IdAndStatusAndReconfirmRequiredFalseAndMember_IdNot(scheduleId,
                         ParticipantStatus.ACCEPTED, schedule.getProposer().getId());
+        ScheduleStatus previousStatus = schedule.getStatus();
         schedule.recalculateStatus(acceptedExcludingProposer, now);
+        if (previousStatus == ScheduleStatus.PENDING_RESPONSE
+                && schedule.getStatus() == ScheduleStatus.NOT_CONFIRMED) {
+            notificationService.createScheduleNotConfirmedNotification(schedule);
+        }
     }
 }
