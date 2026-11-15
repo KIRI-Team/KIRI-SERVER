@@ -7,8 +7,11 @@ import com.kiri.server.domain.member.exception.MemberException;
 import com.kiri.server.domain.member.exception.code.MemberErrorCode;
 import com.kiri.server.domain.member.repository.MemberRepository;
 import com.kiri.server.domain.mission.entity.Mission;
+import com.kiri.server.domain.mission.entity.MissionChecklistItem;
 import com.kiri.server.domain.mission.enums.Category;
 import com.kiri.server.domain.mission.enums.IndoorOutdoor;
+import com.kiri.server.domain.mission.enums.ItemType;
+import com.kiri.server.domain.mission.repository.MissionChecklistItemRepository;
 import com.kiri.server.domain.mission.service.NearbyMissionFinder;
 import com.kiri.server.domain.place.entity.Place;
 import com.kiri.server.domain.review.entity.ReviewPhoto;
@@ -33,9 +36,13 @@ import com.kiri.server.domain.schedule.repository.ScheduleParticipantRepository;
 import com.kiri.server.domain.schedule.repository.ScheduleRepository;
 import com.kiri.server.domain.taste.service.FamilyTasteScoreService;
 import com.kiri.server.domain.taste.service.TasteProfileService;
+import com.kiri.server.domain.weather.dto.WeatherSummary;
+import com.kiri.server.domain.weather.service.WeatherService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.math.BigDecimal;
 import java.time.Clock;
@@ -61,6 +68,7 @@ public class ScheduleQueryService {
     private static final String REST_REASON = "잠깐 쉬어가기 좋은 곳이에요";
     private static final String NEAR_REASON = "일정 장소에서 가까운 곳이에요";
     private static final int LOW_PRICE = 10_000;
+    static final int DEFAULT_ACTIVITY_MINUTES = 180;
 
     private final ScheduleRepository scheduleRepository;
     private final ScheduleParticipantRepository scheduleParticipantRepository;
@@ -72,6 +80,9 @@ public class ScheduleQueryService {
     private final ReviewPhotoRepository reviewPhotoRepository;
     private final ImageUrlService imageUrlService;
     private final Clock clock;
+    private final MissionChecklistItemRepository missionChecklistItemRepository;
+    private final WeatherService weatherService;
+    private final PlatformTransactionManager transactionManager;
 
     @Transactional(readOnly = true)
     public ScheduleResDTO.Calendar getCalendar(Long memberId, ScheduleReqDTO.CalendarCondition condition) {
@@ -327,5 +338,65 @@ public class ScheduleQueryService {
         List<ScheduleParticipant> participants = scheduleParticipantRepository.findAllWithMemberByScheduleId(scheduleId);
 
         return ScheduleConverter.toDetail(schedule, participants, LocalDate.now(clock));
+    }
+
+    // DB 조회에만 트랜잭션을 걸고, 날씨 API는 트랜잭션 밖에서 호출해 커넥션을 잡지 않음
+    public List<MissionResDTO.ChecklistItem> getEssentials(Long memberId, Long scheduleId) {
+        TransactionTemplate readOnly = new TransactionTemplate(transactionManager);
+        readOnly.setReadOnly(true);
+        EssentialSource source = readOnly.execute(status -> loadEssentialSource(memberId, scheduleId));
+        WeatherSummary weather = source.weatherNeeded()
+                ? weatherService.summarize(source.latitude(), source.longitude(), source.start(), source.end())
+                .orElse(null)
+                : null;
+        return ScheduleEssentialPlanner.plan(source.items(), weather, source.indoorOutdoor());
+    }
+
+    private EssentialSource loadEssentialSource(Long memberId, Long scheduleId) {
+        Member member = memberRepository.findById(memberId)
+                .orElseThrow(() -> new MemberException(MemberErrorCode.NOT_FOUND));
+        Family family = member.getFamily();
+        if (family == null) {
+            throw new ScheduleException(ScheduleErrorCode.FAMILY_REQUIRED);
+        }
+        Schedule schedule = scheduleRepository.findWithMissionByIdAndFamilyId(scheduleId, family.getId())
+                .orElseThrow(() -> new ScheduleException(ScheduleErrorCode.SCHEDULE_NOT_FOUND));
+        if (schedule.getStatus() == ScheduleStatus.CANCELLED) {
+            throw new ScheduleException(ScheduleErrorCode.SCHEDULE_CANCELLED);
+        }
+
+        Mission mission = schedule.getBucketItem().getMission();
+        Place place = mission.getPlace();
+        List<MissionChecklistItem> items = missionChecklistItemRepository
+                .findAllByMissionAndItemTypeOrderByDisplayOrderAsc(mission, ItemType.PREPARE);
+
+        boolean weatherNeeded = !isOver(schedule) && schedule.getScheduleTime() != null && place != null
+                && ScheduleEssentialPlanner.isOutdoor(mission.getIndoorOutdoor());
+        if (!weatherNeeded) {
+            return new EssentialSource(items, mission.getIndoorOutdoor(), false, null, null, null, null);
+        }
+        LocalDateTime start = schedule.startDateTime();
+        int activityMinutes = mission.getDurationMaxMinutes() != null
+                ? mission.getDurationMaxMinutes() : DEFAULT_ACTIVITY_MINUTES;
+        return new EssentialSource(items, mission.getIndoorOutdoor(), true, place.getLatitude(), place.getLongitude(),
+                start, start.plusMinutes(activityMinutes));
+    }
+
+    // 지난 일정은 날씨 항목을 붙이지 않음
+    private boolean isOver(Schedule schedule) {
+        return schedule.getStatus() == ScheduleStatus.COMPLETED
+                || schedule.getScheduleDate() == null
+                || schedule.getScheduleDate().isBefore(LocalDate.now(clock));
+    }
+
+    private record EssentialSource(
+            List<MissionChecklistItem> items,
+            IndoorOutdoor indoorOutdoor,
+            boolean weatherNeeded,
+            BigDecimal latitude,
+            BigDecimal longitude,
+            LocalDateTime start,
+            LocalDateTime end
+    ) {
     }
 }

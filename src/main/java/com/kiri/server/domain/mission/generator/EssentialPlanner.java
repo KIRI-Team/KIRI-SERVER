@@ -24,7 +24,7 @@ public class EssentialPlanner {
     static final int LONG_OUTDOOR_MINUTES = 180;
     private static final int MAX_ITEM_LENGTH = 20;
     private static final String OFFICIAL_DESCRIPTION = "공식 안내에 있는 준비물이에요.";
-    private static final String BENEFIT_DESCRIPTION = "챙겨 가면 혜택을 받을 수 있어요.";
+    public static final String BENEFIT_DESCRIPTION = "챙겨 가면 혜택을 받을 수 있어요.";
     private static final Essential COMFORTABLE_SHOES = new Essential("편한 신발", "많이 걷는 일정이에요.");
     private static final Essential WATER = new Essential("물", "야외에 오래 머무는 일정이에요.");
     private static final Essential SPARE_CLOTHES = new Essential("여벌옷", "물에 젖을 수 있는 활동이에요.");
