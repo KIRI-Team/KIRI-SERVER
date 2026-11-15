@@ -1,5 +1,6 @@
 package com.kiri.server.domain.external.client.kma;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 
@@ -11,6 +12,10 @@ public final class KmaBaseTime {
     private static final int AVAILABLE_AFTER_MINUTES = 10;
 
     private KmaBaseTime() {
+    }
+
+    public static LocalDateTime firstOf(LocalDate date) {
+        return date.atTime(FIRST_HOUR, 0);
     }
 
     public static LocalDateTime latest(LocalDateTime now) {

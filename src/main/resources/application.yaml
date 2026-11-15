@@ -114,7 +114,7 @@ kma:
   base-url: https://apihub.kma.go.kr/api/typ02/openApi/VilageFcstInfoService_2.0
   auth-key: ${KMA_API_KEY:}
   connect-timeout: 2s
-  read-timeout: 3s
+  read-timeout: 5s
 
 aws:
   s3:
