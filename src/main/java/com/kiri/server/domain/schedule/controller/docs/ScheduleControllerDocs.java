@@ -849,6 +849,7 @@ public interface ScheduleControllerDocs {
                       - ACCEPTED: 수락
                       - DECLINED: 거절
                       - RECONFIRM_REQUIRED: 일정 변경으로 재확인 필요
+                    - changedFields: myStatus가 RECONFIRM_REQUIRED일 때 바뀐 항목 (DATE / TIME / PARTICIPANTS). 그 외에는 빈 배열입니다.
                     - canRespond: 수락·거절 가능 여부 (초대 대상이고 응답 마감 전)
                     - canEdit: 일정 변경 가능 여부 (제안자이고 시작 전인 응답 대기·확정 일정)
                     - canCancel: 일정 취소 가능 여부 (제안자이고 응답 대기·확정 일정)
@@ -883,6 +884,7 @@ public interface ScheduleControllerDocs {
                                         },
                                         "requestMessage": "엄마, 아빠 나 여기 가고싶은데 같이 갈래요??",
                                         "myStatus": "PENDING",
+                                        "changedFields": [],
                                         "canRespond": true,
                                         "canEdit": false,
                                         "canCancel": false,

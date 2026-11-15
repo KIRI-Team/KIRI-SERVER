@@ -7,6 +7,7 @@ import com.kiri.server.domain.mission.enums.WalkingLevel;
 import com.kiri.server.domain.schedule.enums.CalendarMyStatus;
 import com.kiri.server.domain.schedule.enums.ConditionType;
 import com.kiri.server.domain.schedule.enums.ParticipantStatus;
+import com.kiri.server.domain.schedule.enums.ScheduleChangeField;
 import com.kiri.server.domain.schedule.enums.ScheduleDetailStatus;
 import com.kiri.server.domain.schedule.enums.ScheduleStatus;
 import com.kiri.server.domain.schedule.enums.UpcomingCardType;
@@ -131,6 +132,7 @@ public class ScheduleResDTO {
             Proposer proposer,
             String requestMessage,
             CalendarMyStatus myStatus,
+            List<ScheduleChangeField> changedFields,
             boolean canRespond,
             boolean canEdit,
             boolean canCancel,

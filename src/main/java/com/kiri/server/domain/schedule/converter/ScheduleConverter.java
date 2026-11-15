@@ -141,6 +141,8 @@ public class ScheduleConverter {
                 .proposer(toProposer(schedule.getProposer()))
                 .requestMessage(schedule.getRequestMessage())
                 .myStatus(toMyStatus(myParticipant))
+                .changedFields(myParticipant == null || !Boolean.TRUE.equals(myParticipant.getReconfirmRequired())
+                        ? List.of() : myParticipant.getChangedFields())
                 .canRespond(myParticipant != null && !isProposer && schedule.isResponseOpen(now))
                 .canEdit(isProposer && schedule.isUpdatable() && !schedule.hasStarted(now))
                 .canCancel(isProposer && schedule.isCancelable())
