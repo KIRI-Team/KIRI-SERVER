@@ -18,7 +18,8 @@ public class ScheduleD1ReminderScheduler {
     @Scheduled(cron = "0 0 19 * * *", zone = "Asia/Seoul")
     public void sendD1Reminders() {
         LocalDateTime now = LocalDateTime.now(clock);
+        LocalDateTime cutoff = now.toLocalDate().atTime(19, 0);
 
-        notificationService.createScheduleD1ReminderNotifications(now.toLocalDate().plusDays(1), now);
+        notificationService.createScheduleD1ReminderNotifications(now.toLocalDate().plusDays(1), cutoff);
     }
 }

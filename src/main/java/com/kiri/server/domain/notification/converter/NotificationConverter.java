@@ -262,4 +262,20 @@ public class NotificationConverter {
                 .referenceDate(schedule.getScheduleDate())
                 .build();
     }
+
+    public static Notification toScheduleD0Reminder(Member receiver, Schedule schedule) {
+        String missionTitle = schedule.getBucketItem().getMission().getTitle();
+
+        return Notification.builder()
+                .member(receiver)
+                .notificationType(NotificationType.SCHEDULE_D0_REMINDER)
+                .title("오늘 가족과 함께할 시간이 다가와요!")
+                .body("'" + missionTitle + "' 일정이 2시간 후에 시작돼요. 즐거운 시간 보내세요!")
+                .status(NotificationStatus.PENDING)
+                .isRead(false)
+                .referenceId(schedule.getId())
+                .referenceVersion(schedule.getInviteVersion())
+                .referenceDate(schedule.getScheduleDate())
+                .build();
+    }
 }

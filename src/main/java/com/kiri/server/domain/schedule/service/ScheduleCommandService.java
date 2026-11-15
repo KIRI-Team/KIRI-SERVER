@@ -305,6 +305,7 @@ public class ScheduleCommandService {
         if (coreChanged) {
             notificationService.cancelScheduleInvitationReminders(scheduleId);
             notificationService.cancelScheduleD1Reminders(scheduleId);
+            notificationService.cancelScheduleD0Reminders(scheduleId);
 
             keptAccepted.forEach(ScheduleParticipant::markReconfirmRequired);
         }

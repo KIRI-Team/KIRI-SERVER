@@ -376,6 +376,8 @@ class ScheduleCommandServiceTest {
         assertThat(m2p.getReconfirmRequired()).isTrue();
         verify(scheduleParticipantRepository).saveAll(any());
         verify(notificationService).cancelScheduleInvitationReminders(SCHEDULE_ID);
+        verify(notificationService).cancelScheduleD1Reminders(SCHEDULE_ID);
+        verify(notificationService).cancelScheduleD0Reminders(SCHEDULE_ID);
         verify(notificationService).createScheduleUpdateNotifications(eq(schedule), anyList(), anyList(), anyList());
         assertThat(schedule.getInviteVersion()).isEqualTo(2);
         assertThat(schedule.getReconfirmReminderAt()).isEqualTo(LocalDateTime.of(2026, 12, 20, 11, 0));

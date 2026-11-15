@@ -360,7 +360,9 @@ public class NotificationService {
         Long scheduleId = schedule.getId();
         Long proposerId = schedule.getProposer().getId();
 
-        List<Notification> pendingNotifications = notificationRepository.findAllByReferenceIdAndStatus(scheduleId, NotificationStatus.PENDING);
+        List<NotificationType> scheduleNotificationTypes = List.of(NotificationType.SCHEDULE, NotificationType.SCHEDULE_INVITATION, NotificationType.SCHEDULE_INVITATION_REMINDER, NotificationType.SCHEDULE_RESPONSE, NotificationType.SCHEDULE_CHANGED, NotificationType.SCHEDULE_REMOVED, NotificationType.SCHEDULE_RECONFIRM_REMINDER, NotificationType.SCHEDULE_D1_REMINDER, NotificationType.SCHEDULE_D0_REMINDER);
+
+        List<Notification> pendingNotifications = notificationRepository.findAllByNotificationTypeInAndReferenceIdAndStatus(scheduleNotificationTypes, scheduleId, NotificationStatus.PENDING);
 
         pendingNotifications.forEach(Notification::cancel);
 
@@ -478,5 +480,53 @@ public class NotificationService {
         if (!notifications.isEmpty()) {
             notificationRepository.saveAll(notifications);
         }
+    }
+
+    @Transactional
+    public void createScheduleD0ReminderNotifications(LocalDate startDate, LocalDate endDate, LocalDateTime now) {
+        List<Schedule> schedules = scheduleRepository.findAllForD0Reminder(startDate, endDate, ScheduleStatus.CONFIRMED);
+
+        for (Schedule schedule : schedules) {
+            LocalDateTime scheduleDateTime = LocalDateTime.of(schedule.getScheduleDate(), schedule.getScheduleTime());
+
+            LocalDateTime reminderAt = scheduleDateTime.minusHours(2);
+
+            if (now.isBefore(reminderAt) || !now.isBefore(scheduleDateTime)) {
+                continue;
+            }
+
+            Map<Long, Member> receivers = new LinkedHashMap<>();
+
+            Member proposer = schedule.getProposer();
+
+            if (proposer != null) {
+                receivers.put(proposer.getId(), proposer);
+            }
+
+            List<ScheduleParticipant> participants = scheduleParticipantRepository.findAllConfirmedWithMemberByScheduleIdAndStatus(schedule.getId(), ParticipantStatus.ACCEPTED);
+
+            participants.stream()
+                    .filter(participant -> participant.getMember() != null)
+                    .map(ScheduleParticipant::getMember)
+                    .forEach(member -> receivers.putIfAbsent(member.getId(), member));
+
+            List<Notification> notifications = receivers.values().stream()
+                    .map(member -> NotificationConverter.toScheduleD0Reminder(member, schedule))
+                    .filter(notification -> !notificationRepository.existsByMemberAndNotificationTypeAndReferenceIdAndReferenceVersion(notification.getMember(),NotificationType.SCHEDULE_D0_REMINDER, schedule.getId(), schedule.getInviteVersion()))
+                    .toList();
+
+            if (!notifications.isEmpty()) {
+                notificationRepository.saveAll(notifications);
+            }
+
+            log.info("일정 당일 리마인더 생성 완료 scheduleId={}, notificationCount={}", schedule.getId(), notifications.size());
+        }
+    }
+
+    @Transactional
+    public void cancelScheduleD0Reminders(Long scheduleId) {
+        List<Notification> notifications = notificationRepository.findAllByNotificationTypeAndReferenceIdAndStatus(NotificationType.SCHEDULE_D0_REMINDER, scheduleId, NotificationStatus.PENDING);
+
+        notifications.forEach(Notification::cancel);
     }
 }

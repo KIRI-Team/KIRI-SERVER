@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDate;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -29,4 +30,6 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
     boolean existsByMemberAndNotificationTypeAndReferenceIdAndReferenceVersion(Member member, NotificationType notificationType, Long referenceId, Integer referenceVersion);
 
     List<Notification> findAllByReferenceIdAndStatus(Long referenceId, NotificationStatus status);
+
+    List<Notification> findAllByNotificationTypeInAndReferenceIdAndStatus(Collection<NotificationType> notificationTypes, Long referenceId, NotificationStatus status);
 }

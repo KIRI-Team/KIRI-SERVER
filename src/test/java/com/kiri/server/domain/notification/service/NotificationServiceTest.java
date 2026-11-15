@@ -1196,7 +1196,7 @@ class NotificationServiceTest {
                 .referenceId(schedule.getId())
                 .build();
 
-        given(notificationRepository.findAllByReferenceIdAndStatus(schedule.getId(), NotificationStatus.PENDING)).willReturn(List.of(pendingInvitation, pendingReminder));
+        given(notificationRepository.findAllByNotificationTypeInAndReferenceIdAndStatus(anyCollection(), eq(schedule.getId()), eq(NotificationStatus.PENDING))).willReturn(List.of(pendingInvitation, pendingReminder));
 
         given(scheduleParticipantRepository.findAllWithMemberByScheduleId(schedule.getId())).willReturn(List.of(proposer, participant));
 
@@ -1235,7 +1235,7 @@ class NotificationServiceTest {
         ScheduleParticipant proposer = createParticipant(schedule, member, ParticipantStatus.ACCEPTED);
         ScheduleParticipant participant = createParticipant(schedule, member2, ParticipantStatus.ACCEPTED);
 
-        given(notificationRepository.findAllByReferenceIdAndStatus(schedule.getId(), NotificationStatus.PENDING)).willReturn(List.of());
+        given(notificationRepository.findAllByNotificationTypeInAndReferenceIdAndStatus(anyCollection(), eq(schedule.getId()), eq(NotificationStatus.PENDING))).willReturn(List.of());
 
         given(scheduleParticipantRepository.findAllWithMemberByScheduleId(schedule.getId())).willReturn(List.of(proposer, participant));
 
@@ -1263,7 +1263,7 @@ class NotificationServiceTest {
 
         ScheduleParticipant participant = createParticipant(schedule, member2, ParticipantStatus.ACCEPTED);
 
-        given(notificationRepository.findAllByReferenceIdAndStatus(schedule.getId(), NotificationStatus.PENDING)).willReturn(List.of());
+        given(notificationRepository.findAllByNotificationTypeInAndReferenceIdAndStatus(anyCollection(), eq(schedule.getId()), eq(NotificationStatus.PENDING))).willReturn(List.of());
 
         given(scheduleParticipantRepository.findAllWithMemberByScheduleId(schedule.getId())).willReturn(List.of(participant));
 
@@ -1525,6 +1525,157 @@ class NotificationServiceTest {
         verify(notificationRepository).findAllByNotificationTypeAndReferenceIdAndStatus(NotificationType.SCHEDULE_D1_REMINDER, scheduleId, NotificationStatus.PENDING);
     }
 
+    @Test
+    @DisplayName("SC-10. 일정 시작 2시간 전이 지난 확정 일정에 D0 알림을 생성한다.")
+    void createScheduleD0ReminderNotificationsSuccess() {
+        Schedule schedule = createD0Schedule(TODAY, LocalTime.of(11, 30), ScheduleStatus.CONFIRMED, 1);
+
+        ScheduleParticipant accepted = createParticipant(schedule, member2, ParticipantStatus.ACCEPTED);
+
+        given(scheduleRepository.findAllForD0Reminder(TODAY, TODAY.plusDays(1), ScheduleStatus.CONFIRMED)).willReturn(List.of(schedule));
+
+        given(scheduleParticipantRepository.findAllConfirmedWithMemberByScheduleIdAndStatus(schedule.getId(), ParticipantStatus.ACCEPTED)).willReturn(List.of(accepted));
+
+        given(notificationRepository.existsByMemberAndNotificationTypeAndReferenceIdAndReferenceVersion(member, NotificationType.SCHEDULE_D0_REMINDER, schedule.getId(), 1)).willReturn(false);
+
+        given(notificationRepository.existsByMemberAndNotificationTypeAndReferenceIdAndReferenceVersion(member2, NotificationType.SCHEDULE_D0_REMINDER, schedule.getId(), 1)).willReturn(false);
+
+        notificationService.createScheduleD0ReminderNotifications(TODAY, TODAY.plusDays(1), NOW);
+
+        ArgumentCaptor<Iterable<Notification>> captor = ArgumentCaptor.forClass(Iterable.class);
+
+        verify(notificationRepository).saveAll(captor.capture());
+
+        List<Notification> saved = StreamSupport.stream(captor.getValue().spliterator(), false).toList();
+
+        assertThat(saved).hasSize(2);
+
+        assertThat(saved)
+                .extracting(Notification::getMember)
+                .containsExactlyInAnyOrder(member, member2);
+
+        assertThat(saved)
+                .extracting(Notification::getNotificationType)
+                .containsOnly(NotificationType.SCHEDULE_D0_REMINDER);
+
+        assertThat(saved)
+                .extracting(Notification::getTitle)
+                .containsOnly("오늘 가족과 함께할 시간이 다가와요!");
+
+        assertThat(saved)
+                .extracting(Notification::getBody)
+                .containsOnly("'공원 산책' 일정이 2시간 후에 시작돼요. 즐거운 시간 보내세요!");
+
+        assertThat(saved)
+                .extracting(Notification::getStatus)
+                .containsOnly(NotificationStatus.PENDING);
+
+        assertThat(saved)
+                .extracting(Notification::getIsRead)
+                .containsOnly(false);
+
+        assertThat(saved)
+                .extracting(Notification::getReferenceId)
+                .containsOnly(schedule.getId());
+
+        assertThat(saved)
+                .extracting(Notification::getReferenceVersion)
+                .containsOnly(1);
+    }
+
+    @Test
+    @DisplayName("SC-10. 2시간 이내에 생성된 일정도 D0 알림을 생성한다.")
+    void createScheduleD0ReminderNotificationsRecentlyCreated() {
+        Schedule schedule = createD0Schedule(TODAY, LocalTime.of(11, 30), ScheduleStatus.CONFIRMED, 1);
+
+        given(scheduleRepository.findAllForD0Reminder(TODAY, TODAY.plusDays(1), ScheduleStatus.CONFIRMED)).willReturn(List.of(schedule));
+
+        given(scheduleParticipantRepository.findAllConfirmedWithMemberByScheduleIdAndStatus(schedule.getId(), ParticipantStatus.ACCEPTED)).willReturn(List.of());
+
+        given(notificationRepository.existsByMemberAndNotificationTypeAndReferenceIdAndReferenceVersion(member, NotificationType.SCHEDULE_D0_REMINDER, schedule.getId(), 1)).willReturn(false);
+
+        ReflectionTestUtils.setField(schedule, "createdAt", NOW.minusMinutes(10));
+
+        notificationService.createScheduleD0ReminderNotifications(TODAY, TODAY.plusDays(1), NOW);
+
+        ArgumentCaptor<Iterable<Notification>> captor = ArgumentCaptor.forClass(Iterable.class);
+
+        verify(notificationRepository).saveAll(captor.capture());
+
+        List<Notification> saved = StreamSupport.stream(captor.getValue().spliterator(), false).toList();
+
+        assertThat(saved).hasSize(1);
+        assertThat(saved.get(0).getMember()).isEqualTo(member);
+        assertThat(saved.get(0).getNotificationType()).isEqualTo(NotificationType.SCHEDULE_D0_REMINDER);
+    }
+
+    @Test
+    @DisplayName("SC-10. 이미 시작한 일정에는 D0 알림을 생성하지 않는다.")
+    void createScheduleD0ReminderNotificationsAlreadyStarted() {
+        Schedule schedule = createD0Schedule(TODAY, LocalTime.of(9, 0), ScheduleStatus.CONFIRMED, 1);
+
+        given(scheduleRepository.findAllForD0Reminder(TODAY, TODAY.plusDays(1), ScheduleStatus.CONFIRMED)).willReturn(List.of(schedule));
+
+        notificationService.createScheduleD0ReminderNotifications(TODAY, TODAY.plusDays(1), NOW);
+
+        verify(scheduleParticipantRepository, never()).findAllConfirmedWithMemberByScheduleIdAndStatus(anyLong(), any());
+
+        verify(notificationRepository, never()).saveAll(anyList());
+    }
+
+    @Test
+    @DisplayName("SC-10. 동일한 일정 버전의 D0 알림이 이미 존재하면 중복 생성하지 않는다.")
+    void createScheduleD0ReminderNotificationsPreventDuplicate() {
+        Schedule schedule = createD0Schedule(TODAY, LocalTime.of(11, 30), ScheduleStatus.CONFIRMED ,1);
+
+        ScheduleParticipant accepted = createParticipant(schedule, member2, ParticipantStatus.ACCEPTED);
+
+        given(scheduleRepository.findAllForD0Reminder(TODAY, TODAY.plusDays(1), ScheduleStatus.CONFIRMED)).willReturn(List.of(schedule));
+
+        given(scheduleParticipantRepository.findAllConfirmedWithMemberByScheduleIdAndStatus(schedule.getId(), ParticipantStatus.ACCEPTED)).willReturn(List.of(accepted));
+
+        given(notificationRepository.existsByMemberAndNotificationTypeAndReferenceIdAndReferenceVersion(member, NotificationType.SCHEDULE_D0_REMINDER, schedule.getId(), 1)).willReturn(true);
+
+        given(notificationRepository.existsByMemberAndNotificationTypeAndReferenceIdAndReferenceVersion(member2, NotificationType.SCHEDULE_D0_REMINDER, schedule.getId(), 1)).willReturn(true);
+
+        notificationService.createScheduleD0ReminderNotifications(TODAY, TODAY.plusDays(1), NOW);
+
+        verify(notificationRepository, never()).saveAll(anyList());
+    }
+
+
+    @Test
+    @DisplayName("SC-10. 일정의 PENDING D0 알림만 취소하고 SENT 알림은 유지한다.")
+    void cancelScheduleD0RemindersSuccess() {
+        Long scheduleId = 300L;
+
+        Notification pendingNotification = Notification.builder()
+                .member(member)
+                .notificationType(NotificationType.SCHEDULE_D0_REMINDER)
+                .status(NotificationStatus.PENDING)
+                .isRead(false)
+                .referenceId(scheduleId)
+                .build();
+
+        Notification sentNotification = Notification.builder()
+                .member(member2)
+                .notificationType(NotificationType.SCHEDULE_D0_REMINDER)
+                .status(NotificationStatus.SENT)
+                .isRead(false)
+                .referenceId(scheduleId)
+                .build();
+
+        given(notificationRepository.findAllByNotificationTypeAndReferenceIdAndStatus(NotificationType.SCHEDULE_D0_REMINDER, scheduleId, NotificationStatus.PENDING)).willReturn(List.of(pendingNotification));
+
+        notificationService.cancelScheduleD0Reminders(scheduleId);
+
+        assertThat(pendingNotification.getStatus()).isEqualTo(NotificationStatus.CANCELLED);
+        assertThat(sentNotification.getStatus()).isEqualTo(NotificationStatus.SENT);
+
+        then(notificationRepository).should().findAllByNotificationTypeAndReferenceIdAndStatus(NotificationType.SCHEDULE_D0_REMINDER, scheduleId, NotificationStatus.PENDING);
+    }
+
+
     private MemberSetting createSetting(boolean enabled, LocalTime notificationTime) {
         return MemberSetting.builder()
                 .member(member)
@@ -1596,11 +1747,7 @@ class NotificationServiceTest {
                 .build();
     }
 
-    private Schedule createReconfirmSchedule(
-            ScheduleStatus status,
-            LocalDateTime responseDeadline,
-            LocalDateTime reconfirmReminderAt
-    ) {
+    private Schedule createReconfirmSchedule(ScheduleStatus status, LocalDateTime responseDeadline, LocalDateTime reconfirmReminderAt) {
         Mission mission = Mission.builder()
                 .id(100L)
                 .title("공원 산책")
@@ -1652,6 +1799,29 @@ class NotificationServiceTest {
                 .proposer(member)
                 .scheduleDate(scheduleDate)
                 .scheduleTime(LocalTime.of(14, 0))
+                .status(status)
+                .inviteVersion(inviteVersion)
+                .build();
+    }
+
+    private Schedule createD0Schedule(LocalDate scheduleDate, LocalTime scheduleTime, ScheduleStatus status, Integer inviteVersion) {
+        Mission mission = Mission.builder()
+                .id(100L)
+                .title("공원 산책")
+                .build();
+
+        BucketItem bucketItem = BucketItem.builder()
+                .id(200L)
+                .mission(mission)
+                .build();
+
+        return Schedule.builder()
+                .id(300L)
+                .family(family)
+                .bucketItem(bucketItem)
+                .proposer(member)
+                .scheduleDate(scheduleDate)
+                .scheduleTime(scheduleTime)
                 .status(status)
                 .inviteVersion(inviteVersion)
                 .build();
