@@ -149,7 +149,7 @@ public class ScheduleResDTO {
     @Builder
     public record ParticipantItem(
             String nickname,
-            boolean accepted
+            CalendarMyStatus status
     ) {
     }
 }

@@ -830,7 +830,7 @@ public interface ScheduleControllerDocs {
                     - 헤더: Authorization: Bearer {JWT 토큰}
                     - Path: scheduleId
 
-                    일정의 날짜, 시작 시간, 일정 상태, 초대 정보(제안자, 가족에게 한 줄), 내 응답 상태와 버튼 노출 여부, 참여자별 수락 여부를 조회합니다.
+                    일정의 날짜, 시작 시간, 일정 상태, 초대 정보(제안자, 가족에게 한 줄), 내 응답 상태와 버튼 노출 여부, 참여자별 응답 상태를 조회합니다.
                     초대받은 화면, 약속 확정·당일 화면, 일정 취소 확인 화면 모두 이 API로 처리합니다.
                     미션 정보(제목, 행사 설명, 장소, 걸음 수, 활동 시간)는 미션 상세 조회 API를 사용합니다.
 
@@ -854,7 +854,7 @@ public interface ScheduleControllerDocs {
                     - canCancel: 일정 취소 가능 여부 (제안자이고 응답 대기·확정 일정)
                     - participants: 제안자가 맨 앞이며, 이후 초대 순서입니다.
                       - nickname: 탈퇴한 회원은 "탈퇴한 사용자"로 표시합니다.
-                      - accepted: 수락했으면 true, 응답 대기·거절이면 false
+                      - status: 구성원별 응답 상태 (myStatus와 같은 값, NOT_INVITED는 나오지 않음)
                     - 같은 가족의 일정이면 초대받지 않은 구성원도 조회할 수 있으며, 다른 가족의 일정은 존재하지 않는 일정과 같이 404로 응답합니다.
                     - 취소된 일정은 조회할 수 없습니다. (409)
                     """
@@ -886,9 +886,9 @@ public interface ScheduleControllerDocs {
                                         "canEdit": false,
                                         "canCancel": false,
                                         "participants": [
-                                          { "nickname": "첫째", "accepted": true },
-                                          { "nickname": "엄마", "accepted": false },
-                                          { "nickname": "아빠", "accepted": false }
+                                          { "nickname": "첫째", "status": "ACCEPTED" },
+                                          { "nickname": "엄마", "status": "PENDING" },
+                                          { "nickname": "아빠", "status": "DECLINED" }
                                         ]
                                       }
                                     }

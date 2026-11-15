@@ -8,7 +8,6 @@ import com.kiri.server.domain.schedule.entity.ScheduleCondition;
 import com.kiri.server.domain.schedule.entity.ScheduleParticipant;
 import com.kiri.server.domain.schedule.enums.CalendarMyStatus;
 import com.kiri.server.domain.schedule.enums.ConditionType;
-import com.kiri.server.domain.schedule.enums.ParticipantStatus;
 import com.kiri.server.domain.schedule.enums.ScheduleDetailStatus;
 import com.kiri.server.domain.schedule.enums.UpcomingCardType;
 import com.kiri.server.domain.schedule.exception.ScheduleException;
@@ -167,7 +166,7 @@ public class ScheduleConverter {
     private static ScheduleResDTO.ParticipantItem toParticipantItem(ScheduleParticipant participant) {
         return ScheduleResDTO.ParticipantItem.builder()
                 .nickname(participant.getMember() == null ? "탈퇴한 사용자" : participant.getMember().getDisplayName())
-                .accepted(participant.getStatus() == ParticipantStatus.ACCEPTED)
+                .status(toMyStatus(participant))
                 .build();
     }
 
