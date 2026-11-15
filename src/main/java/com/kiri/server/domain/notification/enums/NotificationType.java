@@ -17,6 +17,7 @@ public enum NotificationType {
     POKE,
     RECORD,
     RECORD_CREATED,
+    WEEKLY_MISSION_COMPLETED,
     MISSION,
     MISSION_CHANGED
 }

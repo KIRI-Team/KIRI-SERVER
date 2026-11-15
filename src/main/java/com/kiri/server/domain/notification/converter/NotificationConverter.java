@@ -1,6 +1,7 @@
 package com.kiri.server.domain.notification.converter;
 
 import com.kiri.server.domain.member.entity.Member;
+import com.kiri.server.domain.mission.entity.FamilyMissionRecommendation;
 import com.kiri.server.domain.mission.entity.Mission;
 import com.kiri.server.domain.notification.entity.Notification;
 import com.kiri.server.domain.notification.enums.NotificationStatus;
@@ -307,6 +308,21 @@ public class NotificationConverter {
                 .isRead(false)
                 .referenceId(schedule.getId())
                 .referenceDate(schedule.getScheduleDate())
+                .build();
+    }
+
+    public static Notification toWeeklyMissionCompleted(Member member, FamilyMissionRecommendation recommendation) {
+        String missionTitle = recommendation.getMission().getTitle();
+
+        return Notification.builder()
+                .member(member)
+                .notificationType(NotificationType.WEEKLY_MISSION_COMPLETED)
+                .title("이번 주 가족 미션을 완료했어요!")
+                .body("우리 가족이 '" + missionTitle + "' 미션을 완료했어요. 함께한 추억을 확인해 보세요.")
+                .status(NotificationStatus.PENDING)
+                .isRead(false)
+                .referenceId(recommendation.getId())
+                .referenceDate(recommendation.getStartedAt().toLocalDate())
                 .build();
     }
 }

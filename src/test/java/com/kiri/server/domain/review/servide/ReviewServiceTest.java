@@ -12,6 +12,7 @@ import com.kiri.server.domain.member.repository.MemberRepository;
 import com.kiri.server.domain.mission.entity.FamilyMissionRecommendation;
 import com.kiri.server.domain.mission.entity.Mission;
 import com.kiri.server.domain.mission.repository.FamilyMissionRecommendationRepository;
+import com.kiri.server.domain.notification.service.NotificationService;
 import com.kiri.server.domain.review.dto.ReviewReqDTO;
 import com.kiri.server.domain.review.dto.ReviewResDTO;
 import com.kiri.server.domain.review.entity.Review;
@@ -76,6 +77,9 @@ class ReviewServiceTest {
     @Mock
     private MemberRepository memberRepository;
 
+    @Mock
+    private NotificationService notificationService;
+
     @InjectMocks
     private ReviewService reviewService;
 
@@ -98,6 +102,7 @@ class ReviewServiceTest {
         scheduleParticipant = ScheduleParticipant.builder()
                 .id(scheduleParticipantId)
                 .schedule(schedule)
+                .member(Member.builder().id(memberId).build())
                 .status(ParticipantStatus.ACCEPTED)
                 .build();
     }
@@ -356,6 +361,8 @@ class ReviewServiceTest {
 
         assertThat(bucketItem.getStatus()).isEqualTo(BucketStatus.COMPLETED);
         assertThat(recommendation.getCompletedAt()).isNotNull();
+
+        verify(notificationService).createWeeklyMissionCompletedNotifications(recommendation, participant.getMember());
     }
 
     @Test
@@ -379,6 +386,8 @@ class ReviewServiceTest {
         reviewService.createReview(memberId, scheduleId, createRequest());
 
         assertThat(recommendation.getCompletedAt()).isEqualTo(firstCompletedAt);
+
+        verify(notificationService, never()).createWeeklyMissionCompletedNotifications(any(), any());
     }
 
     @Test
@@ -402,6 +411,8 @@ class ReviewServiceTest {
 
         assertThat(bucketItem.getStatus()).isEqualTo(BucketStatus.COMPLETED);
         assertThat(recommendation.getCompletedAt()).isNull();
+
+        verify(notificationService, never()).createWeeklyMissionCompletedNotifications(any(), any());
     }
 
     private final Long reviewId = 1L;
@@ -651,5 +662,86 @@ class ReviewServiceTest {
                 .isInstanceOf(ScheduleException.class)
                 .extracting("errorCode")
                 .isEqualTo(ScheduleErrorCode.SCHEDULE_NOT_FOUND);
+    }
+
+    @Test
+    @DisplayName("일정이 주간 추천 미션과 연결되지 않으면 완료 알림을 생성하지 않는다")
+    void createReviewWithoutWeeklyRecommendation() {
+        Mission mission = Mission.builder()
+                .id(500L)
+                .build();
+
+        BucketItem bucketItem = BucketItem.builder()
+                .id(700L)
+                .family(family)
+                .mission(mission)
+                .status(BucketStatus.SCHEDULED)
+                .build();
+
+        Schedule target = scheduleWithBucket(bucketItem);
+
+        ScheduleParticipant participant = ScheduleParticipant.builder()
+                .id(scheduleParticipantId)
+                .schedule(target)
+                .member(Member.builder().id(memberId).build())
+                .status(ParticipantStatus.ACCEPTED)
+                .build();
+
+        stubCreateFlow(target, participant);
+
+        when(familyMissionRecommendationRepository
+                .findFirstByFamilyIdAndStartedAtLessThanEqualAndEndedAtGreaterThanOrderByStartedAtDesc(anyLong(), any(), any()))
+                .thenReturn(Optional.empty());
+
+        reviewService.createReview(memberId, scheduleId, createRequest());
+
+        assertThat(bucketItem.getStatus()).isEqualTo(BucketStatus.COMPLETED);
+
+        verify(notificationService, never()).createWeeklyMissionCompletedNotifications(any(), any());
+    }
+
+    @Test
+    @DisplayName("일정이 이미 완료되어 있어도 최초 주간 미션 완료 시 알림을 생성한다")
+    void createReviewOnCompletedScheduleCompletesWeeklyRecommendation() {
+        Mission mission = Mission.builder()
+                .id(500L)
+                .build();
+
+        BucketItem bucketItem = BucketItem.builder()
+                .id(700L)
+                .family(family)
+                .mission(mission)
+                .status(BucketStatus.SCHEDULED)
+                .build();
+
+        FamilyMissionRecommendation recommendation =
+                FamilyMissionRecommendation.builder()
+                        .id(900L)
+                        .mission(mission)
+                        .build();
+
+        Schedule target = scheduleWithBucket(bucketItem);
+        target.complete(LocalDateTime.now().minusHours(1));
+
+        ScheduleParticipant participant = ScheduleParticipant.builder()
+                .id(scheduleParticipantId)
+                .schedule(target)
+                .member(Member.builder().id(memberId).build())
+                .status(ParticipantStatus.ACCEPTED)
+                .build();
+
+        stubCreateFlow(target, participant);
+
+        when(familyMissionRecommendationRepository
+                .findFirstByFamilyIdAndStartedAtLessThanEqualAndEndedAtGreaterThanOrderByStartedAtDesc(anyLong(), any(), any()))
+                .thenReturn(Optional.of(recommendation));
+
+        reviewService.createReview(memberId, scheduleId, createRequest());
+
+        assertThat(target.getStatus()).isEqualTo(ScheduleStatus.COMPLETED);
+        assertThat(bucketItem.getStatus()).isEqualTo(BucketStatus.COMPLETED);
+        assertThat(recommendation.getCompletedAt()).isNotNull();
+
+        verify(notificationService).createWeeklyMissionCompletedNotifications(recommendation, participant.getMember());
     }
 }

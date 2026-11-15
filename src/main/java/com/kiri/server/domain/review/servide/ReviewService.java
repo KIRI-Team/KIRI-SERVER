@@ -87,21 +87,26 @@ public class ReviewService {
             reviewPhotoRepository.save(reviewPhoto);
         }
 
+        LocalDateTime now = LocalDateTime.now(ZoneId.of("Asia/Seoul"));
+
         if (schedule.getStatus() != ScheduleStatus.COMPLETED) {
-            LocalDateTime now = LocalDateTime.now(ZoneId.of("Asia/Seoul"));
             schedule.complete(now);
+        }
 
-            BucketItem bucketItem = schedule.getBucketItem();
-            if (bucketItem != null && bucketItem.getStatus() != BucketStatus.COMPLETED) {
+        BucketItem bucketItem = schedule.getBucketItem();
+
+        if (bucketItem != null) {
+            if (bucketItem.getStatus() != BucketStatus.COMPLETED) {
                 bucketItem.markCompleted(now);
-
-                familyMissionRecommendationRepository
-                        .findFirstByFamilyIdAndStartedAtLessThanEqualAndEndedAtGreaterThanOrderByStartedAtDesc(
-                                bucketItem.getFamily().getId(), now, now)
-                        .filter(recommendation -> recommendation.getCompletedAt() == null
-                                && recommendation.getMission().getId().equals(bucketItem.getMission().getId()))
-                        .ifPresent(recommendation -> recommendation.markCompleted(now));
             }
+
+            familyMissionRecommendationRepository
+                    .findFirstByFamilyIdAndStartedAtLessThanEqualAndEndedAtGreaterThanOrderByStartedAtDesc(bucketItem.getFamily().getId(), now, now)
+                    .filter(recommendation -> recommendation.getCompletedAt() == null && recommendation.getMission().getId().equals(bucketItem.getMission().getId()))
+                    .ifPresent(recommendation -> {
+                        recommendation.markCompleted(now);
+                        notificationService.createWeeklyMissionCompletedNotifications(recommendation, scheduleParticipant.getMember());
+                    });
         }
 
         notificationService.createReviewCreatedNotifications(schedule, scheduleParticipant);

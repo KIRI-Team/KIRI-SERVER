@@ -4,6 +4,7 @@ import com.kiri.server.domain.bucket.entity.BucketItem;
 import com.kiri.server.domain.family.entity.Family;
 import com.kiri.server.domain.member.entity.Member;
 import com.kiri.server.domain.member.repository.MemberRepository;
+import com.kiri.server.domain.mission.entity.FamilyMissionRecommendation;
 import com.kiri.server.domain.mission.entity.Mission;
 import com.kiri.server.domain.notification.entity.Notification;
 import com.kiri.server.domain.notification.enums.NotificationStatus;
@@ -33,6 +34,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -1928,6 +1930,89 @@ class NotificationServiceTest {
         verify(notificationRepository, never()).saveAll(any(Iterable.class));
     }
 
+    @Test
+    @DisplayName("RC-03. 주간 미션 완료 시 작성자를 제외한 가족 구성원에게 알림을 생성한다.")
+    void createWeeklyMissionCompletedNotificationsSuccess() {
+        FamilyMissionRecommendation recommendation = createFamilyMissionRecommendation();
+
+        given(memberRepository.findAllByFamilyAndDeletedAtIsNull(family)).willReturn(List.of(member, member2, member3));
+
+        notificationService.createWeeklyMissionCompletedNotifications(recommendation, member);
+
+        verify(notificationRepository).saveAll(notificationsCaptor.capture());
+
+        List<Notification> saved = StreamSupport.stream(notificationsCaptor.getValue().spliterator(), false).toList();
+
+        assertThat(saved).hasSize(2);
+
+        assertThat(saved).extracting(Notification::getMember).containsExactlyInAnyOrder(member2, member3);
+
+        Notification notification = saved.get(0);
+
+        assertThat(notification.getNotificationType()).isEqualTo(NotificationType.WEEKLY_MISSION_COMPLETED);
+        assertThat(notification.getTitle()).isEqualTo("이번 주 가족 미션을 완료했어요!");
+        assertThat(notification.getBody()).isEqualTo("우리 가족이 '공원 산책' 미션을 완료했어요. 함께한 추억을 확인해 보세요.");
+        assertThat(notification.getStatus()).isEqualTo(NotificationStatus.PENDING);
+        assertThat(notification.getIsRead()).isFalse();
+        assertThat(notification.getReferenceId()).isEqualTo(recommendation.getId());
+        assertThat(notification.getReferenceDate()).isEqualTo(recommendation.getStartedAt().toLocalDate());
+    }
+
+    @Test
+    @DisplayName("RC-03. 작성자 외에 알림 대상자가 없으면 저장하지 않는다.")
+    void createWeeklyMissionCompletedNotificationsNoRecipients() {
+        FamilyMissionRecommendation recommendation = createFamilyMissionRecommendation();
+
+        given(memberRepository.findAllByFamilyAndDeletedAtIsNull(family)).willReturn(List.of(member));
+
+        notificationService.createWeeklyMissionCompletedNotifications(recommendation, member);
+
+        verify(notificationRepository, never()).saveAll(any(Iterable.class));
+    }
+
+    @Test
+    @DisplayName("RC-03. 이미 주간 미션 완료 알림이 존재하면 중복 생성하지 않는다.")
+    void createWeeklyMissionCompletedNotificationsDoesNotCreateDuplicate() {
+        FamilyMissionRecommendation recommendation = createFamilyMissionRecommendation();
+
+        given(memberRepository.findAllByFamilyAndDeletedAtIsNull(family)).willReturn(List.of(member, member2));
+
+        given(notificationRepository.existsByMemberAndNotificationTypeAndReferenceId(member2, NotificationType.WEEKLY_MISSION_COMPLETED, recommendation.getId())).willReturn(true);
+
+        notificationService.createWeeklyMissionCompletedNotifications(recommendation, member);
+
+        verify(notificationRepository, never()).saveAll(any(Iterable.class));
+    }
+
+    @Test
+    @DisplayName("RC-03. 탈퇴한 회원은 주간 미션 완료 알림 대상에서 제외한다.")
+    void createWeeklyMissionCompletedNotificationsExcludesDeletedMember() {
+        FamilyMissionRecommendation recommendation = createFamilyMissionRecommendation();
+
+        given(memberRepository.findAllByFamilyAndDeletedAtIsNull(family)).willReturn(List.of(member, member2));
+
+        notificationService.createWeeklyMissionCompletedNotifications(recommendation, member);
+
+        verify(notificationRepository).saveAll(notificationsCaptor.capture());
+
+        List<Notification> saved = StreamSupport.stream(notificationsCaptor.getValue().spliterator(), false).toList();
+
+        assertThat(saved).hasSize(1);
+        assertThat(saved.get(0).getMember()).isEqualTo(member2);
+    }
+
+    @Test
+    @DisplayName("RC-03. 활성 가족 구성원이 없으면 알림을 저장하지 않는다.")
+    void createWeeklyMissionCompletedNotificationsEmptyMembers() {
+        FamilyMissionRecommendation recommendation = createFamilyMissionRecommendation();
+
+        given(memberRepository.findAllByFamilyAndDeletedAtIsNull(family)).willReturn(List.of());
+
+        notificationService.createWeeklyMissionCompletedNotifications(recommendation, member);
+
+        verify(notificationRepository, never()).saveAll(any(Iterable.class));
+    }
+
     private MemberSetting createSetting(boolean enabled, LocalTime notificationTime) {
         return MemberSetting.builder()
                 .member(member)
@@ -2099,6 +2184,21 @@ class NotificationServiceTest {
                 .scheduleTime(scheduleTime)
                 .status(status)
                 .inviteVersion(1)
+                .build();
+    }
+
+    private FamilyMissionRecommendation createFamilyMissionRecommendation() {
+        Mission mission = Mission.builder()
+                .id(100L)
+                .title("공원 산책")
+                .build();
+
+        return FamilyMissionRecommendation.builder()
+                .id(500L)
+                .family(family)
+                .mission(mission)
+                .startedAt(TODAY.with(DayOfWeek.MONDAY).atStartOfDay())
+                .endedAt(TODAY.with(DayOfWeek.MONDAY).plusWeeks(1).atStartOfDay())
                 .build();
     }
 }

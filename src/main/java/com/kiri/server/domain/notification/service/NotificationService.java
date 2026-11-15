@@ -3,6 +3,7 @@ package com.kiri.server.domain.notification.service;
 import com.kiri.server.domain.family.entity.Family;
 import com.kiri.server.domain.member.entity.Member;
 import com.kiri.server.domain.member.repository.MemberRepository;
+import com.kiri.server.domain.mission.entity.FamilyMissionRecommendation;
 import com.kiri.server.domain.mission.entity.Mission;
 import com.kiri.server.domain.notification.converter.NotificationConverter;
 import com.kiri.server.domain.notification.entity.Notification;
@@ -584,6 +585,25 @@ public class NotificationService {
         }
 
         log.info("기록 작성 알림 생성 완료 scheduleId={}, writerId={}, notificationCount={}", schedule.getId(), writer.getId(), notifications.size());
+    }
+
+    @Transactional
+    public void createWeeklyMissionCompletedNotifications(FamilyMissionRecommendation recommendation, Member writer) {
+        Family family = recommendation.getFamily();
+
+        List<Member> members = memberRepository.findAllByFamilyAndDeletedAtIsNull(family);
+
+        List<Notification> notifications = members.stream()
+                .filter(member -> !member.getId().equals(writer.getId()))
+                .filter(member -> !notificationRepository.existsByMemberAndNotificationTypeAndReferenceId(member, NotificationType.WEEKLY_MISSION_COMPLETED, recommendation.getId()))
+                .map(member -> NotificationConverter.toWeeklyMissionCompleted(member, recommendation))
+                .toList();
+
+        if (!notifications.isEmpty()) {
+            notificationRepository.saveAll(notifications);
+        }
+
+        log.info("주간 미션 완료 알림 생성 완료 recommendationId={}, writerId={}, notificationCount={}", recommendation.getId(), writer.getId(), notifications.size());
     }
 
     private LocalDateTime calculateRecordReminderAt(LocalDateTime scheduleStartAt) {
