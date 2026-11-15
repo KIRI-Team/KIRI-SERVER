@@ -12,6 +12,7 @@ import com.kiri.server.domain.mission.entity.Mission;
 import com.kiri.server.domain.mission.enums.MissionStatus;
 import com.kiri.server.domain.mission.enums.MissionType;
 import com.kiri.server.domain.mission.repository.FamilyMissionRecommendationRepository;
+import com.kiri.server.domain.notification.service.NotificationService;
 import com.kiri.server.domain.schedule.dto.ScheduleReqDTO;
 import com.kiri.server.domain.schedule.dto.ScheduleResDTO;
 import com.kiri.server.domain.schedule.entity.Schedule;
@@ -44,8 +45,7 @@ import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
@@ -68,6 +68,7 @@ class ScheduleCommandServiceTest {
     @Mock private ScheduleParticipantRepository scheduleParticipantRepository;
     @Mock private ScheduleConditionRepository scheduleConditionRepository;
     @Mock private FamilyMissionRecommendationRepository familyMissionRecommendationRepository;
+    @Mock private NotificationService notificationService;
 
     private ScheduleCommandService service;
 
@@ -80,7 +81,7 @@ class ScheduleCommandServiceTest {
     void setUp() {
         service = new ScheduleCommandService(memberRepository, bucketItemRepository,
                 scheduleRepository, scheduleParticipantRepository, scheduleConditionRepository,
-                familyMissionRecommendationRepository, CLOCK);
+                familyMissionRecommendationRepository, CLOCK, notificationService);
         family = Family.builder().id(10L).name("가족").build();
         proposer = Member.builder().id(PROPOSER_ID).family(family).nickname("제안자").build();
         m2 = Member.builder().id(2L).family(family).nickname("엄마").build();
@@ -129,6 +130,7 @@ class ScheduleCommandServiceTest {
         assertThat(saved.get(0).getStatus()).isEqualTo(ParticipantStatus.ACCEPTED);
         assertThat(saved.get(1).getStatus()).isEqualTo(ParticipantStatus.PENDING);
         assertThat(saved.get(2).getStatus()).isEqualTo(ParticipantStatus.PENDING);
+        verify(notificationService).createScheduleInvitationNotifications(any(Schedule.class), anyList());
     }
 
     @Test
@@ -833,5 +835,23 @@ class ScheduleCommandServiceTest {
                 .extracting(e -> ((ScheduleException) e).getErrorCode())
                 .isEqualTo(ScheduleErrorCode.WEEKLY_SCHEDULE_ALREADY_EXISTS);
         verify(bucketItemRepository, never()).save(any(BucketItem.class));
+    }
+
+    @Test
+    @DisplayName("초대 대상이 없으면 SCHEDULE400_5 예외를 던지고 일정을 생성하지 않는다.")
+    void create_noInvitees() {
+        BucketItem bucket = bucket(BucketStatus.SAVED, null);
+        stubCommon(bucket);
+        given(scheduleRepository.existsByBucketItem_IdAndStatusIn(eq(BUCKET_ID), any())).willReturn(false);
+
+        assertThatThrownBy(() -> service.create(PROPOSER_ID, BUCKET_ID,
+                request(LocalDate.of(2026, 11, 15), LocalTime.of(14, 0), List.of())))
+                .isInstanceOf(ScheduleException.class)
+                .extracting(e -> ((ScheduleException) e).getErrorCode())
+                .isEqualTo(ScheduleErrorCode.INVITEE_REQUIRED);
+
+        verify(scheduleRepository, never()).save(any(Schedule.class));
+        verify(scheduleParticipantRepository, never()).saveAll(any());
+        verifyNoInteractions(notificationService);
     }
 }

@@ -123,22 +123,26 @@ public class ScheduleCommandService {
         }
 
         LocalDateTime responseDeadline = calculateDeadline(startAt, now);
-        Schedule schedule = scheduleRepository.save(Schedule.create(
-                family, bucketItem, proposer,
-                request.scheduleDate(), request.scheduleTime(), request.requestMessage(), responseDeadline));
+        LocalDateTime responseReminderAt = calculateResponseReminderAt(responseDeadline, now);
+
+        Schedule schedule = Schedule.create(family, bucketItem, proposer, request.scheduleDate(), request.scheduleTime(), request.requestMessage(), responseDeadline);
+
+        schedule.updateResponseReminderAt(responseReminderAt);
+
+        Schedule savedSchedule = scheduleRepository.save(schedule);
 
         List<ScheduleParticipant> participants = new ArrayList<>();
-        participants.add(ScheduleParticipant.of(schedule, proposer, ParticipantStatus.ACCEPTED, now));
+        participants.add(ScheduleParticipant.of(savedSchedule, proposer, ParticipantStatus.ACCEPTED, now));
         participantMemberIds.forEach(id ->
-                participants.add(ScheduleParticipant.of(schedule, memberRepository.getReferenceById(id),
+                participants.add(ScheduleParticipant.of(savedSchedule, memberRepository.getReferenceById(id),
                         ParticipantStatus.PENDING, null)));
         scheduleParticipantRepository.saveAll(participants);
 
-        notificationService.createScheduleInvitationNotifications(schedule, participants);
+        notificationService.createScheduleInvitationNotifications(savedSchedule, participants);
 
         bucketItem.markScheduled();
 
-        return ScheduleConverter.toCreated(schedule, participantMemberIds);
+        return ScheduleConverter.toCreated(savedSchedule, participantMemberIds);
     }
 
     private BucketItem resolveWeeklyBucket(Member proposer, Family family, Mission mission) {
@@ -281,11 +285,19 @@ public class ScheduleCommandService {
             scheduleParticipantRepository.saveAll(toAdd);
         }
         if (coreChanged) {
+            notificationService.cancelScheduleInvitationReminders(scheduleId);
+
             keptAccepted.forEach(ScheduleParticipant::markReconfirmRequired);
         }
 
-        LocalDateTime responseDeadline = calculateDeadline(startAt, now);
+        LocalDateTime responseDeadline = coreChanged ? calculateDeadline(startAt, now) : schedule.getResponseDeadline();
+
         schedule.update(request.scheduleDate(), request.scheduleTime(), request.requestMessage(), responseDeadline);
+
+        if (coreChanged) {
+            schedule.increaseInviteVersion();
+            schedule.updateResponseReminderAt(calculateResponseReminderAt(responseDeadline, now));
+        }
 
         long acceptedExcludingProposer = scheduleParticipantRepository
                 .countBySchedule_IdAndStatusAndReconfirmRequiredFalseAndMember_IdNot(scheduleId,
@@ -327,5 +339,19 @@ public class ScheduleCommandService {
     private LocalDateTime calculateDeadline(LocalDateTime startAt, LocalDateTime now) {
         LocalDateTime cutoff = startAt.minusHours(RESPONSE_DEADLINE_HOURS);
         return Duration.between(now, startAt).toHours() >= RESPONSE_DEADLINE_HOURS ? cutoff : startAt;
+    }
+
+    private LocalDateTime calculateResponseReminderAt(LocalDateTime responseDeadline, LocalDateTime now) {
+        Duration remaining = Duration.between(now, responseDeadline);
+
+        if (remaining.compareTo(Duration.ofHours(6)) > 0) {
+            return responseDeadline.minusHours(3);
+        }
+
+        if (remaining.compareTo(Duration.ofHours(2)) > 0) {
+            return responseDeadline.minusHours(1);
+        }
+
+        return null;
     }
 }

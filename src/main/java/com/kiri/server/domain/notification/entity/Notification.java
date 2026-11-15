@@ -52,6 +52,9 @@ public class Notification extends BaseEntity {
     @Column(name = "reference_id")
     private Long referenceId;
 
+    @Column(name = "reference_version")
+    private Integer referenceVersion;
+
     @Column(name = "reference_date")
     private LocalDate referenceDate;
 

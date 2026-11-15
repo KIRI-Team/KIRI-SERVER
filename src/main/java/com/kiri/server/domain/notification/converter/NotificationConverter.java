@@ -103,4 +103,25 @@ public class NotificationConverter {
                 .referenceDate(schedule.getScheduleDate())
                 .build();
     }
+
+    public static Notification toScheduleInvitationReminder(Member receiver, Schedule schedule) {
+        String proposerNickname = schedule.getProposer().getNickname();
+        String missionTitle = schedule.getBucketItem().getMission().getTitle();
+        String scheduleDate = schedule.getScheduleDate()
+                .format(DateTimeFormatter.ofPattern("M월 d일"));
+        String scheduleTime = schedule.getScheduleTime()
+                .format(DateTimeFormatter.ofPattern("HH:mm"));
+
+        return Notification.builder()
+                .member(receiver)
+                .notificationType(NotificationType.SCHEDULE_INVITATION_REMINDER)
+                .title("일정 초대에 아직 응답하지 않았어요!")
+                .body(proposerNickname + "님이 초대한 '" + missionTitle + "' 일정(" + scheduleDate + " " + scheduleTime + ")에 아직 응답하지 않았어요. 참여 여부를 알려주세요.")
+                .status(NotificationStatus.PENDING)
+                .isRead(false)
+                .referenceId(schedule.getId())
+                .referenceDate(schedule.getScheduleDate())
+                .referenceVersion(schedule.getInviteVersion())
+                .build();
+    }
 }

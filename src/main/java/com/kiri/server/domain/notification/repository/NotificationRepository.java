@@ -23,4 +23,8 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
     List<Notification> findAllByMemberAndNotificationTypeAndReferenceIdAndStatus(Member member, NotificationType notificationType, Long referenceId, NotificationStatus status);
 
     boolean existsByMemberAndNotificationTypeAndReferenceId(Member member, NotificationType notificationType, Long referenceId);
+
+    List<Notification> findAllByNotificationTypeAndReferenceIdAndStatus(NotificationType notificationType, Long referenceId, NotificationStatus status);
+
+    boolean existsByMemberAndNotificationTypeAndReferenceIdAndReferenceVersion(Member member, NotificationType notificationType, Long referenceId, Integer referenceVersion);
 }

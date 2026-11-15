@@ -17,6 +17,11 @@ import com.kiri.server.domain.question.repository.MemberAnswerRepository;
 import com.kiri.server.domain.schedule.entity.Schedule;
 import com.kiri.server.domain.schedule.entity.ScheduleParticipant;
 import com.kiri.server.domain.schedule.enums.ParticipantStatus;
+import com.kiri.server.domain.schedule.enums.ScheduleStatus;
+import com.kiri.server.domain.schedule.exception.ScheduleException;
+import com.kiri.server.domain.schedule.exception.code.ScheduleErrorCode;
+import com.kiri.server.domain.schedule.repository.ScheduleParticipantRepository;
+import com.kiri.server.domain.schedule.repository.ScheduleRepository;
 import com.kiri.server.domain.setting.entity.MemberSetting;
 import com.kiri.server.domain.setting.repository.MemberSettingRepository;
 import lombok.RequiredArgsConstructor;
@@ -25,6 +30,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.List;
 import java.util.Set;
@@ -40,6 +46,8 @@ public class NotificationService {
     private final MemberSettingRepository memberSettingRepository;
     private final MemberAnswerRepository memberAnswerRepository;
     private final NotificationRepository notificationRepository;
+    private final ScheduleRepository scheduleRepository;
+    private final ScheduleParticipantRepository scheduleParticipantRepository;
 
     @Transactional
     public void createQuestionReminderNotifications(LocalDate today, LocalTime currentTime) {
@@ -161,10 +169,7 @@ public class NotificationService {
     }
 
     @Transactional
-    public void createScheduleInvitationNotifications(
-            Schedule schedule,
-            List<ScheduleParticipant> participants
-    ) {
+    public void createScheduleInvitationNotifications(Schedule schedule, List<ScheduleParticipant> participants) {
         List<Notification> notifications = participants.stream()
                 .filter(participant -> participant.getStatus() == ParticipantStatus.PENDING)
                 .filter(participant -> participant.getMember() != null)
@@ -175,5 +180,49 @@ public class NotificationService {
         if (!notifications.isEmpty()) {
             notificationRepository.saveAll(notifications);
         }
+    }
+
+    @Transactional
+    public void cancelScheduleInvitationReminders(Long scheduleId) {
+        List<Notification> notifications = notificationRepository.findAllByNotificationTypeAndReferenceIdAndStatus(NotificationType.SCHEDULE_INVITATION_REMINDER, scheduleId, NotificationStatus.PENDING);
+
+        notifications.forEach(Notification::cancel);
+    }
+
+    @Transactional
+    public void createScheduleInvitationReminderNotifications(Long scheduleId, LocalDateTime now) {
+        Schedule schedule = scheduleRepository.findByIdForUpdate(scheduleId).orElseThrow(() -> new ScheduleException(ScheduleErrorCode.SCHEDULE_NOT_FOUND));
+
+        if (schedule == null) {
+            log.warn("일정 초대 리마인더 대상 일정을 찾을 수 없습니다. scheduleId={}", scheduleId);
+            return;
+        }
+
+        LocalDateTime reminderAt = schedule.getResponseReminderAt();
+
+        if (reminderAt == null || reminderAt.isAfter(now)) {
+            return;
+        }
+
+        if (schedule.getStatus() != ScheduleStatus.PENDING_RESPONSE || !schedule.getResponseDeadline().isAfter(now)) {
+            schedule.clearResponseReminderAt();
+            return;
+        }
+
+        List<ScheduleParticipant> participants = scheduleParticipantRepository.findAllWithMemberByScheduleIdAndStatus(scheduleId, ParticipantStatus.PENDING);
+
+        List<Notification> notifications = participants.stream()
+                .filter(participant -> participant.getMember() != null)
+                .map(participant -> NotificationConverter.toScheduleInvitationReminder(participant.getMember(), schedule))
+                .filter(notification -> !notificationRepository.existsByMemberAndNotificationTypeAndReferenceIdAndReferenceVersion(notification.getMember(), NotificationType.SCHEDULE_INVITATION_REMINDER, scheduleId, schedule.getInviteVersion()))
+                .toList();
+
+        if (!notifications.isEmpty()) {
+            notificationRepository.saveAll(notifications);
+        }
+
+        schedule.clearResponseReminderAt();
+
+        log.info("일정 초대 리마인더 생성 완료 scheduleId={}, notificationCount={}", scheduleId, notifications.size());
     }
 }

@@ -91,6 +91,8 @@ public interface ScheduleRepository extends JpaRepository<Schedule, Long> {
     List<BucketSchedule> findActiveByBucketItemIds(@Param("bucketItemIds") Collection<Long> bucketItemIds,
                                                    @Param("statuses") Collection<ScheduleStatus> statuses);
 
+    List<Schedule> findAllByStatusAndResponseReminderAtLessThanEqualOrderByResponseReminderAtAsc(   ScheduleStatus status, LocalDateTime now);
+
     interface BucketSchedule {
 
         Long getBucketItemId();
