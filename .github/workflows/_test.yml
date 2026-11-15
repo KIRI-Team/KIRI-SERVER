@@ -43,7 +43,6 @@ jobs:
       - name: Test
         run: ./gradlew test
         env:
-          SPRING_PROFILES_ACTIVE: test
           DB_URL: jdbc:postgresql://localhost:5432/kiri
           DB_USER: kiri
           DB_PW: kiri
