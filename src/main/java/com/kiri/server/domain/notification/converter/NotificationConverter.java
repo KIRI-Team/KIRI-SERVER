@@ -229,4 +229,19 @@ public class NotificationConverter {
                 .referenceDate(schedule.getScheduleDate())
                 .build();
     }
+
+    public static Notification toScheduleNotConfirmed(Member receiver, Schedule schedule) {
+        String missionTitle = schedule.getBucketItem().getMission().getTitle();
+
+        return Notification.builder()
+                .member(receiver)
+                .notificationType(NotificationType.SCHEDULE_NOT_CONFIRMED)
+                .title("'" + missionTitle + "' 일정이 확정되지 않았어요.")
+                .body("응답 마감까지 참여자가 확정되지 않았어요. 일정 내용을 확인해 주세요.")
+                .status(NotificationStatus.PENDING)
+                .isRead(false)
+                .referenceId(schedule.getId())
+                .referenceDate(schedule.getScheduleDate())
+                .build();
+    }
 }

@@ -383,4 +383,23 @@ public class NotificationService {
             notificationRepository.saveAll(notifications);
         }
     }
+
+    @Transactional
+    public void createScheduleNotConfirmedNotification(Schedule schedule) {
+        Member proposer = schedule.getProposer();
+
+        if (proposer == null) {
+            return;
+        }
+
+        boolean alreadyExists = notificationRepository.existsByMemberAndNotificationTypeAndReferenceId(proposer, NotificationType.SCHEDULE_NOT_CONFIRMED, schedule.getId());
+
+        if (alreadyExists) {
+            return;
+        }
+
+        Notification notification = NotificationConverter.toScheduleNotConfirmed(proposer, schedule);
+
+        notificationRepository.save(notification);
+    }
 }

@@ -30,6 +30,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -72,6 +73,9 @@ class NotificationServiceTest {
 
     @Captor
     private ArgumentCaptor<Iterable<Notification>> notificationsCaptor;
+
+    @Captor
+    private ArgumentCaptor<Notification> notificationCaptor;
 
     @Mock
     private ScheduleRepository scheduleRepository;
@@ -1268,6 +1272,54 @@ class NotificationServiceTest {
         notificationService.createScheduleCancelledNotifications(schedule);
 
         verify(notificationRepository, never()).saveAll(anyList());
+    }
+
+    @Test
+    @DisplayName("SC-08 일정이 확정되지 않으면 제안자에게 알림을 생성한다")
+    void createScheduleNotConfirmedNotificationSuccess() {
+        Schedule schedule = createSchedule();
+
+        given(notificationRepository.existsByMemberAndNotificationTypeAndReferenceId(member, NotificationType.SCHEDULE_NOT_CONFIRMED, schedule.getId())).willReturn(false);
+
+        notificationService.createScheduleNotConfirmedNotification(schedule);
+
+        then(notificationRepository).should().save(notificationCaptor.capture());
+
+        Notification notification = notificationCaptor.getValue();
+
+        assertThat(notification.getMember()).isEqualTo(member);
+        assertThat(notification.getNotificationType()).isEqualTo(NotificationType.SCHEDULE_NOT_CONFIRMED);
+        assertThat(notification.getTitle()).isEqualTo("'공원 산책' 일정이 확정되지 않았어요.");
+        assertThat(notification.getBody()).isEqualTo("응답 마감까지 참여자가 확정되지 않았어요. 일정 내용을 확인해 주세요.");
+        assertThat(notification.getStatus()).isEqualTo(NotificationStatus.PENDING);
+        assertThat(notification.getIsRead()).isFalse();
+        assertThat(notification.getReferenceId()).isEqualTo(schedule.getId());
+        assertThat(notification.getReferenceDate()).isEqualTo(TODAY);
+    }
+
+    @Test
+    @DisplayName("SC-08 동일한 일정의 미확정 알림은 중복 생성하지 않는다")
+    void createScheduleNotConfirmedNotificationPreventDuplicate() {
+        Schedule schedule = createSchedule();
+
+        given(notificationRepository.existsByMemberAndNotificationTypeAndReferenceId(member, NotificationType.SCHEDULE_NOT_CONFIRMED, schedule.getId())).willReturn(true);
+
+        notificationService.createScheduleNotConfirmedNotification(schedule);
+
+        then(notificationRepository).should(never()).save(any(Notification.class));
+    }
+
+    @Test
+    @DisplayName("SC-08 제안자가 없는 일정은 알림을 생성하지 않는다")
+    void createScheduleNotConfirmedNotificationWithoutProposer() {
+        Schedule schedule = createSchedule();
+        ReflectionTestUtils.setField(schedule, "proposer", null);
+
+        notificationService.createScheduleNotConfirmedNotification(schedule);
+
+        then(notificationRepository).should(never()).save(any(Notification.class));
+
+        then(notificationRepository).should(never()).existsByMemberAndNotificationTypeAndReferenceId(any(Member.class), any(NotificationType.class), anyLong());
     }
 
     private MemberSetting createSetting(boolean enabled, LocalTime notificationTime) {

@@ -91,6 +91,11 @@ public class ScheduleResponseService {
         long acceptedExcludingProposer = scheduleParticipantRepository
                 .countBySchedule_IdAndStatusAndReconfirmRequiredFalseAndMember_IdNot(scheduleId,
                         ParticipantStatus.ACCEPTED, schedule.getProposer().getId());
+        ScheduleStatus previousStatus = schedule.getStatus();
         schedule.recalculateStatus(acceptedExcludingProposer, now);
+        if (previousStatus == ScheduleStatus.PENDING_RESPONSE
+                && schedule.getStatus() == ScheduleStatus.NOT_CONFIRMED) {
+            notificationService.createScheduleNotConfirmedNotification(schedule);
+        }
     }
 }
