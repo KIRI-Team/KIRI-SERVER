@@ -161,13 +161,6 @@ public class MissionConverter {
                 .build();
     }
 
-    public static List<MissionResDTO.ChecklistItem> toEssentials(List<MissionChecklistItem> items, int limit) {
-        return items.stream()
-                .limit(limit)
-                .map(MissionConverter::toChecklistItem)
-                .toList();
-    }
-
     private static String toRegion(String address) {
         if (address == null || address.isBlank()) {
             return null;
@@ -200,7 +193,7 @@ public class MissionConverter {
                 .toList();
     }
 
-    private static MissionResDTO.ChecklistItem toChecklistItem(MissionChecklistItem item) {
+    public static MissionResDTO.ChecklistItem toChecklistItem(MissionChecklistItem item) {
         return MissionResDTO.ChecklistItem.builder()
                 .title(item.getTitle())
                 .description(item.getDescription())

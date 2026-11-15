@@ -11,6 +11,7 @@ import com.kiri.server.domain.mission.entity.MissionChecklistItem;
 import com.kiri.server.domain.mission.enums.Category;
 import com.kiri.server.domain.mission.enums.IndoorOutdoor;
 import com.kiri.server.domain.mission.enums.ItemType;
+import com.kiri.server.domain.mission.generator.EssentialPlanner;
 import com.kiri.server.domain.mission.repository.MissionChecklistItemRepository;
 import com.kiri.server.domain.mission.service.NearbyMissionFinder;
 import com.kiri.server.domain.place.entity.Place;
@@ -349,7 +350,8 @@ public class ScheduleQueryService {
                 ? weatherService.summarize(source.latitude(), source.longitude(), source.start(), source.end())
                 .orElse(null)
                 : null;
-        return ScheduleEssentialPlanner.plan(source.items(), weather, source.indoorOutdoor());
+        return EssentialPlanner.combine(source.items(),
+                weather == null ? List.of() : ScheduleEssentialPlanner.weatherItems(weather));
     }
 
     private EssentialSource loadEssentialSource(Long memberId, Long scheduleId) {
@@ -373,12 +375,12 @@ public class ScheduleQueryService {
         boolean weatherNeeded = !isOver(schedule) && schedule.getScheduleTime() != null && place != null
                 && ScheduleEssentialPlanner.isOutdoor(mission.getIndoorOutdoor());
         if (!weatherNeeded) {
-            return new EssentialSource(items, mission.getIndoorOutdoor(), false, null, null, null, null);
+            return new EssentialSource(items, false, null, null, null, null);
         }
         LocalDateTime start = schedule.startDateTime();
         int activityMinutes = mission.getDurationMaxMinutes() != null
                 ? mission.getDurationMaxMinutes() : DEFAULT_ACTIVITY_MINUTES;
-        return new EssentialSource(items, mission.getIndoorOutdoor(), true, place.getLatitude(), place.getLongitude(),
+        return new EssentialSource(items, true, place.getLatitude(), place.getLongitude(),
                 start, start.plusMinutes(activityMinutes));
     }
 
@@ -391,7 +393,6 @@ public class ScheduleQueryService {
 
     private record EssentialSource(
             List<MissionChecklistItem> items,
-            IndoorOutdoor indoorOutdoor,
             boolean weatherNeeded,
             BigDecimal latitude,
             BigDecimal longitude,
