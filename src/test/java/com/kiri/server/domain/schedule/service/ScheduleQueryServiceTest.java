@@ -1062,6 +1062,24 @@ class ScheduleQueryServiceTest {
     }
 
     @Test
+    @DisplayName("근처 놀거리 조회: 취소된 일정이면 SCHEDULE409_7로 예외를 던지고 후보를 찾지 않는다.")
+    void getNearby_cancelled() {
+        Family family = Family.builder().id(FAMILY_ID).build();
+        Schedule schedule = Schedule.builder().id(SCHEDULE_ID).family(family)
+                .bucketItem(BucketItem.builder().mission(Mission.builder().place(basePlace).build()).build())
+                .scheduleDate(SCHEDULE_DATE).status(ScheduleStatus.CANCELLED).build();
+        given(memberRepository.findById(MEMBER_ID)).willReturn(Optional.of(Member.builder().family(family).build()));
+        given(scheduleRepository.findWithMissionByIdAndFamilyId(SCHEDULE_ID, FAMILY_ID)).willReturn(Optional.of(schedule));
+
+        assertThatThrownBy(() -> scheduleQueryService.getNearby(MEMBER_ID, SCHEDULE_ID))
+                .isInstanceOf(ScheduleException.class)
+                .extracting(e -> ((ScheduleException) e).getErrorCode())
+                .isEqualTo(ScheduleErrorCode.SCHEDULE_CANCELLED);
+
+        verifyNoInteractions(missionRepository);
+    }
+
+    @Test
     @DisplayName("일정 맞춤템 조회: 취소된 일정이면 SCHEDULE409_7로 예외를 던진다.")
     void getEssentials_cancelled() {
         stubEssentialSchedule(essentialMission(IndoorOutdoor.OUTDOOR, 120), ESSENTIAL_DATE, ScheduleStatus.CANCELLED);

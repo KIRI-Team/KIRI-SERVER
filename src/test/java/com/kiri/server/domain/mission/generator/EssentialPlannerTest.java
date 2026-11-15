@@ -1,6 +1,8 @@
 package com.kiri.server.domain.mission.generator;
 
 import com.kiri.server.domain.external.dto.NormalizedContent;
+import com.kiri.server.domain.mission.dto.MissionResDTO;
+import com.kiri.server.domain.mission.entity.MissionChecklistItem;
 import com.kiri.server.domain.mission.enums.ChecklistSource;
 import com.kiri.server.domain.mission.enums.IndoorOutdoor;
 import com.kiri.server.domain.mission.enums.ItemType;
@@ -130,6 +132,62 @@ class EssentialPlannerTest {
                 WalkingLevel.HIGH, IndoorOutdoor.OUTDOOR))
                 .extracting(ChecklistDraft::title)
                 .containsExactly("편한 신발", "수건", "여벌옷", "모자");
+    }
+
+    private static final String OFFICIAL = "공식 안내에 있는 준비물이에요.";
+    private static final MissionResDTO.ChecklistItem UMBRELLA =
+            MissionResDTO.ChecklistItem.builder().title("우산").description("강수확률이 70%예요.").build();
+
+    @Test
+    @DisplayName("추가 항목이 없으면 저장 순서대로 최대 4개를 반환한다.")
+    void combine_savedOrder() {
+        List<MissionChecklistItem> saved = List.of(saved("물", "a"), saved("신분증", OFFICIAL), saved("돗자리", "b"),
+                saved("수건", "c"), saved("여벌옷", "d"));
+
+        assertThat(EssentialPlanner.combine(saved, List.of()))
+                .extracting(MissionResDTO.ChecklistItem::title)
+                .containsExactly("물", "신분증", "돗자리", "수건");
+    }
+
+    @Test
+    @DisplayName("추가 항목은 출처와 상관없이 마지막 공식 준비물 바로 뒤에 끼운다.")
+    void combine_insertsAfterOfficial() {
+        List<MissionChecklistItem> saved = List.of(saved("신분증", OFFICIAL), saved("편한 신발", "많이 걷는 일정이에요."),
+                saved("물", "야외에 오래 머무는 일정이에요."), saved("돗자리", "잔디밭에서 쉬어 갈 수 있는 곳이에요."));
+
+        assertThat(EssentialPlanner.combine(saved, List.of(UMBRELLA)))
+                .extracting(MissionResDTO.ChecklistItem::title)
+                .containsExactly("신분증", "우산", "편한 신발", "물");
+    }
+
+    @Test
+    @DisplayName("공식 준비물이 없으면 추가 항목을 맨 앞에 둔다.")
+    void combine_noOfficial() {
+        List<MissionChecklistItem> saved = List.of(saved("편한 신발", "많이 걷는 일정이에요."));
+
+        assertThat(EssentialPlanner.combine(saved, List.of(UMBRELLA)))
+                .extracting(MissionResDTO.ChecklistItem::title)
+                .containsExactly("우산", "편한 신발");
+    }
+
+    @Test
+    @DisplayName("제목이 같으면 앞 항목만 남긴다.")
+    void combine_dedupsByTitle() {
+        List<MissionChecklistItem> saved = List.of(saved("우산", OFFICIAL));
+
+        assertThat(EssentialPlanner.combine(saved, List.of(UMBRELLA)))
+                .extracting(MissionResDTO.ChecklistItem::title, MissionResDTO.ChecklistItem::description)
+                .containsExactly(tuple("우산", OFFICIAL));
+    }
+
+    // 관리자 수정 시 출처가 모두 OPERATOR로 바뀌므로 출처는 OPERATOR로 둔다
+    private static MissionChecklistItem saved(String title, String description) {
+        return MissionChecklistItem.builder()
+                .itemType(ItemType.PREPARE)
+                .source(ChecklistSource.OPERATOR)
+                .title(title)
+                .description(description)
+                .build();
     }
 
     private NormalizedContent content(String title, String overview, String durationText) {
