@@ -13,6 +13,7 @@ import com.kiri.server.domain.mission.enums.MissionStatus;
 import com.kiri.server.domain.mission.enums.MissionType;
 import com.kiri.server.domain.mission.repository.FamilyMissionRecommendationRepository;
 import com.kiri.server.domain.notification.service.NotificationService;
+import com.kiri.server.domain.review.repository.ReviewRepository;
 import com.kiri.server.domain.schedule.dto.ScheduleReqDTO;
 import com.kiri.server.domain.schedule.dto.ScheduleResDTO;
 import com.kiri.server.domain.schedule.entity.Schedule;
@@ -69,6 +70,7 @@ class ScheduleCommandServiceTest {
     @Mock private ScheduleConditionRepository scheduleConditionRepository;
     @Mock private FamilyMissionRecommendationRepository familyMissionRecommendationRepository;
     @Mock private NotificationService notificationService;
+    @Mock private ReviewRepository reviewRepository;
 
     private ScheduleCommandService service;
 
@@ -81,7 +83,7 @@ class ScheduleCommandServiceTest {
     void setUp() {
         service = new ScheduleCommandService(memberRepository, bucketItemRepository,
                 scheduleRepository, scheduleParticipantRepository, scheduleConditionRepository,
-                familyMissionRecommendationRepository, CLOCK, notificationService);
+                familyMissionRecommendationRepository, CLOCK, notificationService, reviewRepository);
         family = Family.builder().id(10L).name("가족").build();
         proposer = Member.builder().id(PROPOSER_ID).family(family).nickname("제안자").build();
         m2 = Member.builder().id(2L).family(family).nickname("엄마").build();
@@ -272,6 +274,7 @@ class ScheduleCommandServiceTest {
         Schedule schedule = schedule(ScheduleStatus.CONFIRMED, bucket);
         given(memberRepository.existsById(PROPOSER_ID)).willReturn(true);
         given(scheduleRepository.findByIdForUpdate(SCHEDULE_ID)).willReturn(Optional.of(schedule));
+        given(reviewRepository.existsBySchedule_Id(SCHEDULE_ID)).willReturn(false);
 
         ScheduleResDTO.Cancelled result = service.cancel(PROPOSER_ID, SCHEDULE_ID);
 
@@ -279,6 +282,8 @@ class ScheduleCommandServiceTest {
         assertThat(result.bucketItemId()).isEqualTo(BUCKET_ID);
         assertThat(schedule.getStatus()).isEqualTo(ScheduleStatus.CANCELLED);
         assertThat(bucket.getStatus()).isEqualTo(BucketStatus.SAVED);
+
+        verify(notificationService).createScheduleCancelledNotifications(schedule);
     }
 
     @Test
@@ -326,6 +331,9 @@ class ScheduleCommandServiceTest {
                 .isInstanceOf(ScheduleException.class)
                 .extracting(e -> ((ScheduleException) e).getErrorCode())
                 .isEqualTo(ScheduleErrorCode.NOT_CANCELABLE);
+
+        verify(notificationService, never()).createScheduleCancelledNotifications(any());
+        verify(reviewRepository, never()).existsBySchedule_Id(anyLong());
     }
 
     private Schedule updatableSchedule(ScheduleStatus status, LocalDate date, LocalTime time) {
@@ -918,5 +926,38 @@ class ScheduleCommandServiceTest {
         assertThat(m2p.getReconfirmRequired()).isTrue();
         assertThat(schedule.getResponseDeadline()).isEqualTo(LocalDateTime.of(2026, 11, 1, 11, 0));
         assertThat(schedule.getReconfirmReminderAt()).isNull();
+    }
+
+    @Test
+    @DisplayName("리뷰가 없는 일정을 취소하면 연결 버킷을 SAVED로 변경한다.")
+    void cancel_withoutReview() {
+        BucketItem bucket = bucket(BucketStatus.SCHEDULED, null);
+        Schedule schedule = schedule(ScheduleStatus.CONFIRMED, bucket);
+
+        given(memberRepository.existsById(PROPOSER_ID)).willReturn(true);
+        given(scheduleRepository.findByIdForUpdate(SCHEDULE_ID)).willReturn(Optional.of(schedule));
+        given(reviewRepository.existsBySchedule_Id(SCHEDULE_ID)).willReturn(false);
+
+        service.cancel(PROPOSER_ID, SCHEDULE_ID);
+
+        assertThat(bucket.getStatus()).isEqualTo(BucketStatus.SAVED);
+    }
+
+    @Test
+    @DisplayName("리뷰가 있는 일정을 취소하면 연결 버킷 상태를 변경하지 않는다.")
+    void cancel_withReview() {
+        BucketItem bucket = bucket(BucketStatus.SCHEDULED, null);
+        Schedule schedule = schedule(ScheduleStatus.CONFIRMED, bucket);
+
+        given(memberRepository.existsById(PROPOSER_ID)).willReturn(true);
+        given(scheduleRepository.findByIdForUpdate(SCHEDULE_ID)).willReturn(Optional.of(schedule));
+        given(reviewRepository.existsBySchedule_Id(SCHEDULE_ID)).willReturn(true);
+
+        service.cancel(PROPOSER_ID, SCHEDULE_ID);
+
+        assertThat(schedule.getStatus()).isEqualTo(ScheduleStatus.CANCELLED);
+        assertThat(bucket.getStatus()).isEqualTo(BucketStatus.SCHEDULED);
+
+        verify(notificationService).createScheduleCancelledNotifications(schedule);
     }
 }

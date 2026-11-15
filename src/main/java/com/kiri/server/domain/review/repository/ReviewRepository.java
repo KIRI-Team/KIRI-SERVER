@@ -49,6 +49,8 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
             """)
     MissionRating findMissionRating(@Param("missionId") Long missionId);
 
+    boolean existsBySchedule_Id(Long scheduleId);
+
     interface MissionRating {
 
         Double getAverageRating();

@@ -212,4 +212,21 @@ public class NotificationConverter {
                 .referenceVersion(schedule.getInviteVersion())
                 .build();
     }
+
+    public static Notification toScheduleCancelled(Member receiver, Schedule schedule) {
+        String missionTitle = schedule.getBucketItem().getMission().getTitle();
+        String proposerNickname = schedule.getProposer().getNickname();
+        String scheduleDate = schedule.getScheduleDate().format(DateTimeFormatter.ofPattern("M월 d일"));
+
+        return Notification.builder()
+                .member(receiver)
+                .notificationType(NotificationType.SCHEDULE_CANCELLED)
+                .title("'" + missionTitle + "' 일정이 취소됐어요.")
+                .body(proposerNickname + "님이 " + scheduleDate + " 일정을 취소했어요. 변경된 내용을 확인해 주세요.")
+                .status(NotificationStatus.PENDING)
+                .isRead(false)
+                .referenceId(schedule.getId())
+                .referenceDate(schedule.getScheduleDate())
+                .build();
+    }
 }

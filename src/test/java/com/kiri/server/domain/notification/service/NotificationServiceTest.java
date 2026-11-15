@@ -1166,6 +1166,110 @@ class NotificationServiceTest {
         assertThat(schedule.getReconfirmReminderAt()).isEqualTo(reminderAt);
     }
 
+    @Test
+    @DisplayName("SC-07. 일정 취소 시 참여자에게 취소 알림을 생성하고 기존 대기 알림을 취소한다.")
+    void createScheduleCancelledNotificationsSuccess() {
+        Schedule schedule = createSchedule();
+
+        ScheduleParticipant proposer = createParticipant(schedule, member, ParticipantStatus.ACCEPTED);
+        ScheduleParticipant participant = createParticipant(schedule, member2, ParticipantStatus.ACCEPTED);
+
+        Notification pendingInvitation = Notification.builder()
+                .member(member2)
+                .notificationType(NotificationType.SCHEDULE_INVITATION)
+                .title("일정 초대")
+                .body("일정 초대 알림")
+                .status(NotificationStatus.PENDING)
+                .referenceId(schedule.getId())
+                .build();
+
+        Notification pendingReminder = Notification.builder()
+                .member(member2)
+                .notificationType(NotificationType.SCHEDULE_INVITATION_REMINDER)
+                .title("일정 리마인더")
+                .body("일정 리마인더 알림")
+                .status(NotificationStatus.PENDING)
+                .referenceId(schedule.getId())
+                .build();
+
+        given(notificationRepository.findAllByReferenceIdAndStatus(schedule.getId(), NotificationStatus.PENDING)).willReturn(List.of(pendingInvitation, pendingReminder));
+
+        given(scheduleParticipantRepository.findAllWithMemberByScheduleId(schedule.getId())).willReturn(List.of(proposer, participant));
+
+        given(notificationRepository.existsByMemberAndNotificationTypeAndReferenceId(member2, NotificationType.SCHEDULE_CANCELLED, schedule.getId())).willReturn(false);
+
+        notificationService.createScheduleCancelledNotifications(schedule);
+
+        assertThat(pendingInvitation.getStatus()).isEqualTo(NotificationStatus.CANCELLED);
+        assertThat(pendingReminder.getStatus()).isEqualTo(NotificationStatus.CANCELLED);
+
+        ArgumentCaptor<Iterable<Notification>> captor = ArgumentCaptor.forClass(Iterable.class);
+
+        verify(notificationRepository).saveAll(captor.capture());
+
+        List<Notification> saved = StreamSupport.stream(captor.getValue().spliterator(), false).toList();
+
+        assertThat(saved).hasSize(1);
+
+        Notification notification = saved.get(0);
+
+        assertThat(notification.getMember()).isEqualTo(member2);
+        assertThat(notification.getNotificationType()).isEqualTo(NotificationType.SCHEDULE_CANCELLED);
+        assertThat(notification.getTitle()).isEqualTo("'공원 산책' 일정이 취소됐어요.");
+        assertThat(notification.getBody()).isEqualTo("철수님이 11월 15일 일정을 취소했어요. 변경된 내용을 확인해 주세요.");
+        assertThat(notification.getStatus()).isEqualTo(NotificationStatus.PENDING);
+        assertThat(notification.getIsRead()).isFalse();
+        assertThat(notification.getReferenceId()).isEqualTo(schedule.getId());
+        assertThat(notification.getReferenceDate()).isEqualTo(TODAY);
+    }
+
+    @Test
+    @DisplayName("SC-07. 일정 제안자는 일정 취소 알림 대상에서 제외한다.")
+    void createScheduleCancelledNotificationsExcludeProposer() {
+        Schedule schedule = createSchedule();
+
+        ScheduleParticipant proposer = createParticipant(schedule, member, ParticipantStatus.ACCEPTED);
+        ScheduleParticipant participant = createParticipant(schedule, member2, ParticipantStatus.ACCEPTED);
+
+        given(notificationRepository.findAllByReferenceIdAndStatus(schedule.getId(), NotificationStatus.PENDING)).willReturn(List.of());
+
+        given(scheduleParticipantRepository.findAllWithMemberByScheduleId(schedule.getId())).willReturn(List.of(proposer, participant));
+
+        given(notificationRepository.existsByMemberAndNotificationTypeAndReferenceId(member2, NotificationType.SCHEDULE_CANCELLED, schedule.getId())).willReturn(false);
+
+        notificationService.createScheduleCancelledNotifications(schedule);
+
+        verify(notificationRepository, never()).existsByMemberAndNotificationTypeAndReferenceId(member, NotificationType.SCHEDULE_CANCELLED, schedule.getId());
+
+        ArgumentCaptor<Iterable<Notification>> captor = ArgumentCaptor.forClass(Iterable.class);
+
+        verify(notificationRepository).saveAll(captor.capture());
+
+        List<Notification> saved = StreamSupport.stream(captor.getValue().spliterator(), false).toList();
+
+        assertThat(saved)
+                .extracting(notification -> notification.getMember())
+                .containsExactly(member2);
+    }
+
+    @Test
+    @DisplayName("SC-07. 이미 일정 취소 알림이 존재하면 중복 생성하지 않는다.")
+    void createScheduleCancelledNotificationsPreventDuplicate() {
+        Schedule schedule = createSchedule();
+
+        ScheduleParticipant participant = createParticipant(schedule, member2, ParticipantStatus.ACCEPTED);
+
+        given(notificationRepository.findAllByReferenceIdAndStatus(schedule.getId(), NotificationStatus.PENDING)).willReturn(List.of());
+
+        given(scheduleParticipantRepository.findAllWithMemberByScheduleId(schedule.getId())).willReturn(List.of(participant));
+
+        given(notificationRepository.existsByMemberAndNotificationTypeAndReferenceId(member2, NotificationType.SCHEDULE_CANCELLED, schedule.getId())).willReturn(true);
+
+        notificationService.createScheduleCancelledNotifications(schedule);
+
+        verify(notificationRepository, never()).saveAll(anyList());
+    }
+
     private MemberSetting createSetting(boolean enabled, LocalTime notificationTime) {
         return MemberSetting.builder()
                 .member(member)

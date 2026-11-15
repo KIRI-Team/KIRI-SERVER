@@ -15,6 +15,7 @@ import com.kiri.server.domain.mission.enums.MissionStatus;
 import com.kiri.server.domain.mission.enums.MissionType;
 import com.kiri.server.domain.mission.repository.FamilyMissionRecommendationRepository;
 import com.kiri.server.domain.notification.service.NotificationService;
+import com.kiri.server.domain.review.repository.ReviewRepository;
 import com.kiri.server.domain.schedule.converter.ScheduleConverter;
 import com.kiri.server.domain.schedule.dto.ScheduleReqDTO;
 import com.kiri.server.domain.schedule.dto.ScheduleResDTO;
@@ -56,6 +57,7 @@ public class ScheduleCommandService {
     private final FamilyMissionRecommendationRepository familyMissionRecommendationRepository;
     private final Clock clock;
     private final NotificationService notificationService;
+    private final ReviewRepository reviewRepository;
 
     @Transactional
     public ScheduleResDTO.Created create(Long memberId, Long bucketItemId, ScheduleReqDTO.Create request) {
@@ -174,8 +176,11 @@ public class ScheduleCommandService {
         }
 
         schedule.cancel();
+
+        notificationService.createScheduleCancelledNotifications(schedule);
+
         BucketItem bucketItem = schedule.getBucketItem();
-        if (bucketItem != null) {
+        if (bucketItem != null && !reviewRepository.existsBySchedule_Id(scheduleId)) {
             bucketItem.markSaved();
         }
 

@@ -354,4 +354,33 @@ public class NotificationService {
 
         log.info("일정 재확인 리마인드 생성 완료 scheduleId={}, inviteVersion={}, notificationCount={}", scheduleId, schedule.getInviteVersion(), notifications.size());
     }
+
+    @Transactional
+    public void createScheduleCancelledNotifications(Schedule schedule) {
+        Long scheduleId = schedule.getId();
+        Long proposerId = schedule.getProposer().getId();
+
+        List<Notification> pendingNotifications = notificationRepository.findAllByReferenceIdAndStatus(scheduleId, NotificationStatus.PENDING);
+
+        pendingNotifications.forEach(Notification::cancel);
+
+        List<ScheduleParticipant> participants = scheduleParticipantRepository.findAllWithMemberByScheduleId(scheduleId);
+
+        Map<Long, Member> receivers = new LinkedHashMap<>();
+
+        participants.stream()
+                .filter(participant -> participant.getMember() != null)
+                .map(ScheduleParticipant::getMember)
+                .filter(member -> !member.getId().equals(proposerId))
+                .forEach(member -> receivers.putIfAbsent(member.getId(), member));
+
+        List<Notification> notifications = receivers.values().stream()
+                .map(member -> NotificationConverter.toScheduleCancelled(member, schedule))
+                .filter(notification -> !notificationRepository.existsByMemberAndNotificationTypeAndReferenceId(notification.getMember(), NotificationType.SCHEDULE_CANCELLED, scheduleId))
+                .toList();
+
+        if (!notifications.isEmpty()) {
+            notificationRepository.saveAll(notifications);
+        }
+    }
 }
