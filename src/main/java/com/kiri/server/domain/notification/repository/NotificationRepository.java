@@ -5,6 +5,8 @@ import com.kiri.server.domain.notification.entity.Notification;
 import com.kiri.server.domain.notification.enums.NotificationPriority;
 import com.kiri.server.domain.notification.enums.NotificationStatus;
 import com.kiri.server.domain.notification.enums.NotificationType;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -79,4 +81,8 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
     Optional<Notification> findByMemberIdAndEventKey(Long memberId, String eventKey);
 
     boolean existsByMemberIdAndEventKey(Long memberId, String eventKey);
+
+    Page<Notification> findAllByMemberIdOrderByCreatedAtDesc(Long memberId, Pageable pageable);
+
+    Optional<Notification> findByIdAndMemberId(Long notificationId, Long memberId);
 }

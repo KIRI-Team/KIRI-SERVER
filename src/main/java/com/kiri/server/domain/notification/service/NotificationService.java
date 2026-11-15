@@ -11,6 +11,8 @@ import com.kiri.server.domain.notification.entity.Notification;
 import com.kiri.server.domain.notification.enums.NotificationPriority;
 import com.kiri.server.domain.notification.enums.NotificationStatus;
 import com.kiri.server.domain.notification.enums.NotificationType;
+import com.kiri.server.domain.notification.exception.NotificationException;
+import com.kiri.server.domain.notification.exception.code.NotificationErrorCode;
 import com.kiri.server.domain.notification.repository.NotificationRepository;
 import com.kiri.server.domain.question.entity.FamilyQuestion;
 import com.kiri.server.domain.question.exception.QuestionException;
@@ -30,6 +32,8 @@ import com.kiri.server.domain.setting.entity.MemberSetting;
 import com.kiri.server.domain.setting.repository.MemberSettingRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -742,6 +746,22 @@ public class NotificationService {
         long sentCount = notificationRepository.countByMember_IdAndPriorityAndStatusAndSentAtGreaterThanEqualAndSentAtLessThan(memberId, NotificationPriority.P5, NotificationStatus.SENT, start, end);
 
         return sentCount >= MAX_DAILY_PUSH_COUNT;
+    }
+
+    @Transactional(readOnly = true)
+    public Page<NotificationResDTO.NotificationPreview> getNotifications(Long memberId, Pageable pageable) {
+        return notificationRepository
+                .findAllByMemberIdOrderByCreatedAtDesc(memberId, pageable)
+                .map(NotificationConverter::toNotificationPreview);
+    }
+
+    @Transactional
+    public void markNotificationAsRead(Long memberId, Long notificationId) {
+        Notification notification = notificationRepository
+                .findByIdAndMemberId(notificationId, memberId)
+                .orElseThrow(() -> new NotificationException(NotificationErrorCode.NOTIFICATION_NOT_FOUND));
+
+        notification.markAsRead();
     }
 
     private LocalDateTime calculateRecordReminderAt(LocalDateTime scheduleStartAt) {

@@ -6,9 +6,11 @@ import com.kiri.server.domain.member.entity.Member;
 import com.kiri.server.domain.member.repository.MemberRepository;
 import com.kiri.server.domain.mission.entity.FamilyMissionRecommendation;
 import com.kiri.server.domain.mission.entity.Mission;
+import com.kiri.server.domain.notification.dto.NotificationResDTO;
 import com.kiri.server.domain.notification.entity.Notification;
 import com.kiri.server.domain.notification.enums.NotificationStatus;
 import com.kiri.server.domain.notification.enums.NotificationType;
+import com.kiri.server.domain.notification.exception.NotificationException;
 import com.kiri.server.domain.notification.repository.NotificationRepository;
 import com.kiri.server.domain.question.entity.FamilyQuestion;
 import com.kiri.server.domain.question.entity.MemberAnswer;
@@ -33,6 +35,9 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.DayOfWeek;
@@ -2170,6 +2175,78 @@ class NotificationServiceTest {
             assertThat(notifications.get(0).getMember().getId()).isEqualTo(member.getId());
         }
     }
+
+
+    @Test
+    @DisplayName("회원의 알림 목록을 최신순으로 조회하고 DTO로 변환한다.")
+    void getNotificationsSuccess() {
+        Notification notification = Notification.builder()
+                .id(10L)
+                .member(member)
+                .notificationType(NotificationType.QUESTION_REMINDER)
+                .title("알림 제목")
+                .body("알림 내용")
+                .status(NotificationStatus.PENDING)
+                .isRead(false)
+                .referenceId(100L)
+                .build();
+
+        PageRequest pageable = PageRequest.of(0, 20);
+
+        Page<Notification> notificationPage = new PageImpl<>(List.of(notification), pageable, 1);
+
+        given(notificationRepository.findAllByMemberIdOrderByCreatedAtDesc(MEMBER_ID, pageable)).willReturn(notificationPage);
+
+        Page<NotificationResDTO.NotificationPreview> result = notificationService.getNotifications(MEMBER_ID, pageable);
+
+        assertThat(result.getContent()).hasSize(1);
+
+        NotificationResDTO.NotificationPreview preview = result.getContent().get(0);
+
+        assertThat(preview.notificationId()).isEqualTo(10L);
+        assertThat(preview.title()).isEqualTo("알림 제목");
+        assertThat(preview.body()).isEqualTo("알림 내용");
+        assertThat(preview.notificationType()).isEqualTo(NotificationType.QUESTION_REMINDER);
+        assertThat(preview.isRead()).isFalse();
+        assertThat(preview.referenceId()).isEqualTo(100L);
+
+        assertThat(result.getTotalElements()).isEqualTo(1);
+
+        then(notificationRepository).should().findAllByMemberIdOrderByCreatedAtDesc(MEMBER_ID, pageable);
+    }
+
+    @Test
+    @DisplayName("알림을 읽음 처리한다.")
+    void markNotificationAsReadSuccess() {
+        Notification notification = Notification.builder()
+                .id(10L)
+                .member(member)
+                .notificationType(NotificationType.QUESTION_REMINDER)
+                .title("알림 제목")
+                .body("알림 내용")
+                .status(NotificationStatus.PENDING)
+                .isRead(false)
+                .build();
+
+        given(notificationRepository.findByIdAndMemberId(10L, MEMBER_ID)).willReturn(Optional.of(notification));
+
+        notificationService.markNotificationAsRead(MEMBER_ID, 10L);
+
+        assertThat(notification.getIsRead()).isTrue();
+
+        then(notificationRepository).should().findByIdAndMemberId(10L, MEMBER_ID);
+    }
+
+    @Test
+    @DisplayName("존재하지 않는 알림을 읽음 처리하면 예외가 발생한다.")
+    void markNotificationAsReadNotFound() {
+        given(notificationRepository.findByIdAndMemberId(10L, MEMBER_ID)).willReturn(Optional.empty());
+
+        assertThatThrownBy(() -> notificationService.markNotificationAsRead(MEMBER_ID, 10L)).isInstanceOf(NotificationException.class);
+
+        then(notificationRepository).should().findByIdAndMemberId(10L, MEMBER_ID);
+    }
+
 
 
     private MemberSetting createSetting(boolean enabled, LocalTime notificationTime) {

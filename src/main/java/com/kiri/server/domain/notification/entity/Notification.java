@@ -203,4 +203,8 @@ public class Notification extends BaseEntity {
             priority = notificationType.getPriority();
         }
     }
+
+    public void markAsRead() {
+        this.isRead = true;
+    }
 }

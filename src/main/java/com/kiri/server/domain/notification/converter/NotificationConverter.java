@@ -3,6 +3,7 @@ package com.kiri.server.domain.notification.converter;
 import com.kiri.server.domain.member.entity.Member;
 import com.kiri.server.domain.mission.entity.FamilyMissionRecommendation;
 import com.kiri.server.domain.mission.entity.Mission;
+import com.kiri.server.domain.notification.dto.NotificationResDTO;
 import com.kiri.server.domain.notification.entity.Notification;
 import com.kiri.server.domain.notification.enums.NotificationStatus;
 import com.kiri.server.domain.notification.enums.NotificationType;
@@ -337,6 +338,18 @@ public class NotificationConverter {
                 .status(NotificationStatus.PENDING)
                 .isRead(false)
                 .referenceId(mission.getId())
+                .build();
+    }
+
+    public static NotificationResDTO.NotificationPreview toNotificationPreview(Notification notification) {
+        return NotificationResDTO.NotificationPreview.builder()
+                .notificationId(notification.getId())
+                .title(notification.getTitle())
+                .body(notification.getBody())
+                .notificationType(notification.getNotificationType())
+                .isRead(notification.getIsRead())
+                .referenceId(notification.getReferenceId())
+                .createdAt(notification.getCreatedAt())
                 .build();
     }
 }
