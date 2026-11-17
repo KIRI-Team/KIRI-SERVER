@@ -2,6 +2,7 @@ package com.kiri.server.domain.family.service;
 
 import com.kiri.server.domain.character.entity.Character;
 import com.kiri.server.domain.character.repository.CharacterRepository;
+import com.kiri.server.domain.family.config.FamilyInviteProperties;
 import com.kiri.server.domain.family.dto.FamilyReqDTO;
 import com.kiri.server.domain.family.dto.FamilyResDTO;
 import com.kiri.server.domain.family.entity.Family;
@@ -22,6 +23,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -50,6 +52,10 @@ class FamilyServiceTest {
 
     @Mock
     private CharacterRepository characterRepository;
+
+    @Spy
+    private FamilyInviteProperties familyInviteProperties =
+            new FamilyInviteProperties("https://kiri.app/invite");
 
     @InjectMocks
     private FamilyService familyService;
