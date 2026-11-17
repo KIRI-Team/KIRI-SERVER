@@ -22,7 +22,7 @@ public class NotificationConverter {
                 .member(member)
                 .notificationType(NotificationType.QUESTION_REMINDER)
                 .title("아직 오늘의 질문에 답변하지 않았어요!")
-                .body("오늘 받은 질문카드는 오늘 내로 답변해 주세요. 가족들이 기다리고 있어요.")
+                .body("오늘의 질문에 답하고 가족의 생각도 확인해 보세요.")
                 .status(NotificationStatus.PENDING)
                 .isRead(false)
                 .referenceId(familyQuestion.getId())
@@ -65,7 +65,7 @@ public class NotificationConverter {
                 .member(member)
                 .notificationType(NotificationType.MISSION)
                 .title("이번 주 새로운 가족 미션이 도착했어요!")
-                .body("이번 주 우리 가족의 미션은 '" + missionTitle + "'이에요. 함께할 날짜를 정해 보세요.")
+                .body("우리 가족의 이번 주 미션은 '" + missionTitle + "'이에요. 함께할 날짜를 정해 보세요.")
                 .status(NotificationStatus.PENDING)
                 .isRead(false)
                 .referenceId(mission.getId())
@@ -110,16 +110,13 @@ public class NotificationConverter {
     }
 
     public static Notification toScheduleInvitationReminder(Member receiver, Schedule schedule) {
-        String proposerNickname = schedule.getProposer().getNickname();
         String missionTitle = schedule.getBucketItem().getMission().getTitle();
-        String scheduleDate = schedule.getScheduleDate().format(DateTimeFormatter.ofPattern("M월 d일"));
-        String scheduleTime = schedule.getScheduleTime().format(DateTimeFormatter.ofPattern("HH:mm"));
 
         return Notification.builder()
                 .member(receiver)
                 .notificationType(NotificationType.SCHEDULE_INVITATION_REMINDER)
-                .title("일정 초대에 아직 응답하지 않았어요!")
-                .body(proposerNickname + "님이 초대한 '" + missionTitle + "' 일정(" + scheduleDate + " " + scheduleTime + ")에 아직 응답하지 않았어요. 참여 여부를 알려주세요.")
+                .title("아직 일정 초대에 답하지 않았어요!")
+                .body("'" + missionTitle + "' 초대의 응답 마감이 다가오고 있어요. 함께할 수 있는지 알려주세요.")
                 .status(NotificationStatus.PENDING)
                 .isRead(false)
                 .referenceId(schedule.getId())
@@ -272,7 +269,7 @@ public class NotificationConverter {
                 .member(receiver)
                 .notificationType(NotificationType.SCHEDULE_D0_REMINDER)
                 .title("오늘 가족과 함께할 시간이 다가와요!")
-                .body("'" + missionTitle + "' 일정이 2시간 후에 시작돼요. 즐거운 시간 보내세요!")
+                .body("'" + missionTitle + "' 일정이 2시간 후에 시작돼요. 출발 준비를 확인해 보세요.")
                 .status(NotificationStatus.PENDING)
                 .isRead(false)
                 .referenceId(schedule.getId())
@@ -304,7 +301,7 @@ public class NotificationConverter {
                 .member(member)
                 .notificationType(NotificationType.RECORD_CREATED)
                 .title("'" + writerNickname + "'님이 오늘 미션에 추억을 남겼어요!")
-                .body("'" + missionTitle + "' 활동에 새로운 사진과 기록이 등록됐어요. 들어가서 확인해 보세요.")
+                .body("'" + missionTitle + "' 활동에 새로운 사진과 기록이 등록됐어요.")
                 .status(NotificationStatus.PENDING)
                 .isRead(false)
                 .referenceId(schedule.getId())
@@ -347,8 +344,11 @@ public class NotificationConverter {
                 .title(notification.getTitle())
                 .body(notification.getBody())
                 .notificationType(notification.getNotificationType())
+                .category(notification.getNotificationType().getCategory())
+                .targetType(notification.getNotificationType().getTargetType())
                 .isRead(notification.getIsRead())
                 .referenceId(notification.getReferenceId())
+                .referenceDate(notification.getReferenceDate())
                 .createdAt(notification.getCreatedAt())
                 .build();
     }

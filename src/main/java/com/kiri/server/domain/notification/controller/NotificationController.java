@@ -2,10 +2,10 @@ package com.kiri.server.domain.notification.controller;
 
 import com.kiri.server.domain.notification.controller.docs.NotificationControllerDocs;
 import com.kiri.server.domain.notification.dto.NotificationResDTO;
+import com.kiri.server.domain.notification.enums.NotificationCategory;
 import com.kiri.server.domain.notification.exception.code.NotificationSuccessCode;
-import com.kiri.server.domain.notification.service.NotificationService;
+import com.kiri.server.domain.notification.service.NotificationInboxService;
 import com.kiri.server.global.apiPayload.ApiResponse;
-import com.kiri.server.global.apiPayload.code.BaseSuccessCode;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -18,16 +18,28 @@ import org.springframework.web.bind.annotation.*;
 @RequiredArgsConstructor
 public class NotificationController implements NotificationControllerDocs {
 
-    private final NotificationService notificationService;
+    private final NotificationInboxService notificationInboxService;
 
     @Override
     @GetMapping
     public ApiResponse<Page<NotificationResDTO.NotificationPreview>> getNotifications(
             @AuthenticationPrincipal Long memberId,
+            @RequestParam(required = false) NotificationCategory category,
             @PageableDefault(size = 20) Pageable pageable
     ) {
-        BaseSuccessCode code = NotificationSuccessCode.GET_NOTIFICATION_LIST;
-        return ApiResponse.onSuccess(code, notificationService.getNotifications(memberId, pageable));
+        return ApiResponse.onSuccess(NotificationSuccessCode.GET_NOTIFICATION_LIST, notificationInboxService.getNotifications(memberId, category, pageable));
+    }
+
+    @Override
+    @GetMapping("/unread-count")
+    public ApiResponse<NotificationResDTO.UnreadCount> getUnreadCount(@AuthenticationPrincipal Long memberId) {
+        return ApiResponse.onSuccess(NotificationSuccessCode.GET_UNREAD_COUNT, notificationInboxService.getUnreadCount(memberId));
+    }
+
+    @Override
+    @PatchMapping("/read-all")
+    public ApiResponse<NotificationResDTO.ReadAllResult> markAllNotificationsAsRead(@AuthenticationPrincipal Long memberId) {
+        return ApiResponse.onSuccess(NotificationSuccessCode.READ_ALL_NOTIFICATIONS, notificationInboxService.markAllAsRead(memberId));
     }
 
     @Override
@@ -36,8 +48,7 @@ public class NotificationController implements NotificationControllerDocs {
             @AuthenticationPrincipal Long memberId,
             @PathVariable Long notificationId
     ) {
-        notificationService.markNotificationAsRead(memberId, notificationId);
-        BaseSuccessCode code = NotificationSuccessCode.READ_NOTIFICATION;
-        return ApiResponse.onSuccess(code);
+        notificationInboxService.markAsRead(memberId, notificationId);
+        return ApiResponse.onSuccess(NotificationSuccessCode.READ_NOTIFICATION);
     }
 }

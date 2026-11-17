@@ -6,7 +6,8 @@ import com.kiri.server.domain.notification.enums.NotificationType;
 import com.kiri.server.domain.notification.exception.NotificationException;
 import com.kiri.server.domain.notification.exception.code.NotificationErrorCode;
 import com.kiri.server.domain.notification.exception.code.NotificationSuccessCode;
-import com.kiri.server.domain.notification.service.NotificationService;
+import com.kiri.server.domain.notification.enums.NotificationCategory;
+import com.kiri.server.domain.notification.service.NotificationInboxService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -45,7 +46,7 @@ class NotificationControllerTest {
     private ObjectMapper objectMapper;
 
     @MockitoBean
-    private NotificationService notificationService;
+    private NotificationInboxService notificationService;
 
     @TestConfiguration
     static class TestConfig {
@@ -76,7 +77,7 @@ class NotificationControllerTest {
 
         Page<NotificationResDTO.NotificationPreview> response = new PageImpl<>(List.of(preview), PageRequest.of(0, 20), 1);
 
-        given(notificationService.getNotifications(1L, PageRequest.of(0, 20))).willReturn(response);
+        given(notificationService.getNotifications(1L, null, PageRequest.of(0, 20))).willReturn(response);
 
         mockMvc.perform(get("/api/v1/notifications")
                         .with(authentication(authenticatedMember()))
@@ -94,7 +95,7 @@ class NotificationControllerTest {
                 .andExpect(jsonPath("$.result.content[0].isRead").value(false))
                 .andExpect(jsonPath("$.result.totalElements").value(1));
 
-        verify(notificationService).getNotifications(1L, PageRequest.of(0, 20));
+        verify(notificationService).getNotifications(1L, null, PageRequest.of(0, 20));
     }
 
     @Test
@@ -102,7 +103,7 @@ class NotificationControllerTest {
     void getNotificationsWithPageable() throws Exception {
         Page<NotificationResDTO.NotificationPreview> response = new PageImpl<>(List.of(), PageRequest.of(1, 10), 0);
 
-        given(notificationService.getNotifications(1L, PageRequest.of(1, 10))).willReturn(response);
+        given(notificationService.getNotifications(1L, null, PageRequest.of(1, 10))).willReturn(response);
 
         mockMvc.perform(get("/api/v1/notifications")
                         .param("page", "1")
@@ -115,7 +116,7 @@ class NotificationControllerTest {
                 .andExpect(jsonPath("$.result.size").value(10))
                 .andExpect(jsonPath("$.result.totalElements").value(0));
 
-        verify(notificationService).getNotifications(1L, PageRequest.of(1, 10));
+        verify(notificationService).getNotifications(1L, null, PageRequest.of(1, 10));
     }
 
     @Test
@@ -133,13 +134,13 @@ class NotificationControllerTest {
                 .andExpect(jsonPath("$.message")
                         .value(NotificationSuccessCode.READ_NOTIFICATION.getMessage()));
 
-        verify(notificationService).markNotificationAsRead(1L, 10L);
+        verify(notificationService).markAsRead(1L, 10L);
     }
 
     @Test
     @DisplayName("존재하지 않는 알림을 읽음 처리하면 실패")
     void markNotificationAsReadNotFound() throws Exception {
-        org.mockito.BDDMockito.willThrow(new NotificationException(NotificationErrorCode.NOTIFICATION_NOT_FOUND)).given(notificationService).markNotificationAsRead(1L, 10L);
+        org.mockito.BDDMockito.willThrow(new NotificationException(NotificationErrorCode.NOTIFICATION_NOT_FOUND)).given(notificationService).markAsRead(1L, 10L);
 
         mockMvc.perform(patch("/api/v1/notifications/{notificationId}/read", 10L)
                         .with(authentication(authenticatedMember()))
@@ -150,6 +151,46 @@ class NotificationControllerTest {
                 .andExpect(jsonPath("$.code")
                         .value(NotificationErrorCode.NOTIFICATION_NOT_FOUND.getCode()));
 
-        verify(notificationService).markNotificationAsRead(1L, 10L);
+        verify(notificationService).markAsRead(1L, 10L);
+    }
+
+    @Test
+    @DisplayName("탭 분류를 지정해 알림 목록을 조회한다")
+    void getNotificationsWithCategory() throws Exception {
+        given(notificationService.getNotifications(1L, NotificationCategory.SCHEDULE, PageRequest.of(0, 20)))
+                .willReturn(new PageImpl<>(List.of(), PageRequest.of(0, 20), 0));
+
+        mockMvc.perform(get("/api/v1/notifications")
+                        .param("category", "SCHEDULE")
+                        .with(authentication(authenticatedMember())))
+                .andExpect(status().isOk());
+
+        verify(notificationService).getNotifications(1L, NotificationCategory.SCHEDULE, PageRequest.of(0, 20));
+    }
+
+    @Test
+    @DisplayName("읽지 않은 알림 수를 조회한다")
+    void getUnreadCount() throws Exception {
+        given(notificationService.getUnreadCount(1L)).willReturn(new NotificationResDTO.UnreadCount(120, "99+"));
+
+        mockMvc.perform(get("/api/v1/notifications/unread-count")
+                        .with(authentication(authenticatedMember())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(NotificationSuccessCode.GET_UNREAD_COUNT.getCode()))
+                .andExpect(jsonPath("$.result.unreadCount").value(120))
+                .andExpect(jsonPath("$.result.badge").value("99+"));
+    }
+
+    @Test
+    @DisplayName("모든 알림을 읽음 처리한다")
+    void markAllAsRead() throws Exception {
+        given(notificationService.markAllAsRead(1L)).willReturn(new NotificationResDTO.ReadAllResult(3));
+
+        mockMvc.perform(patch("/api/v1/notifications/read-all")
+                        .with(authentication(authenticatedMember()))
+                        .with(csrf()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(NotificationSuccessCode.READ_ALL_NOTIFICATIONS.getCode()))
+                .andExpect(jsonPath("$.result.readCount").value(3));
     }
 }
