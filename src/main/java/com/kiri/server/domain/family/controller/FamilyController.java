@@ -129,4 +129,14 @@ public class FamilyController implements FamilyControllerDocs {
         BaseSuccessCode code = FamilySuccessCode.FAMILY_INFO_SUCCESS;
         return ApiResponse.onSuccess(code, familyService.getFamilyInfo(memberId, familyId));
     }
+
+    @Override
+    @GetMapping("/{familyId}/address")
+    public ApiResponse<FamilyResDTO.Address> getFamilyAddress(
+            @AuthenticationPrincipal Long memberId,
+            @PathVariable Long familyId
+    ) {
+        BaseSuccessCode code = FamilySuccessCode.FAMILY_ADDRESS_SUCCESS;
+        return ApiResponse.onSuccess(code, familyService.getFamilyAddress(memberId, familyId));
+    }
 }

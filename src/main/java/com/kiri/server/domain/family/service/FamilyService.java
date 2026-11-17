@@ -285,4 +285,17 @@ public class FamilyService {
 
         return FamilyConverter.toFamilyInfoResponse(family, members);
     }
+
+    @Transactional(readOnly = true)
+    public FamilyResDTO.Address getFamilyAddress(Long memberId, Long familyId) {
+        Member member = memberRepository.findById(memberId).orElseThrow(() -> new MemberException(MemberErrorCode.NOT_FOUND));
+
+        Family family = familyRepository.findById(familyId).orElseThrow(() -> new FamilyException(FamilyErrorCode.NOT_FOUND));
+
+        if (member.getFamily() == null || !family.getId().equals(member.getFamily().getId())) {
+            throw new FamilyException(FamilyErrorCode.FORBIDDEN);
+        }
+
+        return FamilyConverter.toAddressResponse(family);
+    }
 }

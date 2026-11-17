@@ -92,4 +92,16 @@ public class FamilyConverter {
                 .characterImageUrl(characterImageUrl)
                 .build();
     }
+
+    public static FamilyResDTO.Address toAddressResponse(Family family) {
+        return FamilyResDTO.Address.builder()
+                .familyId(family.getId())
+                .postalCode(family.getPostalCode())
+                .address(family.getAddress())
+                .detailAddress(family.getDetailAddress())
+                .regionCode(family.getRegionCode())
+                .latitude(family.getLatitude())
+                .longitude(family.getLongitude())
+                .build();
+    }
 }

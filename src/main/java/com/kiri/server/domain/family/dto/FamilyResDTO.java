@@ -78,4 +78,16 @@ public class FamilyResDTO {
             FamilyRole familyRole,
             String characterImageUrl
     ) {}
+
+    @Builder
+    @Schema(name = "FamilyAddressResponse", description = "가족 주소 정보 조회 응답")
+    public record Address(
+            Long familyId,
+            String postalCode,
+            String address,
+            String detailAddress,
+            String regionCode,
+            BigDecimal latitude,
+            BigDecimal longitude
+    ) {}
 }
