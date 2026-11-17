@@ -3,29 +3,34 @@ package com.kiri.server.domain.notification.enums;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
+import static com.kiri.server.domain.notification.enums.NotificationPriority.*;
+
 @Getter
 @RequiredArgsConstructor
 public enum NotificationType {
-    QUESTION_REMINDER(NotificationPriority.P5),
-    QUESTION_COMPLETE(NotificationPriority.P4),
-    SCHEDULE(NotificationPriority.P1),
-    SCHEDULE_INVITATION(NotificationPriority.P1),
-    SCHEDULE_INVITATION_REMINDER(NotificationPriority.P1),
-    SCHEDULE_RESPONSE(NotificationPriority.P1),
-    SCHEDULE_CHANGED(NotificationPriority.P0),
-    SCHEDULE_REMOVED(NotificationPriority.P0),
-    SCHEDULE_RECONFIRM_REMINDER(NotificationPriority.P0),
-    SCHEDULE_CANCELLED(NotificationPriority.P0),
-    SCHEDULE_NOT_CONFIRMED(NotificationPriority.P1),
-    SCHEDULE_D1_REMINDER(NotificationPriority.P2),
-    SCHEDULE_D0_REMINDER(NotificationPriority.P2),
-    POKE(NotificationPriority.P3),
-    RECORD(NotificationPriority.P5),
-    RECORD_CREATED(NotificationPriority.P4),
-    WEEKLY_MISSION_COMPLETED(NotificationPriority.P4),
-    MISSION(NotificationPriority.P5),
-    MISSION_CHANGED(NotificationPriority.P4),
-    EXTERNAL_EVENT_CANCELLED(NotificationPriority.P1);
+    QUESTION_REMINDER(P5, NotificationCategory.QUESTION, NotificationTargetType.QUESTION),
+    QUESTION_COMPLETE(P4, NotificationCategory.QUESTION, NotificationTargetType.FAMILY_ANSWERS),
+    SCHEDULE(P1, NotificationCategory.SCHEDULE, NotificationTargetType.SCHEDULE),
+    SCHEDULE_INVITATION(P1, NotificationCategory.SCHEDULE, NotificationTargetType.SCHEDULE_INVITATION),
+    SCHEDULE_INVITATION_REMINDER(P1, NotificationCategory.SCHEDULE, NotificationTargetType.SCHEDULE_INVITATION),
+    SCHEDULE_RESPONSE(P1, NotificationCategory.SCHEDULE, NotificationTargetType.SCHEDULE),
+    SCHEDULE_CHANGED(P0, NotificationCategory.SCHEDULE, NotificationTargetType.SCHEDULE),
+    SCHEDULE_REMOVED(P0, NotificationCategory.SCHEDULE, NotificationTargetType.SCHEDULE),
+    SCHEDULE_RECONFIRM_REMINDER(P0, NotificationCategory.SCHEDULE, NotificationTargetType.SCHEDULE),
+    SCHEDULE_CANCELLED(P0, NotificationCategory.SCHEDULE, NotificationTargetType.SCHEDULE),
+    SCHEDULE_NOT_CONFIRMED(P1, NotificationCategory.SCHEDULE, NotificationTargetType.SCHEDULE),
+    SCHEDULE_D1_REMINDER(P2, NotificationCategory.SCHEDULE, NotificationTargetType.SCHEDULE),
+    SCHEDULE_D0_REMINDER(P2, NotificationCategory.SCHEDULE, NotificationTargetType.SCHEDULE),
+    POKE(P3, NotificationCategory.POKE, NotificationTargetType.QUESTION),
+    RECORD(P5, NotificationCategory.RECORD, NotificationTargetType.REVIEW_WRITE),
+    RECORD_CREATED(P4, NotificationCategory.RECORD, NotificationTargetType.SCHEDULE_RECORD),
+    WEEKLY_MISSION_COMPLETED(P4, NotificationCategory.RECORD, NotificationTargetType.WEEKLY_MISSION_RECORD),
+    MISSION(P5, NotificationCategory.MISSION, NotificationTargetType.WEEKLY_MISSION),
+    MISSION_CHANGED(P4, NotificationCategory.MISSION, NotificationTargetType.WEEKLY_MISSION),
+    // 외부 행사 취소는 일정에 영향을 주는 안내라 일정 탭에 둔다. referenceId는 미션 ID다.
+    EXTERNAL_EVENT_CANCELLED(P1, NotificationCategory.SCHEDULE, NotificationTargetType.MISSION);
 
     private final NotificationPriority priority;
+    private final NotificationCategory category;
+    private final NotificationTargetType targetType;
 }

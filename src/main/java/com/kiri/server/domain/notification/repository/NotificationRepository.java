@@ -8,6 +8,7 @@ import com.kiri.server.domain.notification.enums.NotificationType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -82,7 +83,52 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
 
     boolean existsByMemberIdAndEventKey(Long memberId, String eventKey);
 
-    Page<Notification> findAllByMemberIdOrderByCreatedAtDesc(Long memberId, Pageable pageable);
+    @Query(value = """
+            SELECT n FROM Notification n
+            WHERE n.member.id = :memberId
+              AND n.createdAt >= :since
+            ORDER BY n.createdAt DESC, n.id DESC
+            """,
+            countQuery = """
+            SELECT COUNT(n) FROM Notification n
+            WHERE n.member.id = :memberId
+              AND n.createdAt >= :since
+            """)
+    Page<Notification> findInbox(@Param("memberId") Long memberId, @Param("since") LocalDateTime since, Pageable pageable);
+
+    @Query(value = """
+            SELECT n FROM Notification n
+            WHERE n.member.id = :memberId
+              AND n.createdAt >= :since
+              AND n.notificationType IN :types
+            ORDER BY n.createdAt DESC, n.id DESC
+            """,
+            countQuery = """
+            SELECT COUNT(n) FROM Notification n
+            WHERE n.member.id = :memberId
+              AND n.createdAt >= :since
+              AND n.notificationType IN :types
+            """)
+    Page<Notification> findInboxByTypes(@Param("memberId") Long memberId, @Param("types") Collection<NotificationType> types, @Param("since") LocalDateTime since, Pageable pageable);
+
+    long countByMemberIdAndIsReadFalseAndCreatedAtGreaterThanEqual(Long memberId, LocalDateTime since);
+
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("UPDATE Notification n SET n.isRead = true WHERE n.member.id = :memberId AND n.isRead = false")
+    int markAllAsRead(@Param("memberId") Long memberId);
+
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query(value = """
+            DELETE FROM notification
+            WHERE notification_id IN (
+                SELECT notification_id
+                FROM notification
+                WHERE created_at < :threshold
+                ORDER BY notification_id
+                LIMIT :batchSize
+            )
+            """, nativeQuery = true)
+    int deleteCreatedBefore(@Param("threshold") LocalDateTime threshold, @Param("batchSize") int batchSize);
 
     Optional<Notification> findByIdAndMemberId(Long notificationId, Long memberId);
 }

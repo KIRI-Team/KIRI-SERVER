@@ -10,7 +10,6 @@ import com.kiri.server.domain.notification.dto.NotificationResDTO;
 import com.kiri.server.domain.notification.entity.Notification;
 import com.kiri.server.domain.notification.enums.NotificationStatus;
 import com.kiri.server.domain.notification.enums.NotificationType;
-import com.kiri.server.domain.notification.exception.NotificationException;
 import com.kiri.server.domain.notification.repository.NotificationRepository;
 import com.kiri.server.domain.question.entity.FamilyQuestion;
 import com.kiri.server.domain.question.entity.MemberAnswer;
@@ -35,9 +34,6 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageImpl;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.DayOfWeek;
@@ -153,10 +149,24 @@ class NotificationServiceTest {
         assertThat(saved.getMember()).isEqualTo(member);
         assertThat(saved.getNotificationType()).isEqualTo(NotificationType.QUESTION_REMINDER);
         assertThat(saved.getTitle()).isEqualTo("아직 오늘의 질문에 답변하지 않았어요!");
-        assertThat(saved.getBody()).isEqualTo("오늘 받은 질문카드는 오늘 내로 답변해 주세요. 가족들이 기다리고 있어요.");
+        assertThat(saved.getBody()).isEqualTo("오늘의 질문에 답하고 가족의 생각도 확인해 보세요.");
         assertThat(saved.getStatus()).isEqualTo(NotificationStatus.PENDING);
         assertThat(saved.getReferenceId()).isEqualTo(FAMILY_QUESTION_ID);
         assertThat(saved.getReferenceDate()).isEqualTo(TODAY);
+    }
+
+    @Test
+    @DisplayName("전체 푸시를 끈 회원에게도 인앱 질문 리마인드는 생성한다. 푸시는 발송 단계에서 생략한다.")
+    void createQuestionReminderEvenWhenPushOff() {
+        given(familyQuestionRepository.findAllByQuestionDate(TODAY)).willReturn(List.of(familyQuestion));
+        given(memberRepository.findAllByFamilyAndDeletedAtIsNull(family)).willReturn(List.of(member));
+        given(memberSettingRepository.findByMember(member)).willReturn(Optional.of(createSetting(false, NOTIFICATION_TIME)));
+        given(memberAnswerRepository.existsByFamilyQuestionAndMember(familyQuestion, member)).willReturn(false);
+        given(notificationRepository.existsByMemberAndNotificationTypeAndReferenceDate(member, NotificationType.QUESTION_REMINDER, TODAY)).willReturn(false);
+
+        notificationService.createQuestionReminderNotifications(TODAY, NOTIFICATION_TIME);
+
+        verify(notificationRepository).save(any(Notification.class));
     }
 
     @Test
@@ -169,19 +179,6 @@ class NotificationServiceTest {
         notificationService.createQuestionReminderNotifications(TODAY, NOTIFICATION_TIME);
 
         verify(notificationRepository, never()).save(any());
-    }
-
-    @Test
-    @DisplayName("전체 알림이 비활성화된 회원에게는 알림을 생성하지 않는다.")
-    void createQuestionReminderNotificationsDisabled() {
-        given(familyQuestionRepository.findAllByQuestionDate(TODAY)).willReturn(List.of(familyQuestion));
-        given(memberRepository.findAllByFamilyAndDeletedAtIsNull(family)).willReturn(List.of(member));
-        given(memberSettingRepository.findByMember(member)).willReturn(Optional.of(createSetting(false, NOTIFICATION_TIME)));
-
-        notificationService.createQuestionReminderNotifications(TODAY, NOTIFICATION_TIME);
-
-        verify(notificationRepository, never()).save(any());
-        verify(memberAnswerRepository, never()).existsByFamilyQuestionAndMember(familyQuestion, member);
     }
 
     @Test
@@ -243,7 +240,7 @@ class NotificationServiceTest {
                 .member(member)
                 .notificationType(NotificationType.QUESTION_REMINDER)
                 .title("아직 오늘의 질문에 답변하지 않았어요!")
-                .body("오늘 받은 질문카드는 오늘 내로 답변해 주세요. 가족들이 기다리고 있어요.")
+                .body("오늘의 질문에 답하고 가족의 생각도 확인해 보세요.")
                 .status(NotificationStatus.PENDING)
                 .referenceId(FAMILY_QUESTION_ID)
                 .referenceDate(TODAY)
@@ -476,7 +473,7 @@ class NotificationServiceTest {
 
         assertThat(notifications)
                 .extracting(Notification::getBody)
-                .containsOnly("이번 주 우리 가족의 미션은 '공원 산책'이에요. 함께할 날짜를 정해 보세요.");
+                .containsOnly("우리 가족의 이번 주 미션은 '공원 산책'이에요. 함께할 날짜를 정해 보세요.");
 
         assertThat(notifications)
                 .extracting(Notification::getStatus)
@@ -1575,7 +1572,7 @@ class NotificationServiceTest {
 
         assertThat(saved)
                 .extracting(Notification::getBody)
-                .containsOnly("'공원 산책' 일정이 2시간 후에 시작돼요. 즐거운 시간 보내세요!");
+                .containsOnly("'공원 산책' 일정이 2시간 후에 시작돼요. 출발 준비를 확인해 보세요.");
 
         assertThat(saved)
                 .extracting(Notification::getStatus)
@@ -1850,7 +1847,7 @@ class NotificationServiceTest {
         assertThat(notification.getMember()).isEqualTo(member2);
         assertThat(notification.getNotificationType()).isEqualTo(NotificationType.RECORD_CREATED);
         assertThat(notification.getTitle()).isEqualTo("'철수'님이 오늘 미션에 추억을 남겼어요!");
-        assertThat(notification.getBody()).isEqualTo("'공원 산책' 활동에 새로운 사진과 기록이 등록됐어요. 들어가서 확인해 보세요.");
+        assertThat(notification.getBody()).isEqualTo("'공원 산책' 활동에 새로운 사진과 기록이 등록됐어요.");
         assertThat(notification.getStatus()).isEqualTo(NotificationStatus.PENDING);
         assertThat(notification.getIsRead()).isFalse();
         assertThat(notification.getReferenceId()).isEqualTo(schedule.getId());
@@ -2177,74 +2174,61 @@ class NotificationServiceTest {
     }
 
 
-    @Test
-    @DisplayName("회원의 알림 목록을 최신순으로 조회하고 DTO로 변환한다.")
-    void getNotificationsSuccess() {
-        Notification notification = Notification.builder()
-                .id(10L)
-                .member(member)
-                .notificationType(NotificationType.QUESTION_REMINDER)
-                .title("알림 제목")
-                .body("알림 내용")
-                .status(NotificationStatus.PENDING)
-                .isRead(false)
-                .referenceId(100L)
-                .build();
+    @Nested
+    @DisplayName("푸시 차단 여부")
+    class PushBlockedTest {
 
-        PageRequest pageable = PageRequest.of(0, 20);
+        @Test
+        @DisplayName("가족에 속해 있고 전체 푸시를 켠 회원은 푸시를 보낸다.")
+        void allowed() {
+            given(memberRepository.findById(MEMBER_ID)).willReturn(Optional.of(member));
+            given(memberSettingRepository.findByMember(member)).willReturn(Optional.of(MemberSetting.builder().member(member).isAllNotificationEnabled(true).build()));
 
-        Page<Notification> notificationPage = new PageImpl<>(List.of(notification), pageable, 1);
+            assertThat(notificationService.isPushBlocked(MEMBER_ID, null)).isFalse();
+        }
 
-        given(notificationRepository.findAllByMemberIdOrderByCreatedAtDesc(MEMBER_ID, pageable)).willReturn(notificationPage);
+        @Test
+        @DisplayName("전체 푸시를 끈 회원은 푸시를 보내지 않는다.")
+        void pushOff() {
+            given(memberRepository.findById(MEMBER_ID)).willReturn(Optional.of(member));
+            given(memberSettingRepository.findByMember(member)).willReturn(Optional.of(MemberSetting.builder().member(member).isAllNotificationEnabled(false).build()));
 
-        Page<NotificationResDTO.NotificationPreview> result = notificationService.getNotifications(MEMBER_ID, pageable);
+            assertThat(notificationService.isPushBlocked(MEMBER_ID, null)).isTrue();
+        }
 
-        assertThat(result.getContent()).hasSize(1);
+        @Test
+        @DisplayName("가족공간을 떠난 회원은 푸시를 보내지 않는다.")
+        void noFamily() {
+            Member alone = Member.builder().id(MEMBER_ID).nickname("혼자").build();
+            given(memberRepository.findById(MEMBER_ID)).willReturn(Optional.of(alone));
 
-        NotificationResDTO.NotificationPreview preview = result.getContent().get(0);
+            assertThat(notificationService.isPushBlocked(MEMBER_ID, null)).isTrue();
+        }
 
-        assertThat(preview.notificationId()).isEqualTo(10L);
-        assertThat(preview.title()).isEqualTo("알림 제목");
-        assertThat(preview.body()).isEqualTo("알림 내용");
-        assertThat(preview.notificationType()).isEqualTo(NotificationType.QUESTION_REMINDER);
-        assertThat(preview.isRead()).isFalse();
-        assertThat(preview.referenceId()).isEqualTo(100L);
+        @Test
+        @DisplayName("알림이 생긴 가족과 지금 가족이 다르면 푸시를 보내지 않는다.")
+        void movedToAnotherFamily() {
+            given(memberRepository.findById(MEMBER_ID)).willReturn(Optional.of(member));
 
-        assertThat(result.getTotalElements()).isEqualTo(1);
+            assertThat(notificationService.isPushBlocked(MEMBER_ID, 999L)).isTrue();
+        }
 
-        then(notificationRepository).should().findAllByMemberIdOrderByCreatedAtDesc(MEMBER_ID, pageable);
-    }
+        @Test
+        @DisplayName("알림이 생긴 가족에 그대로 있으면 푸시를 보낸다.")
+        void sameFamily() {
+            given(memberRepository.findById(MEMBER_ID)).willReturn(Optional.of(member));
+            given(memberSettingRepository.findByMember(member)).willReturn(Optional.empty());
 
-    @Test
-    @DisplayName("알림을 읽음 처리한다.")
-    void markNotificationAsReadSuccess() {
-        Notification notification = Notification.builder()
-                .id(10L)
-                .member(member)
-                .notificationType(NotificationType.QUESTION_REMINDER)
-                .title("알림 제목")
-                .body("알림 내용")
-                .status(NotificationStatus.PENDING)
-                .isRead(false)
-                .build();
+            assertThat(notificationService.isPushBlocked(MEMBER_ID, family.getId())).isFalse();
+        }
 
-        given(notificationRepository.findByIdAndMemberId(10L, MEMBER_ID)).willReturn(Optional.of(notification));
+        @Test
+        @DisplayName("회원을 찾을 수 없으면 푸시를 보내지 않는다.")
+        void missingMember() {
+            given(memberRepository.findById(MEMBER_ID)).willReturn(Optional.empty());
 
-        notificationService.markNotificationAsRead(MEMBER_ID, 10L);
-
-        assertThat(notification.getIsRead()).isTrue();
-
-        then(notificationRepository).should().findByIdAndMemberId(10L, MEMBER_ID);
-    }
-
-    @Test
-    @DisplayName("존재하지 않는 알림을 읽음 처리하면 예외가 발생한다.")
-    void markNotificationAsReadNotFound() {
-        given(notificationRepository.findByIdAndMemberId(10L, MEMBER_ID)).willReturn(Optional.empty());
-
-        assertThatThrownBy(() -> notificationService.markNotificationAsRead(MEMBER_ID, 10L)).isInstanceOf(NotificationException.class);
-
-        then(notificationRepository).should().findByIdAndMemberId(10L, MEMBER_ID);
+            assertThat(notificationService.isPushBlocked(MEMBER_ID, null)).isTrue();
+        }
     }
 
 

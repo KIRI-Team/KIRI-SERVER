@@ -11,8 +11,6 @@ import com.kiri.server.domain.notification.entity.Notification;
 import com.kiri.server.domain.notification.enums.NotificationPriority;
 import com.kiri.server.domain.notification.enums.NotificationStatus;
 import com.kiri.server.domain.notification.enums.NotificationType;
-import com.kiri.server.domain.notification.exception.NotificationException;
-import com.kiri.server.domain.notification.exception.code.NotificationErrorCode;
 import com.kiri.server.domain.notification.repository.NotificationRepository;
 import com.kiri.server.domain.question.entity.FamilyQuestion;
 import com.kiri.server.domain.question.exception.QuestionException;
@@ -32,8 +30,6 @@ import com.kiri.server.domain.setting.entity.MemberSetting;
 import com.kiri.server.domain.setting.repository.MemberSettingRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -80,10 +76,6 @@ public class NotificationService {
 
         if (setting == null) {
             log.warn("회원 알림 설정이 존재하지 않습니다. memberId={}", member.getId());
-            return;
-        }
-
-        if (!Boolean.TRUE.equals(setting.getIsAllNotificationEnabled())) {
             return;
         }
 
@@ -673,7 +665,7 @@ public class NotificationService {
                 continue;
             }
 
-            targets.add(new NotificationResDTO.NotificationProcessingTarget(notification.getId(), notification.getMember().getId(), notification.getTitle(), notification.getBody(), notification.getNotificationType(), notification.getReferenceDate(), leaseId));
+            targets.add(new NotificationResDTO.NotificationProcessingTarget(notification.getId(), notification.getMember().getId(), notification.getFamilyId(), notification.getTitle(), notification.getBody(), notification.getNotificationType(), notification.getReferenceDate(), leaseId));
         }
 
         log.info("알림 발송 대상 선점 완료 notificationCount={}", targets.size());
@@ -748,20 +740,28 @@ public class NotificationService {
         return sentCount >= MAX_DAILY_PUSH_COUNT;
     }
 
+    /**
+     * 푸시를 보내면 안 되는 회원인지 확인한다. 인앱 알림은 그대로 두고 푸시만 생략한다.
+     * 탈퇴했거나 가족공간에 속하지 않은 회원, 알림이 생긴 가족을 떠나 다른 가족으로 옮긴 회원,
+     * 앱에서 전체 푸시를 끈 회원이 대상이다.
+     *
+     * @param notificationFamilyId 알림이 생긴 시점의 가족 ID. 가족 정보가 없는 옛 알림이면 null
+     */
     @Transactional(readOnly = true)
-    public Page<NotificationResDTO.NotificationPreview> getNotifications(Long memberId, Pageable pageable) {
-        return notificationRepository
-                .findAllByMemberIdOrderByCreatedAtDesc(memberId, pageable)
-                .map(NotificationConverter::toNotificationPreview);
-    }
+    public boolean isPushBlocked(Long memberId, Long notificationFamilyId) {
+        Member member = memberRepository.findById(memberId).orElse(null);
 
-    @Transactional
-    public void markNotificationAsRead(Long memberId, Long notificationId) {
-        Notification notification = notificationRepository
-                .findByIdAndMemberId(notificationId, memberId)
-                .orElseThrow(() -> new NotificationException(NotificationErrorCode.NOTIFICATION_NOT_FOUND));
+        if (member == null || member.isWithdrawn() || member.getFamily() == null) {
+            return true;
+        }
 
-        notification.markAsRead();
+        if (notificationFamilyId != null && !notificationFamilyId.equals(member.getFamily().getId())) {
+            return true;
+        }
+
+        return memberSettingRepository.findByMember(member)
+                .map(setting -> !Boolean.TRUE.equals(setting.getIsAllNotificationEnabled()))
+                .orElse(false);
     }
 
     private LocalDateTime calculateRecordReminderAt(LocalDateTime scheduleStartAt) {
