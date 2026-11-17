@@ -101,6 +101,21 @@ class NotificationDispatchServiceTest {
     }
 
     @Test
+    @DisplayName("푸시가 막힌 회원(푸시 OFF·가족 탈퇴)이면 디바이스를 찾지 않고 SKIPPED 처리한다")
+    void dispatchPendingNotificationsPushBlocked() throws Exception {
+        NotificationResDTO.NotificationProcessingTarget target = createTarget(NotificationType.SCHEDULE_CANCELLED, null);
+
+        given(notificationService.claimPendingNotifications()).willReturn(List.of(target));
+        given(notificationService.isPushBlocked(1L)).willReturn(true);
+
+        notificationDispatchService.dispatchPendingNotifications();
+
+        verify(notificationService).markNotificationSkipped(target.notificationId(), target.leaseId());
+        verify(memberDeviceRepository, never()).findAllByMemberId(anyLong());
+        verify(fcmService, never()).send(anyString(), anyString(), anyString(), any());
+    }
+
+    @Test
     @DisplayName("등록된 디바이스가 없으면 SKIPPED 처리한다")
     void dispatchPendingNotificationsNoDevices() throws Exception {
         NotificationResDTO.NotificationProcessingTarget target = createTarget(NotificationType.SCHEDULE, null);

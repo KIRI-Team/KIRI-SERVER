@@ -41,7 +41,13 @@ public class NotificationDispatchService {
             return;
         }
 
-        if (isQuietHours(now) && target.notificationType().getPriority().getValue() >= 2) {
+        // 발송 직전에 회원 상태를 다시 확인한다. 푸시 OFF·가족 탈퇴·회원 탈퇴면 인앱 기록만 남긴다.
+        if (notificationService.isPushBlocked(target.memberId())) {
+            notificationService.markNotificationSkipped(target.notificationId(), target.leaseId());
+            return;
+        }
+
+        if (isQuietHours(now) &&target.notificationType().getPriority().getValue() >= 2) {
             notificationService.deferNotification(target.notificationId(), target.leaseId(), getNextAllowedTime(now));
             return;
         }
