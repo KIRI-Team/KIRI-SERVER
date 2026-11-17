@@ -106,7 +106,7 @@ class NotificationDispatchServiceTest {
         NotificationResDTO.NotificationProcessingTarget target = createTarget(NotificationType.SCHEDULE_CANCELLED, null);
 
         given(notificationService.claimPendingNotifications()).willReturn(List.of(target));
-        given(notificationService.isPushBlocked(1L)).willReturn(true);
+        given(notificationService.isPushBlocked(1L, null)).willReturn(true);
 
         notificationDispatchService.dispatchPendingNotifications();
 

@@ -9,6 +9,7 @@ import com.kiri.server.domain.notification.enums.NotificationStatus;
 import com.kiri.server.domain.notification.enums.NotificationType;
 import com.kiri.server.domain.notification.repository.NotificationRepository;
 import com.kiri.server.domain.notification.service.NotificationInboxService;
+import com.kiri.server.domain.notification.service.NotificationService;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -49,14 +50,17 @@ class NotificationInboxIntegrationTest {
     private NotificationRepository notificationRepository;
     @Autowired
     private NotificationInboxService notificationInboxService;
+    @Autowired
+    private NotificationService notificationService;
 
     private Member mom;
     private Member son;
+    private Family family;
 
     @BeforeEach
     void setUp() {
         mom = fx.member("엄마");
-        Family family = fx.family("우리집", mom);
+        family = fx.family("우리집", mom);
         son = fx.join(fx.member("아들"), family, FamilyRole.SON, LocalDateTime.of(2026, 10, 2, 10, 0));
     }
 
@@ -195,5 +199,22 @@ class NotificationInboxIntegrationTest {
 
         org.assertj.core.api.Assertions.assertThatThrownBy(() -> save(son, NotificationType.QUESTION_REMINDER, 1L, date))
                 .isInstanceOf(Exception.class);
+    }
+
+    @Test
+    @DisplayName("알림에는 생긴 시점의 가족이 저장되고, 다른 가족으로 옮긴 회원에게는 이전 가족 알림 푸시를 막는다")
+    void blockPushAfterMovingFamily() {
+        Notification invitation = save(son, NotificationType.SCHEDULE_INVITATION, 7L, LocalDate.of(2026, 11, 20));
+        assertThat(invitation.getFamilyId()).isEqualTo(family.getId());
+        assertThat(notificationService.isPushBlocked(son.getId(), invitation.getFamilyId())).isFalse();
+
+        Member uncle = fx.member("삼촌");
+        Family other = fx.family("다른집", uncle);
+        son.joinFamily(other);
+        em.flush();
+
+        assertThat(notificationService.isPushBlocked(son.getId(), invitation.getFamilyId())).isTrue();
+        Notification newOne = save(son, NotificationType.SCHEDULE_INVITATION, 8L, LocalDate.of(2026, 11, 21));
+        assertThat(notificationService.isPushBlocked(son.getId(), newOne.getFamilyId())).isFalse();
     }
 }

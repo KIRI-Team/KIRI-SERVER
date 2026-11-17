@@ -17,3 +17,14 @@ DROP INDEX IF EXISTS uk_notification_member_type_reference_date;
 CREATE UNIQUE INDEX uk_notification_member_type_reference_date
     ON notification (member_id, notification_type, reference_date)
     WHERE notification_type IN ('QUESTION_REMINDER', 'QUESTION_COMPLETE', 'MISSION');
+
+-- 알림이 생긴 시점의 가족공간. 가족을 옮긴 회원에게 이전 가족의 대기 알림 푸시가 나가지 않도록 발송 직전에 비교한다.
+ALTER TABLE notification
+    ADD COLUMN family_id BIGINT;
+
+-- 기존 알림은 지금 소속 가족으로 채운다. 이후 가족을 옮기면 이 값과 비교해 푸시를 막는다.
+UPDATE notification n
+SET family_id = m.family_id
+FROM member m
+WHERE n.member_id = m.member_id
+  AND n.family_id IS NULL;

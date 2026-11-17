@@ -2184,7 +2184,7 @@ class NotificationServiceTest {
             given(memberRepository.findById(MEMBER_ID)).willReturn(Optional.of(member));
             given(memberSettingRepository.findByMember(member)).willReturn(Optional.of(MemberSetting.builder().member(member).isAllNotificationEnabled(true).build()));
 
-            assertThat(notificationService.isPushBlocked(MEMBER_ID)).isFalse();
+            assertThat(notificationService.isPushBlocked(MEMBER_ID, null)).isFalse();
         }
 
         @Test
@@ -2193,7 +2193,7 @@ class NotificationServiceTest {
             given(memberRepository.findById(MEMBER_ID)).willReturn(Optional.of(member));
             given(memberSettingRepository.findByMember(member)).willReturn(Optional.of(MemberSetting.builder().member(member).isAllNotificationEnabled(false).build()));
 
-            assertThat(notificationService.isPushBlocked(MEMBER_ID)).isTrue();
+            assertThat(notificationService.isPushBlocked(MEMBER_ID, null)).isTrue();
         }
 
         @Test
@@ -2202,7 +2202,24 @@ class NotificationServiceTest {
             Member alone = Member.builder().id(MEMBER_ID).nickname("혼자").build();
             given(memberRepository.findById(MEMBER_ID)).willReturn(Optional.of(alone));
 
-            assertThat(notificationService.isPushBlocked(MEMBER_ID)).isTrue();
+            assertThat(notificationService.isPushBlocked(MEMBER_ID, null)).isTrue();
+        }
+
+        @Test
+        @DisplayName("알림이 생긴 가족과 지금 가족이 다르면 푸시를 보내지 않는다.")
+        void movedToAnotherFamily() {
+            given(memberRepository.findById(MEMBER_ID)).willReturn(Optional.of(member));
+
+            assertThat(notificationService.isPushBlocked(MEMBER_ID, 999L)).isTrue();
+        }
+
+        @Test
+        @DisplayName("알림이 생긴 가족에 그대로 있으면 푸시를 보낸다.")
+        void sameFamily() {
+            given(memberRepository.findById(MEMBER_ID)).willReturn(Optional.of(member));
+            given(memberSettingRepository.findByMember(member)).willReturn(Optional.empty());
+
+            assertThat(notificationService.isPushBlocked(MEMBER_ID, family.getId())).isFalse();
         }
 
         @Test
@@ -2210,7 +2227,7 @@ class NotificationServiceTest {
         void missingMember() {
             given(memberRepository.findById(MEMBER_ID)).willReturn(Optional.empty());
 
-            assertThat(notificationService.isPushBlocked(MEMBER_ID)).isTrue();
+            assertThat(notificationService.isPushBlocked(MEMBER_ID, null)).isTrue();
         }
     }
 

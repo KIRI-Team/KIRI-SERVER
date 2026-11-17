@@ -41,8 +41,8 @@ public class NotificationDispatchService {
             return;
         }
 
-        // 발송 직전에 회원 상태를 다시 확인한다. 푸시 OFF·가족 탈퇴·회원 탈퇴면 인앱 기록만 남긴다.
-        if (notificationService.isPushBlocked(target.memberId())) {
+        // 발송 직전에 회원 상태를 다시 확인한다. 푸시 OFF·가족 탈퇴·다른 가족으로 이동·회원 탈퇴면 인앱 기록만 남긴다.
+        if (notificationService.isPushBlocked(target.memberId(), target.familyId())) {
             notificationService.markNotificationSkipped(target.notificationId(), target.leaseId());
             return;
         }

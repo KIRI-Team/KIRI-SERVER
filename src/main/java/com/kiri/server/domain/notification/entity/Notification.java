@@ -54,6 +54,10 @@ public class Notification extends BaseEntity {
     @Builder.Default
     private Boolean isRead = false;
 
+    /** 알림이 생긴 시점의 가족공간. 발송 직전에 회원의 현재 가족과 비교해 다른 가족의 알림이 나가지 않게 한다. */
+    @Column(name = "family_id")
+    private Long familyId;
+
     @Column(name = "reference_id")
     private Long referenceId;
 
@@ -201,6 +205,9 @@ public class Notification extends BaseEntity {
     protected void assignPriority() {
         if (priority == null && notificationType != null) {
             priority = notificationType.getPriority();
+        }
+        if (familyId == null && member != null && member.getFamily() != null) {
+            familyId = member.getFamily().getId();
         }
     }
 

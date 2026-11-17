@@ -665,7 +665,7 @@ public class NotificationService {
                 continue;
             }
 
-            targets.add(new NotificationResDTO.NotificationProcessingTarget(notification.getId(), notification.getMember().getId(), notification.getTitle(), notification.getBody(), notification.getNotificationType(), notification.getReferenceDate(), leaseId));
+            targets.add(new NotificationResDTO.NotificationProcessingTarget(notification.getId(), notification.getMember().getId(), notification.getFamilyId(), notification.getTitle(), notification.getBody(), notification.getNotificationType(), notification.getReferenceDate(), leaseId));
         }
 
         log.info("알림 발송 대상 선점 완료 notificationCount={}", targets.size());
@@ -742,13 +742,20 @@ public class NotificationService {
 
     /**
      * 푸시를 보내면 안 되는 회원인지 확인한다. 인앱 알림은 그대로 두고 푸시만 생략한다.
-     * 탈퇴했거나 가족공간에 속하지 않은 회원, 앱에서 전체 푸시를 끈 회원이 대상이다.
+     * 탈퇴했거나 가족공간에 속하지 않은 회원, 알림이 생긴 가족을 떠나 다른 가족으로 옮긴 회원,
+     * 앱에서 전체 푸시를 끈 회원이 대상이다.
+     *
+     * @param notificationFamilyId 알림이 생긴 시점의 가족 ID. 가족 정보가 없는 옛 알림이면 null
      */
     @Transactional(readOnly = true)
-    public boolean isPushBlocked(Long memberId) {
+    public boolean isPushBlocked(Long memberId, Long notificationFamilyId) {
         Member member = memberRepository.findById(memberId).orElse(null);
 
         if (member == null || member.isWithdrawn() || member.getFamily() == null) {
+            return true;
+        }
+
+        if (notificationFamilyId != null && !notificationFamilyId.equals(member.getFamily().getId())) {
             return true;
         }
 

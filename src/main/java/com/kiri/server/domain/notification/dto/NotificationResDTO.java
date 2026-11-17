@@ -16,6 +16,7 @@ public class NotificationResDTO {
     public record NotificationProcessingTarget(
             Long notificationId,
             Long memberId,
+            Long familyId,
             String title,
             String body,
             NotificationType notificationType,
