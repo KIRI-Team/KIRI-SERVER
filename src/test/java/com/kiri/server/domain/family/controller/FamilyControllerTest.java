@@ -180,7 +180,7 @@ class FamilyControllerTest {
                 .familyId(1L)
                 .name("끼리네 가족")
                 .inviteCode("ABC123")
-                .inviteUrl("https://kiri.app/invite/test-token")
+                .inviteUrl("https://www.halo-official.co.kr/invite/test-token")
                 .inviteExpiresAt(LocalDateTime.now().plusDays(7))
                 .build();
 
@@ -206,7 +206,7 @@ class FamilyControllerTest {
                 .andExpect(jsonPath("$.result.name").value("끼리네 가족"))
                 .andExpect(jsonPath("$.result.inviteCode").value("ABC123"))
                 .andExpect(jsonPath("$.result.inviteUrl")
-                        .value("https://kiri.app/invite/test-token"))
+                        .value("https://www.halo-official.co.kr/invite/test-token"))
                 .andExpect(jsonPath("$.result.inviteExpiresAt").exists());
     }
 

@@ -2,6 +2,7 @@ package com.kiri.server.domain.family.service;
 
 import com.kiri.server.domain.character.entity.Character;
 import com.kiri.server.domain.character.repository.CharacterRepository;
+import com.kiri.server.domain.family.config.FamilyInviteProperties;
 import com.kiri.server.domain.family.converter.FamilyConverter;
 import com.kiri.server.domain.family.dto.FamilyReqDTO;
 import com.kiri.server.domain.family.dto.FamilyResDTO;
@@ -37,6 +38,7 @@ public class FamilyService {
     private final MemberRepository memberRepository;
     private final ApplicationEventPublisher eventPublisher;
     private final CharacterRepository characterRepository;
+    private final FamilyInviteProperties familyInviteProperties;
 
     @Transactional
     public FamilyResDTO.Create createFamily(Long memberId, FamilyReqDTO.Create dto) {
@@ -152,7 +154,7 @@ public class FamilyService {
     }
 
     private String generateInviteUrl(String inviteToken) {
-        return "https://kiri.app/invite/" + inviteToken;
+        return familyInviteProperties.baseUrl() + "/" + inviteToken;
     }
 
     @Transactional

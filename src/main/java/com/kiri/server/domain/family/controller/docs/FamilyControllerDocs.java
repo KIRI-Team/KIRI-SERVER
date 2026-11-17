@@ -57,7 +57,7 @@ public interface FamilyControllerDocs {
                                             "familyId": 1,
                                             "name": "끼리네가족",
                                             "inviteCode": "NWTKYJ",
-                                            "inviteUrl": "https://kiri.app/invite/...",
+                                            "inviteUrl": "https://www.halo-official.co.kr/invite/...",
                                             "inviteExpiresAt": "2026-10-14T11:51:36"
                                         }
                                     }
@@ -231,7 +231,7 @@ public interface FamilyControllerDocs {
                                         "message": "가족 초대 정보가 생성되었습니다.",
                                         "result": {
                                             "inviteCode": "NWTKYJ",
-                                            "inviteUrl": "https://kiri.app/invite/...",
+                                            "inviteUrl": "https://www.halo-official.co.kr/invite/...",
                                             "inviteExpiresAt": "2026-10-14T11:51:36"
                                         }
                                     }
@@ -533,7 +533,7 @@ public interface FamilyControllerDocs {
                                         "message": "가족 초대 정보가 삭제되었습니다.",
                                         "result": {
                                             "inviteCode": "NWTKYJ"
-                                        	"inviteUrl": "https://kiri.app/invite/...",
+                                        	"inviteUrl": "https://www.halo-official.co.kr/invite/...",
                                         	"inviteExpiresAt": "2026-10-14T11:51:36"
                                         }
                                     }

@@ -2,6 +2,7 @@ package com.kiri.server.domain.family.service;
 
 import com.kiri.server.domain.character.entity.Character;
 import com.kiri.server.domain.character.repository.CharacterRepository;
+import com.kiri.server.domain.family.config.FamilyInviteProperties;
 import com.kiri.server.domain.family.dto.FamilyReqDTO;
 import com.kiri.server.domain.family.dto.FamilyResDTO;
 import com.kiri.server.domain.family.entity.Family;
@@ -22,6 +23,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -50,6 +52,10 @@ class FamilyServiceTest {
 
     @Mock
     private CharacterRepository characterRepository;
+
+    @Spy
+    private FamilyInviteProperties familyInviteProperties =
+            new FamilyInviteProperties("https://www.halo-official.co.kr/invite");
 
     @InjectMocks
     private FamilyService familyService;
@@ -94,7 +100,7 @@ class FamilyServiceTest {
         assertThat(response.familyId()).isEqualTo(1L);
         assertThat(response.inviteCode()).isNotNull();
         assertThat(response.inviteCode()).hasSize(6);
-        assertThat(response.inviteUrl()).startsWith("https://kiri.app/invite/");
+        assertThat(response.inviteUrl()).startsWith("https://www.halo-official.co.kr/invite/");
         assertThat(response.inviteExpiresAt()).isNotNull();
 
         verify(memberRepository).findByIdForUpdate(memberId);
@@ -202,7 +208,7 @@ class FamilyServiceTest {
                 .isEqualTo(family.getInviteCode());
 
         assertThat(response.inviteUrl())
-                .isEqualTo("https://kiri.app/invite/" + family.getInviteToken());
+                .isEqualTo("https://www.halo-official.co.kr/invite/" + family.getInviteToken());
 
         verify(eventPublisher).publishEvent(new FamilyCreatedEvent(1L));
     }
@@ -232,7 +238,7 @@ class FamilyServiceTest {
         assertThat(result.inviteCode())
                 .hasSize(6)
                 .matches("[A-Z0-9]+");
-        assertThat(result.inviteUrl()).startsWith("https://kiri.app/invite/");
+        assertThat(result.inviteUrl()).startsWith("https://www.halo-official.co.kr/invite/");
         assertThat(result.inviteExpiresAt()).isNotNull();
 
         verify(family).renewInvite(anyString(), anyString(), any(LocalDateTime.class));
@@ -402,7 +408,7 @@ class FamilyServiceTest {
         assertThat(result.inviteCode())
                 .isEqualTo("ABC123");
         assertThat(result.inviteUrl())
-                .isEqualTo("https://kiri.app/invite/test-token");
+                .isEqualTo("https://www.halo-official.co.kr/invite/test-token");
         assertThat(result.inviteExpiresAt())
                 .isEqualTo(expiresAt);
     }

@@ -99,6 +99,10 @@ apple:
   issuer: https://appleid.apple.com
   jwks-uri: https://appleid.apple.com/auth/keys
 
+family:
+  invite:
+    base-url: https://www.halo-official.co.kr/invite
+
 tour-api:
   base-url: https://apis.data.go.kr/B551011/KorService2
   service-key: ${TOUR_API_KEY:}
