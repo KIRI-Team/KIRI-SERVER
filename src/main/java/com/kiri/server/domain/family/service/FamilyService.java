@@ -17,6 +17,7 @@ import com.kiri.server.domain.member.exception.MemberException;
 import com.kiri.server.domain.member.exception.code.MemberErrorCode;
 import com.kiri.server.domain.member.repository.MemberRepository;
 import com.kiri.server.global.apiPayload.exception.ProjectException;
+import com.kiri.server.global.profanity.ProfanityFilter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
@@ -39,11 +40,17 @@ public class FamilyService {
     private final ApplicationEventPublisher eventPublisher;
     private final CharacterRepository characterRepository;
     private final FamilyInviteProperties familyInviteProperties;
+    private final ProfanityFilter profanityFilter;
 
     @Transactional
     public FamilyResDTO.Create createFamily(Long memberId, FamilyReqDTO.Create dto) {
         Member member = memberRepository.findByIdForUpdate(memberId)
                 .orElseThrow(() -> new ProjectException(MemberErrorCode.NOT_FOUND));
+
+        // 금칙어·운영자 사칭 표현 검증
+        if (profanityFilter.containsBannedWord(dto.name())) {
+            throw new FamilyException(FamilyErrorCode.BANNED_NAME);
+        }
 
         if (familyRepository.existsByName(dto.name())) {
             throw new ProjectException(FamilyErrorCode.DUPLICATE_NAME);
@@ -173,6 +180,11 @@ public class FamilyService {
 
         if (family.getName().equals(normalizedName)) {
             return FamilyConverter.toUpdateNameResponse(family);
+        }
+
+        // 금칙어·운영자 사칭 표현 검증
+        if (profanityFilter.containsBannedWord(normalizedName)) {
+            throw new FamilyException(FamilyErrorCode.BANNED_NAME);
         }
 
         if (familyRepository.existsByName(normalizedName)) {
