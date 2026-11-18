@@ -16,7 +16,6 @@ import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
-import java.util.Optional;
 import java.util.Set;
 
 // 닉네임·가족명 금칙어 검사
@@ -41,11 +40,10 @@ public class ProfanityFilter {
         this.allowlist = buildTrie(Dictionary.load(ALLOWLIST_PATH).partial());
     }
 
-    // 금칙어가 있으면 그 종류를, 없으면 empty를 반환한다.
-    // 사칭 예약어와 일반 금칙어가 함께 있으면 사칭 예약어를 우선한다.
-    public Optional<BannedWordType> detect(String text) {
+    // 금칙어나 운영자 사칭 예약어가 포함되어 있으면 true
+    public boolean containsBannedWord(String text) {
         if (text == null || text.isBlank()) {
-            return Optional.empty();
+            return false;
         }
 
         String normalized = normalize(text);
@@ -62,13 +60,7 @@ public class ProfanityFilter {
             words.add(compact(token, false));
         }
 
-        if (matches(reserved, compacts, words)) {
-            return Optional.of(BannedWordType.RESERVED);
-        }
-        if (matches(profanity, compacts, words)) {
-            return Optional.of(BannedWordType.PROFANITY);
-        }
-        return Optional.empty();
+        return matches(reserved, compacts, words) || matches(profanity, compacts, words);
     }
 
     private boolean matches(Dictionary dictionary, Set<String> compacts, Set<String> words) {
@@ -78,7 +70,7 @@ public class ProfanityFilter {
             }
         }
         for (String compact : compacts) {
-            if (containsBannedWord(dictionary.partialTrie(), compact)) {
+            if (hasMatchOutsideAllowlist(dictionary.partialTrie(), compact)) {
                 return true;
             }
         }
@@ -86,7 +78,7 @@ public class ProfanityFilter {
     }
 
     // 화이트리스트 단어 안에 완전히 포함된 매치는 제외한다. (예: "시발점" 안의 "시발")
-    private boolean containsBannedWord(Trie trie, String text) {
+    private boolean hasMatchOutsideAllowlist(Trie trie, String text) {
         Collection<Emit> banned = trie.parseText(text);
         if (banned.isEmpty()) {
             return false;
