@@ -338,6 +338,17 @@ public interface MemberControllerDocs {
                                                 }
                                             }
                                             """
+                                    ),
+                                    @ExampleObject(
+                                            name = "금칙어 또는 운영자 사칭 표현이 포함된 경우",
+                                            value = """
+                                            {
+                                                "isSuccess": false,
+                                                "code": "MEMBER400_1",
+                                                "message": "닉네임에 사용할 수 없는 표현이 포함되어 있습니다.",
+                                                "result": null
+                                            }
+                                            """
                                     )
                             })
             ),
