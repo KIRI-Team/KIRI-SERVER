@@ -19,6 +19,7 @@ import com.kiri.server.domain.member.repository.MemberRepository;
 import com.kiri.server.domain.term.repository.MemberTermRepository;
 import com.kiri.server.global.apiPayload.code.AuthErrorCode;
 import com.kiri.server.global.apiPayload.exception.ProjectException;
+import com.kiri.server.global.profanity.ProfanityFilter;
 import com.kiri.server.global.security.jwt.JwtProvider;
 import com.kiri.server.global.util.HashUtil;
 import lombok.RequiredArgsConstructor;
@@ -39,6 +40,7 @@ public class MemberService {
     private final MemberWriter memberWriter;
     private final JwtProvider jwtProvider;
     private final HashUtil hashUtil;
+    private final ProfanityFilter profanityFilter;
     private final ApplicationEventPublisher applicationEventPublisher;
 
     public MemberResDTO.Login login(MemberReqDTO.Login dto) {
@@ -68,6 +70,11 @@ public class MemberService {
                 .orElseThrow(() -> new MemberException(MemberErrorCode.NOT_FOUND));
 
         String nickname = dto.nickname();
+
+        // 금칙어·운영자 사칭 표현 검증
+        if (profanityFilter.containsBannedWord(nickname)) {
+            throw new MemberException(MemberErrorCode.BANNED_NICKNAME);
+        }
 
         if (memberRepository.existsByNickname(nickname)) {
             throw new ProjectException(MemberErrorCode.DUPLICATE_NICKNAME);
