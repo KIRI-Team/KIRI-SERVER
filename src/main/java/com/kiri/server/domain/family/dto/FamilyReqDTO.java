@@ -7,9 +7,9 @@ import java.math.BigDecimal;
 
 public class FamilyReqDTO {
 
-    // 가족 공간 생성
-    @Schema(name = "FamilyCreateRequest", description = "가족 공간 생성 요청")
-    public record Create(
+    // 가족 공간 생성, 가족 이름 설정
+    @Schema(name = "FamilyNameRequest", description = "가족 이름 요청")
+    public record Name(
             @NotBlank(message = "가족 이름은 필수입니다.")
             @Size(min = 2, max = 15, message = "가족 이름은 2~15자여야 합니다.")
             @Pattern(
@@ -19,32 +19,9 @@ public class FamilyReqDTO {
             @Schema(description = "가족명 (한글·영문·숫자·띄어쓰기만 허용, 앞뒤 공백 제거 및 연속 공백을 1개로 정리한 뒤 2~15자)", example = "끼리네 가족")
             String name
     ) {
-        public Create {
-            name = normalizeName(name);
+        public Name {
+            name = name == null ? null : name.strip().replaceAll("\\s+", " ");
         }
-    }
-
-    // 가족 이름 설정
-    public record UpdateName(
-            @NotBlank(message = "가족 이름은 필수입니다.")
-            @Size(min = 2, max = 15, message = "가족 이름은 2~15자여야 합니다.")
-            @Pattern(
-                    regexp = "^[가-힣a-zA-Z0-9 ]*$",
-                    message = "가족 이름은 한글, 영문, 숫자 및 띄어쓰기만 사용할 수 있습니다."
-            )
-            @Schema(description = "가족명 (한글·영문·숫자·띄어쓰기만 허용, 앞뒤 공백 제거 및 연속 공백을 1개로 정리한 뒤 2~15자)", example = "끼리네 가족")
-            String name
-    ) {
-        public UpdateName {
-            name = normalizeName(name);
-        }
-    }
-
-    private static String normalizeName(String name) {
-        if (name == null) {
-            return null;
-        }
-        return name.strip().replaceAll("\\s+", " ");
     }
 
     // 가족 주소 설정

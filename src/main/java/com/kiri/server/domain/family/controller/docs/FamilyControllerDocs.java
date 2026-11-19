@@ -221,7 +221,7 @@ public interface FamilyControllerDocs {
                     )
             ),
     })
-    ApiResponse<FamilyResDTO.Create> createFamily(@Parameter(hidden = true) @AuthenticationPrincipal Long memberId, @Valid @RequestBody FamilyReqDTO.Create dto);
+    ApiResponse<FamilyResDTO.Create> createFamily(@Parameter(hidden = true) @AuthenticationPrincipal Long memberId, @Valid @RequestBody FamilyReqDTO.Name dto);
 
     // 가족 초대 코드/링크 생성 및 재생성
     @Operation(
@@ -910,7 +910,7 @@ public interface FamilyControllerDocs {
                     )
             ),
     })
-    ApiResponse<FamilyResDTO.UpdateName> updateFamilyName(@Parameter(hidden = true) @AuthenticationPrincipal Long memberId, @PathVariable Long familyId, @Valid @RequestBody FamilyReqDTO.UpdateName dto);
+    ApiResponse<FamilyResDTO.UpdateName> updateFamilyName(@Parameter(hidden = true) @AuthenticationPrincipal Long memberId, @PathVariable Long familyId, @Valid @RequestBody FamilyReqDTO.Name dto);
 
     // 가족 주소 설정
     @Operation(

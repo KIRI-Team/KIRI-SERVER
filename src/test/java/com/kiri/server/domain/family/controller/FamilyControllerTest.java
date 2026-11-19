@@ -174,7 +174,7 @@ class FamilyControllerTest {
     @Test
     @DisplayName("가족 공간 생성 성공")
     void createFamilySuccess() throws Exception{
-        FamilyReqDTO.Create request = new FamilyReqDTO.Create("끼리네 가족");
+        FamilyReqDTO.Name request = new FamilyReqDTO.Name("끼리네 가족");
 
         FamilyResDTO.Create response = FamilyResDTO.Create.builder()
                 .familyId(1L)
@@ -184,7 +184,7 @@ class FamilyControllerTest {
                 .inviteExpiresAt(LocalDateTime.now().plusDays(7))
                 .build();
 
-        given(familyService.createFamily(anyLong(), any(FamilyReqDTO.Create.class)))
+        given(familyService.createFamily(anyLong(), any(FamilyReqDTO.Name.class)))
                 .willReturn(response);
 
         mockMvc.perform(post("/api/v1/families")
@@ -214,7 +214,7 @@ class FamilyControllerTest {
     @DisplayName("가족 이름이 비어있으면 가족 공간 생성 실패")
     @WithMockUser
     void createFamilyEmptyName() throws Exception{
-        FamilyReqDTO.Create request = new FamilyReqDTO.Create("");
+        FamilyReqDTO.Name request = new FamilyReqDTO.Name("");
 
         mockMvc.perform(post("/api/v1/families")
                         .with(csrf())
@@ -227,7 +227,7 @@ class FamilyControllerTest {
     @DisplayName("가족 이름이 1자이면 가족 공간 생성 실패")
     @WithMockUser
     void createFamilyNameTooShort() throws Exception{
-        FamilyReqDTO.Create request = new FamilyReqDTO.Create("가");
+        FamilyReqDTO.Name request = new FamilyReqDTO.Name("가");
 
         mockMvc.perform(post("/api/v1/families")
                         .with(csrf())
@@ -240,7 +240,7 @@ class FamilyControllerTest {
     @DisplayName("가족 이름이 20자를 초과하면 가족 공간 생성 실패")
     @WithMockUser
     void createFamilyNameTooLong() throws Exception{
-        FamilyReqDTO.Create request = new FamilyReqDTO.Create("가나다라마바사아자차카타파하가나다라마바사아");
+        FamilyReqDTO.Name request = new FamilyReqDTO.Name("가나다라마바사아자차카타파하가나다라마바사아");
 
         mockMvc.perform(post("/api/v1/families")
                         .with(csrf())
@@ -290,7 +290,7 @@ class FamilyControllerTest {
                 .inviteExpiresAt(LocalDateTime.now().plusDays(7))
                 .build();
 
-        given(familyService.createFamily(anyLong(), any(FamilyReqDTO.Create.class)))
+        given(familyService.createFamily(anyLong(), any(FamilyReqDTO.Name.class)))
                 .willReturn(response);
 
         mockMvc.perform(post("/api/v1/families")
@@ -309,7 +309,7 @@ class FamilyControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.isSuccess").value(true));
 
-        then(familyService).should().createFamily(1L, new FamilyReqDTO.Create("가나다라마 바사아자차"));
+        then(familyService).should().createFamily(1L, new FamilyReqDTO.Name("가나다라마 바사아자차"));
     }
 
     @DisplayName("잘못된 주소 정보로 요청하면 400 Bad Request를 반환한다.")
