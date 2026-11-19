@@ -17,6 +17,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.util.regex.Pattern;
 
 // 닉네임·가족명 금칙어 검사
 // 매칭 엔진(aho-corasick) 의존은 이 클래스 안에만 둔다.
@@ -29,6 +30,9 @@ public class ProfanityFilter {
 
     private static final String COMMENT_PREFIX = "#";
     private static final String WHOLE_WORD_PREFIX = "=";
+
+    // 단어 경계: 글자·숫자가 아닌 모든 문자(공백, 문장부호, 기호)
+    private static final Pattern WORD_BOUNDARY = Pattern.compile("[^\\p{L}\\p{N}]+");
 
     private final Dictionary profanity;
     private final Dictionary reserved;
@@ -53,9 +57,9 @@ public class ProfanityFilter {
         compacts.add(compact(normalized, true));
         compacts.add(compact(normalized, false));
 
-        // 단어 단위 검사 대상: 입력 전체 + 띄어쓰기로 나뉜 각 단어
+        // 단어 단위 검사 대상: 입력 전체 + 공백·문장부호로 나뉜 각 단어
         Set<String> words = new HashSet<>(compacts);
-        for (String token : normalized.split(" ")) {
+        for (String token : WORD_BOUNDARY.split(normalized)) {
             words.add(compact(token, true));
             words.add(compact(token, false));
         }

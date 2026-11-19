@@ -47,7 +47,7 @@ class ProfanityFilterTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"보지", "자지", "우리 보지", "SEX"})
+    @ValueSource(strings = {"보지", "자지", "우리 보지", "우리,보지", "SEX"})
     @DisplayName("단어 단위 금칙어는 단어 전체가 일치하면 차단한다.")
     void containsBannedWord_wholeWord(String text) {
         assertThat(profanityFilter.containsBannedWord(text)).isTrue();
@@ -61,7 +61,7 @@ class ProfanityFilterTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"운영자", "끼리운영자", "끼리 공식", "Admin", "KIRI", "공식", "GM"})
+    @ValueSource(strings = {"운영자", "끼리운영자", "끼리 공식", "Admin", "KIRI", "공식", "GM", "우리,공식", "우리.공식!", "kiri-family"})
     @DisplayName("운영자 사칭 표현은 차단한다.")
     void containsBannedWord_reserved(String text) {
         assertThat(profanityFilter.containsBannedWord(text)).isTrue();
