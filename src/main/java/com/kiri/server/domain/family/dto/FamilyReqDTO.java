@@ -44,7 +44,7 @@ public class FamilyReqDTO {
         if (name == null) {
             return null;
         }
-        return name.trim().replaceAll("\\s+", " ");
+        return name.strip().replaceAll("\\s+", " ");
     }
 
     // 가족 주소 설정
