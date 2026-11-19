@@ -77,7 +77,7 @@ class FamilyServiceTest {
     @DisplayName("가족 공간 생성 완료")
     void createFamilySuccess() {
         Long memberId = 1L;
-        FamilyReqDTO.Create dto = new FamilyReqDTO.Create("끼리네 가족");
+        FamilyReqDTO.Name dto = new FamilyReqDTO.Name("끼리네 가족");
         Member member = mock(Member.class);
 
         when(memberRepository.findByIdForUpdate(memberId))
@@ -118,7 +118,7 @@ class FamilyServiceTest {
     @DisplayName("존재하지 않는 회원이면 가족 공간 생성 실패")
     void createFamilyMemberNotFound() {
         Long memberId = 999L;
-        FamilyReqDTO.Create dto = new FamilyReqDTO.Create("끼리네 가족");
+        FamilyReqDTO.Name dto = new FamilyReqDTO.Name("끼리네 가족");
 
         when(memberRepository.findByIdForUpdate(memberId))
                 .thenReturn(Optional.empty());
@@ -139,7 +139,7 @@ class FamilyServiceTest {
     @DisplayName("이미 존재하는 가족명이면 가족 공간 생성 실패")
     void createFamilyDuplicateName() {
         Long memberId = 1L;
-        FamilyReqDTO.Create dto = new FamilyReqDTO.Create("끼리네 가족");
+        FamilyReqDTO.Name dto = new FamilyReqDTO.Name("끼리네 가족");
         Member member = mock(Member.class);
 
         when(memberRepository.findByIdForUpdate(memberId))
@@ -162,10 +162,35 @@ class FamilyServiceTest {
     }
 
     @Test
+    @DisplayName("가족 공간 생성 시 가족명의 앞뒤 공백과 연속된 공백을 정규화한다.")
+    void createFamilyNormalizeName() {
+        Long memberId = 1L;
+        FamilyReqDTO.Name dto = new FamilyReqDTO.Name("  우리    가족  ");
+        Member member = mock(Member.class);
+
+        when(memberRepository.findByIdForUpdate(memberId))
+                .thenReturn(Optional.of(member));
+
+        when(familyRepository.existsByName("우리 가족"))
+                .thenReturn(false);
+
+        when(familyRepository.existsByInviteCode(anyString()))
+                .thenReturn(false);
+
+        ArgumentCaptor<Family> familyCaptor = ArgumentCaptor.forClass(Family.class);
+
+        familyService.createFamily(memberId, dto);
+
+        verify(familyRepository).existsByName("우리 가족");
+        verify(familyRepository).save(familyCaptor.capture());
+        assertThat(familyCaptor.getValue().getName()).isEqualTo("우리 가족");
+    }
+
+    @Test
     @DisplayName("금칙어·사칭 표현이 포함된 가족명이면 가족 공간 생성 실패")
     void createFamilyBannedName() {
         Long memberId = 1L;
-        FamilyReqDTO.Create dto = new FamilyReqDTO.Create("나쁜이름");
+        FamilyReqDTO.Name dto = new FamilyReqDTO.Name("나쁜이름");
         Member member = mock(Member.class);
 
         when(memberRepository.findByIdForUpdate(memberId))
@@ -192,7 +217,7 @@ class FamilyServiceTest {
     @DisplayName("가족 공간 생성 시 초대 코드와 초대 정보가 정상적으로 생성")
     void createFamilyGenerateInviteInfo() {
         Long memberId = 1L;
-        FamilyReqDTO.Create dto = new FamilyReqDTO.Create("끼리네 가족");
+        FamilyReqDTO.Name dto = new FamilyReqDTO.Name("끼리네 가족");
         Member member = mock(Member.class);
 
         when(memberRepository.findByIdForUpdate(memberId))
@@ -504,7 +529,7 @@ class FamilyServiceTest {
         Member member = mock(Member.class);
         Family family = mock(Family.class);
 
-        FamilyReqDTO.UpdateName request = new FamilyReqDTO.UpdateName("새로운 가족");
+        FamilyReqDTO.Name request = new FamilyReqDTO.Name("새로운 가족");
 
         when(memberRepository.findById(memberId)).thenReturn(Optional.of(member));
         when(familyRepository.findById(familyId)).thenReturn(Optional.of(family));
@@ -535,7 +560,7 @@ class FamilyServiceTest {
         Member owner = mock(Member.class);
         Family family = mock(Family.class);
 
-        FamilyReqDTO.UpdateName request = new FamilyReqDTO.UpdateName("새로운 가족");
+        FamilyReqDTO.Name request = new FamilyReqDTO.Name("새로운 가족");
 
         when(memberRepository.findById(memberId)).thenReturn(Optional.of(member));
         when(familyRepository.findById(familyId)).thenReturn(Optional.of(family));
@@ -560,7 +585,7 @@ class FamilyServiceTest {
 
         Member member = mock(Member.class);
 
-        FamilyReqDTO.UpdateName request = new FamilyReqDTO.UpdateName("새로운 가족");
+        FamilyReqDTO.Name request = new FamilyReqDTO.Name("새로운 가족");
 
         when(memberRepository.findById(memberId)).thenReturn(Optional.of(member));
         when(familyRepository.findById(familyId)).thenReturn(Optional.empty());
@@ -581,7 +606,7 @@ class FamilyServiceTest {
         Member member = mock(Member.class);
         Family family = mock(Family.class);
 
-        FamilyReqDTO.UpdateName request = new FamilyReqDTO.UpdateName("이미 존재하는 가족");
+        FamilyReqDTO.Name request = new FamilyReqDTO.Name("이미 존재하는 가족");
 
         when(memberRepository.findById(memberId)).thenReturn(Optional.of(member));
         when(familyRepository.findById(familyId)).thenReturn(Optional.of(family));
@@ -608,7 +633,7 @@ class FamilyServiceTest {
         Member member = mock(Member.class);
         Family family = mock(Family.class);
 
-        FamilyReqDTO.UpdateName request = new FamilyReqDTO.UpdateName("  나쁜   이름  ");
+        FamilyReqDTO.Name request = new FamilyReqDTO.Name("  나쁜   이름  ");
 
         when(memberRepository.findById(memberId)).thenReturn(Optional.of(member));
         when(familyRepository.findById(familyId)).thenReturn(Optional.of(family));
@@ -637,7 +662,7 @@ class FamilyServiceTest {
         Member member = mock(Member.class);
         Family family = mock(Family.class);
 
-        FamilyReqDTO.UpdateName request = new FamilyReqDTO.UpdateName("  우리    가족  ");
+        FamilyReqDTO.Name request = new FamilyReqDTO.Name("  우리    가족  ");
 
         when(memberRepository.findById(memberId)).thenReturn(Optional.of(member));
         when(familyRepository.findById(familyId)).thenReturn(Optional.of(family));

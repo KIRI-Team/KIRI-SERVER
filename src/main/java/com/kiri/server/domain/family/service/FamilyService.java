@@ -43,7 +43,7 @@ public class FamilyService {
     private final ProfanityFilter profanityFilter;
 
     @Transactional
-    public FamilyResDTO.Create createFamily(Long memberId, FamilyReqDTO.Create dto) {
+    public FamilyResDTO.Create createFamily(Long memberId, FamilyReqDTO.Name dto) {
         Member member = memberRepository.findByIdForUpdate(memberId)
                 .orElseThrow(() -> new ProjectException(MemberErrorCode.NOT_FOUND));
 
@@ -165,7 +165,7 @@ public class FamilyService {
     }
 
     @Transactional
-    public FamilyResDTO.UpdateName updateFamilyName(Long memberId, Long familyId, FamilyReqDTO.UpdateName request) {
+    public FamilyResDTO.UpdateName updateFamilyName(Long memberId, Long familyId, FamilyReqDTO.Name request) {
         Member member = memberRepository.findById(memberId)
                 .orElseThrow(() -> new MemberException(MemberErrorCode.NOT_FOUND));
 
@@ -176,7 +176,7 @@ public class FamilyService {
             throw new FamilyException(FamilyErrorCode.FORBIDDEN);
         }
 
-        String normalizedName = normalizeFamilyName(request.name());
+        String normalizedName = request.name();
 
         if (family.getName().equals(normalizedName)) {
             return FamilyConverter.toUpdateNameResponse(family);
@@ -211,10 +211,6 @@ public class FamilyService {
         family.updateAddress(request.postalCode(), request.address(), request.detailAddress(), request.regionCode(), request.latitude(), request.longitude());
 
         return FamilyConverter.toUpdateAddressResponse(family);
-    }
-
-    private String normalizeFamilyName(String name) {
-        return name.trim().replaceAll("\\s+", " ");
     }
 
     @Transactional(readOnly = true)

@@ -29,7 +29,11 @@ public class MemberReqDTO {
                     message = "닉네임은 한글, 영문, 숫자만 사용할 수 있습니다."
             )
             String nickname
-    ) {}
+    ) {
+        public Nickname {
+            nickname = nickname == null ? null : nickname.strip();
+        }
+    }
 
     // 토큰 재발급
     public record TokenReissue(

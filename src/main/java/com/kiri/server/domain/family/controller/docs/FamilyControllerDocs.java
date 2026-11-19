@@ -31,15 +31,21 @@ public interface FamilyControllerDocs {
                         - Content-Type: application/json
                     - **Body**
                         - name: 가족명
-                    
+
+                    ## 입력값 정책
+                    - 한글, 영문, 숫자 및 띄어쓰기만 사용할 수 있습니다.
+                    - 앞뒤 공백을 제거하고 연속된 공백을 하나로 정리한 뒤 2~15자인지 검증합니다.
+
                     ## 동작 방식
                     1. Access Token을 통해 인증된 사용자를 확인합니다.
-                    2. 요청한 가족명이 이미 존재하는지 확인합니다.
-                    3. 중복되지 않은 경우 가족 공간을 생성하고, 인증된 사용자를 해당 가족 공간의 첫 번째 구성원이자 소유자로 등록합니다.
-                    4. 가족 공간에 사용할 6자리 초대 코드와 초대 토큰을 생성합니다.
-                    5. 초대 토큰의 유효 기간을 설정하고, 초대 링크를 생성합니다.
-                    6. 생성된 가족 공간 정보를 저장하고, 가족명, 가족 ID, 초대 코드 및 초대 링크를 반환합니다.
-                    7. 가족명 중복 또는 유효하지 않은 요청인 경우 해당 오류를 반환합니다.
+                    2. 가족명이 입력값 정책을 충족하는지 확인합니다.
+                    3. 금칙어 및 운영자 사칭 표현이 포함되어 있는지 확인합니다.
+                    4. 가족명이 이미 존재하는지 확인합니다.
+                    5. 중복되지 않은 경우 가족 공간을 생성하고, 인증된 사용자를 해당 가족 공간의 첫 번째 구성원이자 소유자로 등록합니다.
+                    6. 가족 공간에 사용할 6자리 초대 코드와 초대 토큰을 생성합니다.
+                    7. 초대 토큰의 유효 기간을 설정하고, 초대 링크를 생성합니다.
+                    8. 생성된 가족 공간 정보를 저장하고, 가족명, 가족 ID, 초대 코드 및 초대 링크를 반환합니다.
+                    9. 가족명 중복 또는 유효하지 않은 요청인 경우 해당 오류를 반환합니다.
                     """
     )
     @ApiResponses(value = {
@@ -85,14 +91,27 @@ public interface FamilyControllerDocs {
                                                     """
                                     ),
                                     @ExampleObject(
-                                            name = "가족 이름 규칙에 맞지 않는 경우",
+                                            name = "가족 이름이 2~15자가 아닌 경우",
                                             value = """
                                                     {
                                                         "isSuccess": false,
                                                         "code": "COMMON400_1",
                                                         "message": "잘못된 요청입니다.",
                                                         "result": {
-                                                            "name": "가족 이름은 2자 이상 15자 이하이며 특수문자를 사용할 수 없습니다."
+                                                            "name": "가족 이름은 2~15자여야 합니다."
+                                                        }
+                                                    }
+                                                    """
+                                    ),
+                                    @ExampleObject(
+                                            name = "허용되지 않는 문자(특수문자 등) 포함",
+                                            value = """
+                                                    {
+                                                        "isSuccess": false,
+                                                        "code": "COMMON400_1",
+                                                        "message": "잘못된 요청입니다.",
+                                                        "result": {
+                                                            "name": "가족 이름은 한글, 영문, 숫자 및 띄어쓰기만 사용할 수 있습니다."
                                                         }
                                                     }
                                                     """
@@ -202,7 +221,7 @@ public interface FamilyControllerDocs {
                     )
             ),
     })
-    ApiResponse<FamilyResDTO.Create> createFamily(@Parameter(hidden = true) @AuthenticationPrincipal Long memberId, @Valid @RequestBody FamilyReqDTO.Create dto);
+    ApiResponse<FamilyResDTO.Create> createFamily(@Parameter(hidden = true) @AuthenticationPrincipal Long memberId, @Valid @RequestBody FamilyReqDTO.Name dto);
 
     // 가족 초대 코드/링크 생성 및 재생성
     @Operation(
@@ -675,7 +694,7 @@ public interface FamilyControllerDocs {
                         - name: 가족명
                     - **Path Variable**
                         - familyId: 가족 ID
-                    
+
                     ## 동작 방식
                     1. Access Token을 통해 인증된 사용자를 확인합니다.
                     2. 요청한 familyId에 해당하는 가족 공간이 존재하는지 확인합니다.
@@ -730,14 +749,27 @@ public interface FamilyControllerDocs {
                                                     """
                                     ),
                                     @ExampleObject(
-                                            name = "가족 이름 규칙에 맞지 않는 경우",
+                                            name = "가족 이름이 2~15자가 아닌 경우",
                                             value = """
                                                     {
                                                         "isSuccess": false,
                                                         "code": "COMMON400_1",
                                                         "message": "잘못된 요청입니다.",
                                                         "result": {
-                                                            "name": "가족 이름은 2자 이상 15자 이하이며 특수문자를 사용할 수 없습니다."
+                                                            "name": "가족 이름은 2~15자여야 합니다."
+                                                        }
+                                                    }
+                                                    """
+                                    ),
+                                    @ExampleObject(
+                                            name = "허용되지 않는 문자(특수문자 등) 포함",
+                                            value = """
+                                                    {
+                                                        "isSuccess": false,
+                                                        "code": "COMMON400_1",
+                                                        "message": "잘못된 요청입니다.",
+                                                        "result": {
+                                                            "name": "가족 이름은 한글, 영문, 숫자 및 띄어쓰기만 사용할 수 있습니다."
                                                         }
                                                     }
                                                     """
@@ -878,7 +910,7 @@ public interface FamilyControllerDocs {
                     )
             ),
     })
-    ApiResponse<FamilyResDTO.UpdateName> updateFamilyName(@Parameter(hidden = true) @AuthenticationPrincipal Long memberId, @PathVariable Long familyId, @Valid @RequestBody FamilyReqDTO.UpdateName dto);
+    ApiResponse<FamilyResDTO.UpdateName> updateFamilyName(@Parameter(hidden = true) @AuthenticationPrincipal Long memberId, @PathVariable Long familyId, @Valid @RequestBody FamilyReqDTO.Name dto);
 
     // 가족 주소 설정
     @Operation(
