@@ -86,6 +86,9 @@ dependencies {
 
     // AOP
     implementation 'org.springframework.boot:spring-boot-starter-aspectj'
+
+    // 금칙어 매칭 엔진 (Aho-Corasick)
+    implementation 'org.ahocorasick:ahocorasick:0.6.3'
 }
 
 tasks.named('test') {

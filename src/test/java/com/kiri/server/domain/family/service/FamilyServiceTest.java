@@ -16,6 +16,7 @@ import com.kiri.server.domain.member.exception.MemberException;
 import com.kiri.server.domain.member.exception.code.MemberErrorCode;
 import com.kiri.server.domain.member.repository.MemberRepository;
 import com.kiri.server.global.apiPayload.exception.ProjectException;
+import com.kiri.server.global.profanity.ProfanityFilter;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -52,6 +53,9 @@ class FamilyServiceTest {
 
     @Mock
     private CharacterRepository characterRepository;
+
+    @Mock
+    private ProfanityFilter profanityFilter;
 
     @Spy
     private FamilyInviteProperties familyInviteProperties =
@@ -153,6 +157,33 @@ class FamilyServiceTest {
 
         verify(memberRepository).findByIdForUpdate(memberId);
         verify(familyRepository).existsByName(dto.name());
+        verify(familyRepository, never()).save(any(Family.class));
+        verify(member, never()).joinFamily(any(Family.class));
+    }
+
+    @Test
+    @DisplayName("금칙어·사칭 표현이 포함된 가족명이면 가족 공간 생성 실패")
+    void createFamilyBannedName() {
+        Long memberId = 1L;
+        FamilyReqDTO.Create dto = new FamilyReqDTO.Create("나쁜이름");
+        Member member = mock(Member.class);
+
+        when(memberRepository.findByIdForUpdate(memberId))
+                .thenReturn(Optional.of(member));
+
+        when(profanityFilter.containsBannedWord(dto.name()))
+                .thenReturn(true);
+
+        assertThatThrownBy(() ->
+                familyService.createFamily(memberId, dto)
+        )
+                .isInstanceOf(ProjectException.class)
+                .extracting("errorCode")
+                .isEqualTo(FamilyErrorCode.BANNED_NAME);
+
+        verify(memberRepository).findByIdForUpdate(memberId);
+        verify(profanityFilter).containsBannedWord(dto.name());
+        verify(familyRepository, never()).existsByName(anyString());
         verify(familyRepository, never()).save(any(Family.class));
         verify(member, never()).joinFamily(any(Family.class));
     }
@@ -566,6 +597,35 @@ class FamilyServiceTest {
                 .hasMessage(FamilyErrorCode.DUPLICATE_NAME.getMessage());
 
         verify(family, never()).updateName(anyString());
+    }
+
+    @Test
+    @DisplayName("금칙어·사칭 표현이 포함된 가족명으로 변경할 수 없다.")
+    void updateFamilyNameBanned() {
+        Long memberId = 1L;
+        Long familyId = 1L;
+
+        Member member = mock(Member.class);
+        Family family = mock(Family.class);
+
+        FamilyReqDTO.UpdateName request = new FamilyReqDTO.UpdateName("  나쁜   이름  ");
+
+        when(memberRepository.findById(memberId)).thenReturn(Optional.of(member));
+        when(familyRepository.findById(familyId)).thenReturn(Optional.of(family));
+
+        when(member.getId()).thenReturn(memberId);
+        when(family.getOwner()).thenReturn(member);
+        when(family.getName()).thenReturn("기존 가족");
+
+        when(profanityFilter.containsBannedWord("나쁜 이름")).thenReturn(true);
+
+        assertThatThrownBy(() -> familyService.updateFamilyName(memberId, familyId, request))
+                .isInstanceOf(FamilyException.class)
+                .hasMessage(FamilyErrorCode.BANNED_NAME.getMessage());
+
+        verify(profanityFilter).containsBannedWord("나쁜 이름");
+        verify(family, never()).updateName(anyString());
+        verify(familyRepository, never()).existsByName(anyString());
     }
 
     @Test

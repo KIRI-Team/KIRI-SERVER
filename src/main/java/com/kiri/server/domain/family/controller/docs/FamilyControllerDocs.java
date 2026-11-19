@@ -67,7 +67,7 @@ public interface FamilyControllerDocs {
             ),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
                     responseCode = "400",
-                    description = "가족 이름이 누락되었거나 이름 규칙에 맞지 않는 경우",
+                    description = "가족 이름이 누락되었거나 이름 규칙에 맞지 않는 경우, 금칙어·사칭 표현이 포함된 경우",
                     content = @Content(
                             mediaType = "application/json",
                             examples = {
@@ -94,6 +94,17 @@ public interface FamilyControllerDocs {
                                                         "result": {
                                                             "name": "가족 이름은 2자 이상 15자 이하이며 특수문자를 사용할 수 없습니다."
                                                         }
+                                                    }
+                                                    """
+                                    ),
+                                    @ExampleObject(
+                                            name = "금칙어·사칭 표현 포함",
+                                            value = """
+                                                    {
+                                                        "isSuccess": false,
+                                                        "code": "FAMILY400_1",
+                                                        "message": "가족 이름에 사용할 수 없는 표현이 포함되어 있습니다.",
+                                                        "result": null
                                                     }
                                                     """
                                     )
@@ -701,7 +712,7 @@ public interface FamilyControllerDocs {
             ),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
                     responseCode = "400",
-                    description = "가족 이름이 누락되었거나 이름 규칙에 맞지 않는 경우",
+                    description = "가족 이름이 누락되었거나 이름 규칙에 맞지 않는 경우, 금칙어·사칭 표현이 포함된 경우",
                     content = @Content(
                             mediaType = "application/json",
                             examples = {
@@ -728,6 +739,17 @@ public interface FamilyControllerDocs {
                                                         "result": {
                                                             "name": "가족 이름은 2자 이상 15자 이하이며 특수문자를 사용할 수 없습니다."
                                                         }
+                                                    }
+                                                    """
+                                    ),
+                                    @ExampleObject(
+                                            name = "금칙어·사칭 표현 포함",
+                                            value = """
+                                                    {
+                                                        "isSuccess": false,
+                                                        "code": "FAMILY400_1",
+                                                        "message": "가족 이름에 사용할 수 없는 표현이 포함되어 있습니다.",
+                                                        "result": null
                                                     }
                                                     """
                                     )

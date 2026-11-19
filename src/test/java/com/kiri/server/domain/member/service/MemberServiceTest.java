@@ -17,6 +17,7 @@ import com.kiri.server.domain.member.repository.MemberRepository;
 import com.kiri.server.domain.term.repository.MemberTermRepository;
 import com.kiri.server.global.apiPayload.code.AuthErrorCode;
 import com.kiri.server.global.apiPayload.exception.ProjectException;
+import com.kiri.server.global.profanity.ProfanityFilter;
 import com.kiri.server.global.security.jwt.JwtProvider;
 import com.kiri.server.global.util.HashUtil;
 import org.junit.jupiter.api.DisplayName;
@@ -63,6 +64,9 @@ class MemberServiceTest {
 
     @Mock
     private CharacterRepository characterRepository;
+
+    @Mock
+    private ProfanityFilter profanityFilter;
 
     @InjectMocks
     private MemberService memberService;
@@ -190,6 +194,29 @@ class MemberServiceTest {
 
         verify(memberRepository).findByIdForUpdate(memberId);
         verify(memberRepository).existsByNickname(nickname);
+        verify(member, never()).updateNickname(anyString());
+    }
+
+    @Test
+    @DisplayName("닉네임 설정 실패 - 금칙어·사칭 표현이 포함된 닉네임")
+    void updateNicknameBanned() {
+        Long memberId = 1L;
+        String nickname = "nickname";
+
+        MemberReqDTO.Nickname dto = new MemberReqDTO.Nickname(nickname);
+
+        Member member = mock(Member.class);
+
+        when(memberRepository.findByIdForUpdate(memberId)).thenReturn(Optional.of(member));
+        when(profanityFilter.containsBannedWord(nickname)).thenReturn(true);
+
+        ProjectException exception = assertThrows(ProjectException.class, () -> memberService.updateNickname(memberId, dto));
+
+        assertThat(exception.getErrorCode()).isEqualTo(MemberErrorCode.BANNED_NICKNAME);
+
+        verify(memberRepository).findByIdForUpdate(memberId);
+        verify(profanityFilter).containsBannedWord(nickname);
+        verify(memberRepository, never()).existsByNickname(anyString());
         verify(member, never()).updateNickname(anyString());
     }
 

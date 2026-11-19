@@ -9,6 +9,9 @@ import org.springframework.http.HttpStatus;
 @RequiredArgsConstructor
 public enum FamilyErrorCode implements BaseErrorCode {
 
+    // 400
+    BANNED_NAME(HttpStatus.BAD_REQUEST, "FAMILY400_1", "가족 이름에 사용할 수 없는 표현이 포함되어 있습니다."),
+
     // 403
     FORBIDDEN(HttpStatus.FORBIDDEN, "FAMILY403_1", "해당 가족에 대한 권한이 없습니다."),
 
