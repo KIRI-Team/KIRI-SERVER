@@ -1,0 +1,41 @@
+package com.kiri.server.domain.schedule.exception.code;
+
+import com.kiri.server.global.apiPayload.code.BaseErrorCode;
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
+
+@Getter
+@RequiredArgsConstructor
+public enum ScheduleErrorCode implements BaseErrorCode {
+
+    INVALID_SCHEDULE_DATETIME(HttpStatus.BAD_REQUEST, "SCHEDULE400_1", "일정 날짜·시간을 올바르게 입력해 주세요."),
+    PAST_SCHEDULE_DATETIME(HttpStatus.BAD_REQUEST, "SCHEDULE400_2", "지난 시각으로는 일정을 만들 수 없습니다."),
+    OUT_OF_EVENT_PERIOD(HttpStatus.BAD_REQUEST, "SCHEDULE400_3", "행사 운영기간 안의 날짜만 선택할 수 있습니다."),
+    INVALID_PARTICIPANT(HttpStatus.BAD_REQUEST, "SCHEDULE400_4", "같은 가족 구성원만 초대할 수 있습니다."),
+    INVITEE_REQUIRED(HttpStatus.BAD_REQUEST, "SCHEDULE400_5", "일정에 초대할 가족 구성원을 한 명 이상 선택해 주세요."),
+
+    FAMILY_REQUIRED(HttpStatus.FORBIDDEN, "SCHEDULE403_1", "가족 공간이 없습니다."),
+    BUCKET_FORBIDDEN(HttpStatus.FORBIDDEN, "SCHEDULE403_2", "같은 가족의 버킷 항목에서만 일정을 만들 수 있습니다."),
+    NOT_INVITED(HttpStatus.FORBIDDEN, "SCHEDULE403_3", "초대받은 일정에만 응답할 수 있습니다."),
+    NOT_PROPOSER(HttpStatus.FORBIDDEN, "SCHEDULE403_4", "일정 제안자만 수정·취소할 수 있습니다."),
+    NOT_FINAL_PARTICIPANT(HttpStatus.FORBIDDEN, "SCHEDULE403_5", "약속에 참여하는 가족만 이용할 수 있습니다."),
+
+    BUCKET_NOT_FOUND(HttpStatus.NOT_FOUND, "SCHEDULE404_1", "존재하지 않는 버킷 항목입니다."),
+    SCHEDULE_NOT_FOUND(HttpStatus.NOT_FOUND, "SCHEDULE404_2", "존재하지 않는 일정입니다."),
+
+    BUCKET_NOT_SCHEDULABLE(HttpStatus.CONFLICT, "SCHEDULE409_1", "일정을 만들 수 없는 버킷 항목입니다."),
+    RESPONSE_CLOSED(HttpStatus.CONFLICT, "SCHEDULE409_2", "응답할 수 없는 일정입니다."),
+    NOT_CANCELABLE(HttpStatus.CONFLICT, "SCHEDULE409_3", "취소할 수 없는 일정입니다."),
+    NOT_UPDATABLE(HttpStatus.CONFLICT, "SCHEDULE409_4", "수정할 수 없는 일정입니다."),
+    CONDITION_NOT_EDITABLE(HttpStatus.CONFLICT, "SCHEDULE409_5", "일정 당일에만 컨디션을 변경할 수 있습니다."),
+    CONDITION_NOT_VIEWABLE(HttpStatus.CONFLICT, "SCHEDULE409_6", "일정 당일에만 컨디션을 조회할 수 있습니다."),
+    SCHEDULE_CANCELLED(HttpStatus.CONFLICT, "SCHEDULE409_7", "취소된 일정입니다."),
+    NOT_ASSIGNED_WEEKLY_MISSION(HttpStatus.CONFLICT, "SCHEDULE409_8", "현재 가족에 배정된 주간 미션이 아닙니다."),
+    WEEKLY_MISSION_NOT_AVAILABLE(HttpStatus.CONFLICT, "SCHEDULE409_9", "종료되었거나 수행할 수 없는 주간 미션입니다."),
+    WEEKLY_SCHEDULE_ALREADY_EXISTS(HttpStatus.CONFLICT, "SCHEDULE409_10", "이미 연결된 일정이 있는 주간 미션입니다.");
+
+    private final HttpStatus httpStatus;
+    private final String code;
+    private final String message;
+}

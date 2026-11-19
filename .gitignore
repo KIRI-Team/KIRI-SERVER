@@ -35,3 +35,29 @@ out/
 
 ### VS Code ###
 .vscode/
+
+### Env ###
+.env*
+!.env.example
+
+### Terraform ###
+**/.terraform/*
+**/.build/
+*.tfstate
+*.tfstate.*
+*.tfvars
+!*.tfvars.example
+crash.log
+crash.*.log
+override.tf
+*_override.tf
+
+### Keys ###
+*.pem
+*.key
+*.b64
+**/keys/*
+!*-public.pem
+
+### macOS ###
+.DS_Store

@@ -1,0 +1,59 @@
+name: Test
+
+on:
+  workflow_call:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_DB: kiri
+          POSTGRES_USER: kiri
+          POSTGRES_PASSWORD: kiri
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U kiri"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "25"
+
+      - uses: gradle/actions/setup-gradle@v6
+
+      - name: CloudFront 테스트 키 생성
+        run: |
+          KEY=$(openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 | openssl pkcs8 -topk8 -nocrypt -outform DER | base64 -w0)
+          echo "::add-mask::$KEY"
+          echo "CLOUDFRONT_PRIVATE_KEY=$KEY" >> "$GITHUB_ENV"
+
+      - name: Test
+        run: ./gradlew test
+        env:
+          SPRING_PROFILES_ACTIVE: test
+          DB_URL: jdbc:postgresql://localhost:5432/kiri
+          DB_USER: kiri
+          DB_PW: kiri
+          JWT_SECRET: ci-test-jwt-secret-must-be-at-least-32-bytes
+          KAKAO_NATIVE_APP_KEY: test-kakao-key
+          GOOGLE_CLIENT_ID: test-google
+          APPLE_CLIENT_ID: test-apple
+          TOUR_API_KEY: tour-api-key
+          S3_IMAGE_BUCKET: test-bucket
+          CDN_BASE_URL: https://test.cloudfront.net
+          CLOUDFRONT_KEY_PAIR_ID: KTESTKEYPAIRID
+          FIREBASE_SERVICE_ACCOUNT_B64: test-firebase-service-account
+          GEMINI_API_KEY: test-gemini-api-key

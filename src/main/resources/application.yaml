@@ -1,3 +1,152 @@
 spring:
   application:
     name: KIRI-SERVER
+
+  profiles:
+    default: local
+
+  config:
+    import: optional:file:.env[.properties]
+
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USER}
+    password: ${DB_PW}
+
+  jpa:
+    database: postgresql
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        default_batch_fetch_size: 100
+        jdbc:
+          time_zone: Asia/Seoul
+        query:
+          fail_on_pagination_over_collection_fetch: true
+
+  lifecycle:
+    timeout-per-shutdown-phase: 30s
+
+server:
+  shutdown: graceful
+  forward-headers-strategy: native
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, info, prometheus
+  endpoint:
+    health:
+      show-details: never
+  info:
+    git:
+      mode: full
+  metrics:
+    tags:
+      application: kiri-server
+    distribution:
+      slo:
+        http.server.requests: 100ms, 300ms, 1s, 3s
+
+logging:
+  pattern:
+    correlation: "[%X{traceId:-}] "
+
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false
+    persist-authorization: true
+    display-request-duration: true
+    tags-sorter: alpha
+    operations-sorter: method
+    doc-expansion: none
+    filter: true
+    default-models-expand-depth: -1
+    try-it-out-enabled: true
+    default-model-rendering: example
+  default-produces-media-type: application/json
+  paths-to-match: /api/**
+  override-with-generic-response: false
+
+jwt:
+  secret: ${JWT_SECRET}
+  access-token-expiration: 30m
+  refresh-token-expiration: 14d
+
+admin:
+  access-token-expiration: 1h
+  refresh-token-expiration: 7d
+  # 관리자 웹 Origin. 쉼표로 여러 개 지정
+  cors-allowed-origins: ${ADMIN_CORS_ALLOWED_ORIGINS:http://localhost:5173}
+
+kakao:
+  client-id: ${KAKAO_NATIVE_APP_KEY}
+  jwks-uri: https://kauth.kakao.com/.well-known/jwks.json
+  issuer: https://kauth.kakao.com
+
+google:
+  client-id: ${GOOGLE_CLIENT_ID}
+  jwks-uri: https://www.googleapis.com/oauth2/v3/certs
+  issuer: https://accounts.google.com
+
+apple:
+  client-id: ${APPLE_CLIENT_ID}
+  issuer: https://appleid.apple.com
+  jwks-uri: https://appleid.apple.com/auth/keys
+
+family:
+  invite:
+    base-url: https://www.halo-official.co.kr/invite
+
+tour-api:
+  base-url: https://apis.data.go.kr/B551011/KorService2
+  service-key: ${TOUR_API_KEY:}
+  mobile-app: KIRI
+  num-of-rows: 1000
+  region-code: "11"
+  connect-timeout: 3s
+  read-timeout: 10s
+  max-calls-per-run: 240
+  sync-cron: "0 0 */6 * * *"
+
+kma:
+  base-url: https://apihub.kma.go.kr/api/typ02/openApi/VilageFcstInfoService_2.0
+  auth-key: ${KMA_API_KEY:}
+  connect-timeout: 2s
+  read-timeout: 5s
+
+aws:
+  s3:
+    region: ap-northeast-2
+    bucket: ${S3_IMAGE_BUCKET}
+    presigned-url-expiration: 5m
+    max-upload-size: 10MB
+  cloudfront:
+    cdn-base-url: ${CDN_BASE_URL}
+    key-pair-id: ${CLOUDFRONT_KEY_PAIR_ID}
+    private-key: ${CLOUDFRONT_PRIVATE_KEY}
+    signed-url-expiration: 2h
+
+gemini:
+  api-key: ${GEMINI_API_KEY}
+  model: gemini-3.5-flash-lite
+
+sentry:
+  exception-resolver-order: -2147483647
+  ignored-exceptions-for-type:
+    - jakarta.validation.ConstraintViolationException
+    - org.springframework.dao.DataIntegrityViolationException
+    - org.springframework.validation.BindException
+    - org.springframework.web.bind.MethodArgumentNotValidException
+    - org.springframework.http.converter.HttpMessageNotReadableException
+    - org.springframework.web.bind.MissingServletRequestParameterException
+    - org.springframework.web.HttpMediaTypeNotSupportedException
+    - org.springframework.web.HttpRequestMethodNotSupportedException
+    - org.springframework.beans.TypeMismatchException
+    - org.springframework.web.servlet.resource.NoResourceFoundException
+    - org.springframework.web.method.annotation.HandlerMethodValidationException

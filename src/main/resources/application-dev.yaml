@@ -1,0 +1,25 @@
+spring:
+  config:
+    activate:
+      on-profile: dev
+
+logging:
+  level:
+    org.hibernate.SQL: debug
+  structured:
+    format:
+      console: logstash
+    json:
+      add:
+        service: kiri-server
+
+springdoc:
+  api-docs:
+    enabled: true
+  swagger-ui:
+    enabled: true
+
+sentry:
+  dsn: ${SENTRY_DSN}
+  environment: dev
+

@@ -1,0 +1,214 @@
+package com.kiri.server.domain.mission.service;
+
+import com.kiri.server.domain.bucket.enums.BucketSaveState;
+import com.kiri.server.domain.bucket.enums.BucketStatus;
+import com.kiri.server.domain.bucket.repository.BucketItemRepository;
+import com.kiri.server.domain.external.entity.ExternalRecord;
+import com.kiri.server.domain.external.repository.ExternalRecordRepository;
+import com.kiri.server.domain.family.entity.Family;
+import com.kiri.server.domain.member.exception.MemberException;
+import com.kiri.server.domain.member.exception.code.MemberErrorCode;
+import com.kiri.server.domain.member.repository.MemberRepository;
+import com.kiri.server.domain.mission.converter.MissionConverter;
+import com.kiri.server.domain.mission.dto.MissionReqDTO;
+import com.kiri.server.domain.mission.dto.MissionResDTO;
+import com.kiri.server.domain.mission.entity.Mission;
+import com.kiri.server.domain.mission.enums.ItemType;
+import com.kiri.server.domain.mission.enums.MissionStatus;
+import com.kiri.server.domain.mission.exception.MissionException;
+import com.kiri.server.domain.mission.exception.code.MissionErrorCode;
+import com.kiri.server.domain.mission.generator.EssentialPlanner;
+import com.kiri.server.domain.mission.repository.MissionChecklistItemRepository;
+import com.kiri.server.domain.mission.repository.MissionFeedRepository;
+import com.kiri.server.domain.mission.repository.MissionFeedRepository.BaseLocation;
+import com.kiri.server.domain.mission.repository.MissionRepository;
+import com.kiri.server.domain.place.entity.Place;
+import com.kiri.server.domain.review.repository.ReviewRepository;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import com.kiri.server.domain.pick.entity.KiriPick;
+import com.kiri.server.domain.pick.repository.KiriPickRepository;
+
+import java.time.Clock;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.function.Function;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
+
+@Service
+@RequiredArgsConstructor
+public class MissionQueryService {
+
+    private static final int DEFAULT_SIZE = 20;
+    private static final Set<Integer> DISTANCES = Set.of(1, 3, 5, 10);
+    private static final Pattern REGION_CODE = Pattern.compile("\\d{2}|\\d{5}");
+    private static final Set<MissionStatus> DETAIL_STATUSES = Set.of(MissionStatus.ACTIVE, MissionStatus.ENDED);
+    private static final double EARTH_RADIUS_KM = 6371.0;
+    private static final String NEAR_REASON = "미션 장소에서 가까운 곳이에요";
+
+    private final MissionRepository missionRepository;
+    private final MissionFeedRepository missionFeedRepository;
+    private final MissionChecklistItemRepository missionChecklistItemRepository;
+    private final ExternalRecordRepository externalRecordRepository;
+    private final MemberRepository memberRepository;
+    private final BucketItemRepository bucketItemRepository;
+    private final KiriPickRepository kiriPickRepository;
+    private final ReviewRepository reviewRepository;
+    private final NearbyMissionFinder nearbyMissionFinder;
+    private final Clock clock;
+
+    @Transactional(readOnly = true)
+    public MissionResDTO.Feed getFeed(Long memberId, MissionReqDTO.FeedCondition condition) {
+        validate(condition);
+        BaseLocation base = resolveBaseLocation(memberId, condition);
+        int size = condition.size() == null ? DEFAULT_SIZE : condition.size();
+        LocalDate today = LocalDate.now(clock);
+
+        // 끼리 픽: 노출 중인 픽 미션은 일반 목록에서 빼고, 첫 페이지 맨 앞에 운영자 순서대로 붙인다.
+        Map<Long, KiriPick> picksByMission = new LinkedHashMap<>();
+        kiriPickRepository.findExposed(LocalDateTime.now(clock))
+                .forEach(pick -> picksByMission.putIfAbsent(pick.getMission().getId(), pick));
+        List<Long> topIds = List.of();
+        if (!picksByMission.isEmpty() && condition.cursor() == null) {
+            Set<Long> matched = Set.copyOf(missionFeedRepository.findFeedIds(
+                    condition, base, today, picksByMission.size(), picksByMission.keySet(), null));
+            topIds = picksByMission.keySet().stream().filter(matched::contains).toList();
+        }
+
+        List<Long> ids = picksByMission.isEmpty()
+                ? missionFeedRepository.findFeedIds(condition, base, today, size + 1)
+                : missionFeedRepository.findFeedIds(condition, base, today, size + 1, null, picksByMission.keySet());
+        boolean hasNext = ids.size() > size;
+        List<Long> pageIds = hasNext ? ids.subList(0, size) : ids;
+        if (pageIds.isEmpty() && topIds.isEmpty()) {
+            return MissionConverter.toFeed(List.of(), null, false);
+        }
+
+        List<Long> allIds = new ArrayList<>(topIds);
+        allIds.addAll(pageIds);
+        Map<Long, Mission> missions = missionRepository.findAllWithPlaceByIdIn(allIds).stream()
+                .collect(Collectors.toMap(Mission::getId, Function.identity()));
+        List<MissionResDTO.FeedItem> items = allIds.stream()
+                .map(missions::get)
+                .filter(Objects::nonNull)
+                .map(mission -> MissionConverter.toFeedItem(mission, distanceFrom(base, mission.getPlace()),
+                        picksByMission.get(mission.getId())))
+                .toList();
+
+        return MissionConverter.toFeed(items, hasNext ? pageIds.getLast() : null, hasNext);
+    }
+
+    @Transactional(readOnly = true)
+    public MissionResDTO.Detail getDetail(Long memberId, Long missionId) {
+        Mission mission = missionRepository.findWithPlaceById(missionId)
+                .filter(found -> DETAIL_STATUSES.contains(found.getStatus()))
+                .orElseThrow(() -> new MissionException(MissionErrorCode.NOT_FOUND));
+        String sourceUrl = externalRecordRepository.findFirstByMissionAndSourceUrlIsNotNullOrderByIdAsc(mission)
+                .map(ExternalRecord::getSourceUrl)
+                .orElse(null);
+
+        BucketSaveState bucketState = resolveBucketState(memberId, missionId);
+
+        ReviewRepository.MissionRating rating = reviewRepository.findMissionRating(missionId);
+        long reviewCount = rating.getReviewCount();
+        Double averageRating = reviewCount == 0 ? null : Math.round(rating.getAverageRating() * 10) / 10.0;
+
+        return MissionConverter.toDetail(mission,
+                missionChecklistItemRepository.findAllByMissionOrderByItemTypeAscDisplayOrderAsc(mission),
+                sourceUrl, bucketState, averageRating, (int) reviewCount);
+    }
+
+    // 일정 없이 미션 장소 기준으로 조회하므로 취향·컨디션 없이 가까운 순 (MIS-07)
+    @Transactional(readOnly = true)
+    public List<MissionResDTO.NearbyItem> getNearby(Long missionId) {
+        Mission mission = missionRepository.findWithPlaceById(missionId)
+                .filter(found -> DETAIL_STATUSES.contains(found.getStatus()))
+                .orElseThrow(() -> new MissionException(MissionErrorCode.NOT_FOUND));
+        Place base = mission.getPlace();
+
+        List<Mission> candidates = nearbyMissionFinder.findCandidates(base, LocalDate.now(clock));
+        return nearbyMissionFinder.pickTop(candidates, base, candidate -> 0).stream()
+                .map(candidate -> MissionConverter.toNearbyItem(candidate.mission(), candidate.distanceKm(),
+                        nearbyReason(candidate)))
+                .toList();
+    }
+
+    // 일정 없이 조회하므로 날씨 없이 저장된 미션 근거 항목만
+    @Transactional(readOnly = true)
+    public List<MissionResDTO.ChecklistItem> getEssentials(Long missionId) {
+        Mission mission = missionRepository.findWithPlaceById(missionId)
+                .filter(found -> DETAIL_STATUSES.contains(found.getStatus()))
+                .orElseThrow(() -> new MissionException(MissionErrorCode.NOT_FOUND));
+        return EssentialPlanner.combine(
+                missionChecklistItemRepository.findAllByMissionAndItemTypeOrderByDisplayOrderAsc(mission, ItemType.PREPARE),
+                List.of());
+    }
+
+    // 근거가 거리뿐이라 가까우면 거리 문구, 아니면 미션 소개 문구
+    private String nearbyReason(NearbyMissionFinder.Candidate candidate) {
+        return candidate.distanceKm() <= NearbyMissionFinder.NEAR_DISTANCE_KM
+                ? NEAR_REASON
+                : candidate.mission().getDescription();
+    }
+
+    private BucketSaveState resolveBucketState(Long memberId, Long missionId) {
+        if (bucketItemRepository.existsByMemberIdAndMissionIdAndStatusIn(
+                memberId, missionId, BucketStatus.ACTIVE_STATUSES)) {
+            return BucketSaveState.SAVED;
+        }
+        if (bucketItemRepository.existsByMemberIdAndMissionIdAndStatusIn(
+                memberId, missionId, List.of(BucketStatus.COMPLETED))) {
+            return BucketSaveState.COMPLETED_ONLY;
+        }
+        return BucketSaveState.NONE;
+    }
+
+    private void validate(MissionReqDTO.FeedCondition condition) {
+        if ((condition.latitude() == null) != (condition.longitude() == null)) {
+            throw new MissionException(MissionErrorCode.COORDINATE_PAIR_REQUIRED);
+        }
+        if (condition.distance() != null && !DISTANCES.contains(condition.distance())) {
+            throw new MissionException(MissionErrorCode.INVALID_DISTANCE);
+        }
+        if (condition.regionCode() != null && !REGION_CODE.matcher(condition.regionCode()).matches()) {
+            throw new MissionException(MissionErrorCode.INVALID_REGION_CODE);
+        }
+    }
+
+    private BaseLocation resolveBaseLocation(Long memberId, MissionReqDTO.FeedCondition condition) {
+        if (condition.hasCoordinates()) {
+            return new BaseLocation(condition.latitude(), condition.longitude());
+        }
+        Family family = memberRepository.findById(memberId)
+                .orElseThrow(() -> new MemberException(MemberErrorCode.NOT_FOUND))
+                .getFamily();
+        if (family == null || family.getLatitude() == null || family.getLongitude() == null) {
+            return null;
+        }
+        return new BaseLocation(family.getLatitude().doubleValue(), family.getLongitude().doubleValue());
+    }
+
+    private Double distanceFrom(BaseLocation base, Place place) {
+        if (base == null) {
+            return null;
+        }
+        double phi1 = Math.toRadians(base.latitude());
+        double phi2 = Math.toRadians(place.getLatitude().doubleValue());
+        double deltaPhi = phi2 - phi1;
+        double deltaLambda = Math.toRadians(place.getLongitude().doubleValue() - base.longitude());
+        double a = Math.pow(Math.sin(deltaPhi / 2), 2)
+                + Math.cos(phi1) * Math.cos(phi2) * Math.pow(Math.sin(deltaLambda / 2), 2);
+        double km = 2 * EARTH_RADIUS_KM * Math.asin(Math.sqrt(a));
+
+        return Math.round(km * 10) / 10.0;
+    }
+}

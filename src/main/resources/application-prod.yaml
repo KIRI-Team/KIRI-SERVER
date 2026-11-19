@@ -1,0 +1,19 @@
+spring:
+  config:
+    activate:
+      on-profile: prod
+
+logging:
+  level:
+    org.hibernate.SQL: warn
+  structured:
+    format:
+      console: logstash
+    json:
+      add:
+        service: kiri-server
+
+sentry:
+  dsn: ${SENTRY_DSN}
+  environment: prod
+

@@ -1,0 +1,56 @@
+package com.kiri.server.domain.member.repository;
+
+import com.kiri.server.domain.family.entity.Family;
+import com.kiri.server.domain.member.entity.Member;
+import com.kiri.server.domain.member.enums.SocialProvider;
+import jakarta.persistence.LockModeType;
+import org.springframework.data.jpa.repository.EntityGraph;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+import org.springframework.stereotype.Repository;
+
+import java.util.Optional;
+
+import java.util.List;
+
+@Repository
+public interface MemberRepository extends JpaRepository<Member, Long> {
+
+    Optional<Member> findBySocialProviderAndSocialProviderUid(SocialProvider socialProvider, String providerId);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+        select m
+        from Member m
+        where m.socialProvider = :socialProvider
+        and m.socialProviderUid = :socialProviderUid
+    """)
+    Optional<Member> findBySocialProviderAndSocialProviderUidForUpdate(@Param("socialProvider") SocialProvider socialProvider, @Param("socialProviderUid") String socialProviderUid);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+        select m
+        from Member m
+        where m.id = :id
+       """)
+    Optional<Member> findByIdForUpdate(@Param("id") Long id);
+
+    @Query("""
+        select m
+        from Member m
+        where m.id = :id
+        AND m.deletedAt IS NULL
+    """)
+    Optional<Member> findByIdAndDeletedAtIsNull(@Param("id") Long id);
+
+    List<Member> findAllByFamily(Family family);
+
+    @EntityGraph(attributePaths = {"character"})
+    List<Member> findAllByFamilyAndDeletedAtIsNull(Family family);
+
+    boolean existsByNickname(String nickname);
+
+    Optional<Member> findFirstByFamilyAndDeletedAtIsNullAndIdNotOrderByFamilyJoinedAtAsc(Family family, Long memberId);
+}

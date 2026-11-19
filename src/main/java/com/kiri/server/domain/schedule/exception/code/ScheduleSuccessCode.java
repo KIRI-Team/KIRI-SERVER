@@ -1,0 +1,27 @@
+package com.kiri.server.domain.schedule.exception.code;
+
+import com.kiri.server.global.apiPayload.code.BaseSuccessCode;
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
+
+@Getter
+@RequiredArgsConstructor
+public enum ScheduleSuccessCode implements BaseSuccessCode {
+
+    CALENDAR_SUCCESS(HttpStatus.OK, "SCHEDULE200_1", "캘린더 월간 일정 조회 성공"),
+    RESPONSE_SUCCESS(HttpStatus.OK, "SCHEDULE200_2", "일정 응답 처리 성공"),
+    CANCEL_SUCCESS(HttpStatus.OK, "SCHEDULE200_3", "일정 취소 성공"),
+    UPDATE_SUCCESS(HttpStatus.OK, "SCHEDULE200_4", "일정 수정 성공"),
+    UPCOMING_SUCCESS(HttpStatus.OK, "SCHEDULE200_5", "다가오는 일정 조회 성공"),
+    CONDITION_SUCCESS(HttpStatus.OK, "SCHEDULE200_6", "컨디션 커스텀 조회 성공"),
+    CONDITION_UPDATE_SUCCESS(HttpStatus.OK, "SCHEDULE200_7", "컨디션 커스텀 적용 성공"),
+    NEARBY_SUCCESS(HttpStatus.OK, "SCHEDULE200_8", "근처 놀거리 추천 조회 성공"),
+    DETAIL_SUCCESS(HttpStatus.OK, "SCHEDULE200_9", "일정 상세 조회 성공"),
+    ESSENTIALS_SUCCESS(HttpStatus.OK, "SCHEDULE200_10", "일정 맞춤템 조회 성공"),
+    CREATE_SUCCESS(HttpStatus.CREATED, "SCHEDULE201_1", "일정 생성 성공");
+
+    private final HttpStatus httpStatus;
+    private final String code;
+    private final String message;
+}
