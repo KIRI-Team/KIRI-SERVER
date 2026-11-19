@@ -249,6 +249,69 @@ class FamilyControllerTest {
                 .andExpect(status().isBadRequest());
     }
 
+    @Test
+    @DisplayName("가족 이름에 특수문자가 포함되면 가족 공간 생성 실패")
+    @WithMockUser
+    void createFamilyNameWithSpecialCharacter() throws Exception{
+        mockMvc.perform(post("/api/v1/families")
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"name": "끼리네 가족!"}
+                                """))
+                .andExpect(status().isBadRequest());
+
+        verifyNoInteractions(familyService);
+    }
+
+    @Test
+    @DisplayName("공백을 정리한 가족 이름이 1자이면 가족 공간 생성 실패")
+    @WithMockUser
+    void createFamilyNameTooShortAfterNormalize() throws Exception{
+        mockMvc.perform(post("/api/v1/families")
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"name": "가   "}
+                                """))
+                .andExpect(status().isBadRequest());
+
+        verifyNoInteractions(familyService);
+    }
+
+    @Test
+    @DisplayName("공백을 정리한 가족 이름이 15자 이내이면 가족 공간 생성 성공")
+    void createFamilyNameWithinLengthAfterNormalize() throws Exception{
+        FamilyResDTO.Create response = FamilyResDTO.Create.builder()
+                .familyId(1L)
+                .name("가나다라마 바사아자차")
+                .inviteCode("ABC123")
+                .inviteUrl("https://www.halo-official.co.kr/invite/test-token")
+                .inviteExpiresAt(LocalDateTime.now().plusDays(7))
+                .build();
+
+        given(familyService.createFamily(anyLong(), any(FamilyReqDTO.Create.class)))
+                .willReturn(response);
+
+        mockMvc.perform(post("/api/v1/families")
+                        .with(authentication(
+                                new UsernamePasswordAuthenticationToken(
+                                        1L,
+                                        null,
+                                        List.of(new SimpleGrantedAuthority("ROLE_USER"))
+                                )
+                        ))
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"name": "   가나다라마     바사아자차   "}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.isSuccess").value(true));
+
+        then(familyService).should().createFamily(1L, new FamilyReqDTO.Create("가나다라마 바사아자차"));
+    }
+
     @DisplayName("잘못된 주소 정보로 요청하면 400 Bad Request를 반환한다.")
     @ParameterizedTest(name = "{0}")
     @MethodSource("invalidAddressRequests")

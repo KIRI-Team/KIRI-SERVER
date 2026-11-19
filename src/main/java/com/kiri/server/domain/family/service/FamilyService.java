@@ -176,7 +176,7 @@ public class FamilyService {
             throw new FamilyException(FamilyErrorCode.FORBIDDEN);
         }
 
-        String normalizedName = normalizeFamilyName(request.name());
+        String normalizedName = request.name();
 
         if (family.getName().equals(normalizedName)) {
             return FamilyConverter.toUpdateNameResponse(family);
@@ -211,10 +211,6 @@ public class FamilyService {
         family.updateAddress(request.postalCode(), request.address(), request.detailAddress(), request.regionCode(), request.latitude(), request.longitude());
 
         return FamilyConverter.toUpdateAddressResponse(family);
-    }
-
-    private String normalizeFamilyName(String name) {
-        return name.trim().replaceAll("\\s+", " ");
     }
 
     @Transactional(readOnly = true)

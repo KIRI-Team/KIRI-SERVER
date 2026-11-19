@@ -12,8 +12,17 @@ public class FamilyReqDTO {
     public record Create(
             @NotBlank(message = "가족 이름은 필수입니다.")
             @Size(min = 2, max = 15, message = "가족 이름은 2~15자여야 합니다.")
+            @Pattern(
+                    regexp = "^[가-힣a-zA-Z0-9 ]*$",
+                    message = "가족 이름은 한글, 영문, 숫자 및 띄어쓰기만 사용할 수 있습니다."
+            )
+            @Schema(description = "가족명 (한글·영문·숫자·띄어쓰기만 허용, 앞뒤 공백 제거 및 연속 공백을 1개로 정리한 뒤 2~15자)", example = "끼리네 가족")
             String name
-    ) {}
+    ) {
+        public Create {
+            name = normalizeName(name);
+        }
+    }
 
     // 가족 이름 설정
     public record UpdateName(
@@ -23,8 +32,20 @@ public class FamilyReqDTO {
                     regexp = "^[가-힣a-zA-Z0-9 ]*$",
                     message = "가족 이름은 한글, 영문, 숫자 및 띄어쓰기만 사용할 수 있습니다."
             )
+            @Schema(description = "가족명 (한글·영문·숫자·띄어쓰기만 허용, 앞뒤 공백 제거 및 연속 공백을 1개로 정리한 뒤 2~15자)", example = "끼리네 가족")
             String name
-    ) {}
+    ) {
+        public UpdateName {
+            name = normalizeName(name);
+        }
+    }
+
+    private static String normalizeName(String name) {
+        if (name == null) {
+            return null;
+        }
+        return name.trim().replaceAll("\\s+", " ");
+    }
 
     // 가족 주소 설정
     public record UpdateAddress(

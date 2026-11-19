@@ -162,6 +162,31 @@ class FamilyServiceTest {
     }
 
     @Test
+    @DisplayName("가족 공간 생성 시 가족명의 앞뒤 공백과 연속된 공백을 정규화한다.")
+    void createFamilyNormalizeName() {
+        Long memberId = 1L;
+        FamilyReqDTO.Create dto = new FamilyReqDTO.Create("  우리    가족  ");
+        Member member = mock(Member.class);
+
+        when(memberRepository.findByIdForUpdate(memberId))
+                .thenReturn(Optional.of(member));
+
+        when(familyRepository.existsByName("우리 가족"))
+                .thenReturn(false);
+
+        when(familyRepository.existsByInviteCode(anyString()))
+                .thenReturn(false);
+
+        ArgumentCaptor<Family> familyCaptor = ArgumentCaptor.forClass(Family.class);
+
+        familyService.createFamily(memberId, dto);
+
+        verify(familyRepository).existsByName("우리 가족");
+        verify(familyRepository).save(familyCaptor.capture());
+        assertThat(familyCaptor.getValue().getName()).isEqualTo("우리 가족");
+    }
+
+    @Test
     @DisplayName("금칙어·사칭 표현이 포함된 가족명이면 가족 공간 생성 실패")
     void createFamilyBannedName() {
         Long memberId = 1L;
