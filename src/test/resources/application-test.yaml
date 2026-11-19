@@ -1,0 +1,4 @@
+# AdminAuthIntegrationTest가 /v3/api-docs/{admin,app}을 호출하므로 test 프로필에서만 api-docs를 켠다
+springdoc:
+  api-docs:
+    enabled: true
