@@ -1,4 +1,31 @@
+# 테스트 전용 설정. 외부 연동 값은 더미로 채워 DB만 있으면 컨텍스트가 뜨도록 한다.
+# 실제 서비스에 쓰이는 값은 하나도 없다.
+
 # AdminAuthIntegrationTest가 /v3/api-docs/{admin,app}을 호출하므로 test 프로필에서만 api-docs를 켠다
 springdoc:
   api-docs:
     enabled: true
+
+jwt:
+  secret: test-jwt-secret-must-be-at-least-32-bytes
+
+kakao:
+  client-id: test-kakao
+
+google:
+  client-id: test-google
+
+apple:
+  client-id: test-apple
+
+aws:
+  s3:
+    bucket: test-bucket
+  cloudfront:
+    cdn-base-url: https://test.cloudfront.net
+    key-pair-id: KTESTKEYPAIRID
+    # 테스트용으로 생성한 일회용 RSA 키(PKCS#8 DER, base64). 어떤 CloudFront 키 쌍과도 연결돼 있지 않다.
+    private-key: MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQCu/RvWzt3oGaYR/LuEEUvvoEC/wxEtu47mlmunyR63MeR3tael4EBiPImPfXIZW3EKpLBHSzJ3IchjBDvd0kCysJ4aoi2kbYGw3V96V9sjs8iKqT7cdbDuHBYO1DAreGm07UTyb0R/QNz9/JvYIKIZKxcY4H6RWcNraWdifdUNmdnta2bH9oy9QuE1npTZsDZ0+bVw/mD/JR3n5Cw8CvhB3jFM1XaVnoQ0BK9ApTIlg9JwEXIt6dHG67O3uWwp5tqf7v0SIKeqn4eDq4YOcI1ywpxHXqpaqQUFlQsx3kyfpCSwlsD77VzFHyHfwLuDuJTKPDp7TN75aIeAhVHyAnUlAgMBAAECggEAFAP7EnW8j68ZXg7Wwws4cJsXtOeC2ESPGqSDgWBhnUo9bAzw9WoCa0op4OoUKj7ZngJK8IizJ8nLMjo6f8usH1RQ7VJ2HovxDPIxWNziQcHvcx7bRBvJJl87jawrK1m9W5bVL1bXUqfwbzPc/ppy+CaD4JJTH9yQ3AElNHCYtVKehg07k2ZUbK2W8/0fgtMC3QNQAr71gXxAlCJTpsLzm1Y/h/IVhQyI7lylyYlfdxTBdFxmvLTGVjZgNAuU2EMiLze8UYdriN+oILrX/99VDu8vvsTT/mtCL3WUUhchIjMfDMBQ1Vcj8Y5nLwjgqPUrsuEHwnS7w2V4hnS+wqPykQKBgQDhIRoNuR1OdxKMSyxhAUokvhWbuHABCWWEJNEfeelnGe5oubjDWyz/VX/w2yrf+tNMmiTs/ueZWsuhjOn9IJ/+xKCxpfX+fwpNhZWVwHMGZ+0kiEWCnkpY+JVgsGbmAvfvtW5QLfdew8I74JKLY9QWq6xr0lrXp/EoG5CO6BIllQKBgQDG++FqYoME/JGNrf0eK43fpisbXd7rJE/vZeXz+HyMVuguVhTWkcXPuv2qTRbFwBk8Op8OI+I+4JInPaBACsWIdTl2LaebQKFOo+vKDH7f4lCH+l0hlI8To3tiJvySPIfUCE1Lab0n/r0Q+iqwgGhKcre1EI7ZKwWjKxiYZ+wNUQKBgQDQrapExi5QKTdcK+I7GMLtQ/Urns7TZy5eSvI9Rvf+xZ6kHGMTUlRnaY1qaP1ZGFr8SnWn6LAtCmhumvvZ0n/7269IfBmFiaS3Lvf1E6qLaZH7pwUniipIRkPQmDMJSf8ghwB1+eWuRa6pagTsh+B0EzWDzDzAYb+7+bEJhjwr8QKBgApMfx5CewWHDQGIP9GP74fj0ddYxHDnMDvzyjMWaVvaI6pCSlHQuaxGwVpPIx6ZErVLU3An603V0bq2NdUauZ6WcqLrOgGPFso7MbkDbI2p6QEgtDFIvx8FFx29ZtUqzNzskROWJXQsexyl1g/MlZlE1r1IXhxfXatUT7GTr2QBAoGARxnuNvYH7dO16QIWG4aRoQnzLj8NGy6Z+2ErNd0eSj5UCdKap68Q4/pM2ytXVS5UI27flw5pspiFszVUojiGkO767I+bI5B5QYYo0yD81aQb+wmIOX4ip+umPGwuEhXidJv19xeDZzxFaMZMc0+OOm5lDaIrimr9ccH1AjEyJhM=
+
+gemini:
+  api-key: test-gemini
