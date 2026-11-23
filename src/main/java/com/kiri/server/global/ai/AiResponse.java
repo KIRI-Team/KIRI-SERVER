@@ -1,56 +1,35 @@
 package com.kiri.server.global.ai;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.kiri.server.global.ai.exception.AiException;
 import com.kiri.server.global.ai.exception.code.AiErrorCode;
-import lombok.Getter;
 
 import java.util.List;
-import java.util.Objects;
-import java.util.stream.Collectors;
 
-@Getter
-public class AiResponse {
-
-    private List<Candidate> candidates;
+/**
+ * OpenAI Chat Completions 응답 중 분류에 필요한 choices[0].message.content만 읽는다.
+ */
+@JsonIgnoreProperties(ignoreUnknown = true)
+public record AiResponse(List<Choice> choices) {
 
     public String getText() {
 
-        if (candidates == null || candidates.isEmpty()) {
+        if (choices == null || choices.isEmpty()) {
             throw new AiException(AiErrorCode.AI_RESPONSE_INVALID);
         }
 
-        Candidate candidate = candidates.get(0);
+        Message message = choices.get(0).message();
 
-        if (candidate.getContent() == null
-                || candidate.getContent().getParts() == null
-                || candidate.getContent().getParts().isEmpty()) {
+        if (message == null || message.content() == null || message.content().isBlank()) {
             throw new AiException(AiErrorCode.AI_RESPONSE_INVALID);
         }
 
-        String result = candidate.getContent().getParts().stream()
-                .map(Part::getText)
-                .filter(Objects::nonNull)
-                .collect(Collectors.joining());
-
-        if (result.isBlank()) {
-            throw new AiException(AiErrorCode.AI_RESPONSE_INVALID);
-        }
-
-        return result;
+        return message.content();
     }
 
-    @Getter
-    public static class Candidate {
-        private Content content;
-    }
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public record Choice(Message message) {}
 
-    @Getter
-    public static class Content {
-        private List<Part> parts;
-    }
-
-    @Getter
-    public static class Part {
-        private String text;
-    }
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public record Message(String role, String content) {}
 }
