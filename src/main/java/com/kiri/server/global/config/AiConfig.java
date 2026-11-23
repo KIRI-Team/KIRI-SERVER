@@ -16,7 +16,7 @@ public class AiConfig {
         factory.setReadTimeout(10000);
 
         return RestClient.builder()
-                .baseUrl("https://generativelanguage.googleapis.com")
+                .baseUrl("https://api.openai.com")
                 .requestFactory(factory)
                 .build();
     }
