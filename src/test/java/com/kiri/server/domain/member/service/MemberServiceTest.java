@@ -3,6 +3,7 @@ package com.kiri.server.domain.member.service;
 import com.kiri.server.domain.character.entity.Character;
 import com.kiri.server.domain.character.repository.CharacterRepository;
 import com.kiri.server.domain.family.entity.Family;
+import com.kiri.server.domain.family.repository.FamilyRepository;
 import com.kiri.server.domain.member.dto.MemberReqDTO;
 import com.kiri.server.domain.member.dto.MemberResDTO;
 import com.kiri.server.domain.member.entity.Member;
@@ -60,6 +61,9 @@ class MemberServiceTest {
 
     @Mock
     private MemberTermRepository memberTermRepository;
+
+    @Mock
+    private FamilyRepository familyRepository;
 
     @Mock
     private HashUtil hashUtil;
@@ -563,6 +567,7 @@ class MemberServiceTest {
         next.joinFamily(family);
 
         given(memberRepository.findByIdForUpdate(1L)).willReturn(Optional.of(owner));
+        given(familyRepository.findByIdForUpdate(10L)).willReturn(Optional.of(family));
         given(memberRepository.findFirstByFamilyAndDeletedAtIsNullAndIdNotOrderByFamilyJoinedAtAsc(family, 1L))
                 .willReturn(Optional.of(next));
 
@@ -584,6 +589,7 @@ class MemberServiceTest {
         owner.joinFamily(family);
 
         given(memberRepository.findByIdForUpdate(1L)).willReturn(Optional.of(owner));
+        given(familyRepository.findByIdForUpdate(10L)).willReturn(Optional.of(family));
         given(memberRepository.findFirstByFamilyAndDeletedAtIsNullAndIdNotOrderByFamilyJoinedAtAsc(family, 1L))
                 .willReturn(Optional.empty());
 
@@ -607,12 +613,49 @@ class MemberServiceTest {
         member.joinFamily(family);
 
         given(memberRepository.findByIdForUpdate(2L)).willReturn(Optional.of(member));
+        given(familyRepository.findByIdForUpdate(10L)).willReturn(Optional.of(family));
 
         memberService.withdraw(2L);
 
         assertThat(family.getOwner()).isSameAs(owner);
         assertThat(family.getDeletedAt()).isNull();
         assertThat(member.isWithdrawn()).isTrue();
+        verify(familyRepository).findByIdForUpdate(10L);
         verify(memberRepository, never()).findFirstByFamilyAndDeletedAtIsNullAndIdNotOrderByFamilyJoinedAtAsc(any(), any());
+    }
+
+    @Test
+    @DisplayName("가족 행 잠금 후 다시 읽은 상태에서 자신이 소유자가 되었다면 남은 구성원이 없을 때 가족공간을 종료한다.")
+    void withdrawUsesLockedFamilyState() {
+        Member formerOwner = Member.builder().id(1L).nickname("아빠").build();
+        Member member = Member.builder().id(2L).nickname("엄마").build();
+        Family staleFamily = Family.builder().id(10L).name("우리집").owner(formerOwner).build();
+        Family lockedFamily = Family.builder().id(10L).name("우리집").owner(member)
+                .inviteCode("ABC123").inviteToken("token").build();
+        member.joinFamily(staleFamily);
+
+        given(memberRepository.findByIdForUpdate(2L)).willReturn(Optional.of(member));
+        given(familyRepository.findByIdForUpdate(10L)).willReturn(Optional.of(lockedFamily));
+        given(memberRepository.findFirstByFamilyAndDeletedAtIsNullAndIdNotOrderByFamilyJoinedAtAsc(lockedFamily, 2L))
+                .willReturn(Optional.empty());
+
+        memberService.withdraw(2L);
+
+        assertThat(lockedFamily.getDeletedAt()).isNotNull();
+        assertThat(lockedFamily.getInviteCode()).isNull();
+        assertThat(member.isWithdrawn()).isTrue();
+    }
+
+    @Test
+    @DisplayName("가족이 없는 회원은 가족 행을 잠그지 않고 탈퇴한다.")
+    void withdrawWithoutFamilySkipsFamilyLock() {
+        Member member = Member.builder().id(1L).nickname("아빠").build();
+
+        given(memberRepository.findByIdForUpdate(1L)).willReturn(Optional.of(member));
+
+        memberService.withdraw(1L);
+
+        assertThat(member.isWithdrawn()).isTrue();
+        verifyNoInteractions(familyRepository);
     }
 }

@@ -826,7 +826,7 @@ class FamilyServiceTest {
         FamilyReqDTO.Join request = new FamilyReqDTO.Join(inviteCode);
 
         when(memberRepository.findByIdForUpdate(memberId)).thenReturn(Optional.of(member));
-        when(familyRepository.findByInviteCode(inviteCode)).thenReturn(Optional.of(family));
+        when(familyRepository.findByInviteCodeForUpdate(inviteCode)).thenReturn(Optional.of(family));
 
         FamilyResDTO.Join response = familyService.joinFamily(memberId, request);
 
@@ -837,7 +837,7 @@ class FamilyServiceTest {
         assertNotNull(member.getFamilyJoinedAt());
 
         verify(memberRepository).findByIdForUpdate(memberId);
-        verify(familyRepository).findByInviteCode(inviteCode);
+        verify(familyRepository).findByInviteCodeForUpdate(inviteCode);
     }
 
     @Test
@@ -853,12 +853,12 @@ class FamilyServiceTest {
         FamilyReqDTO.Join request = new FamilyReqDTO.Join(inviteCode);
 
         when(memberRepository.findByIdForUpdate(memberId)).thenReturn(Optional.of(member));
-        when(familyRepository.findByInviteCode(inviteCode)).thenReturn(Optional.empty());
+        when(familyRepository.findByInviteCodeForUpdate(inviteCode)).thenReturn(Optional.empty());
 
         assertThrows(FamilyException.class, () -> familyService.joinFamily(memberId, request));
 
         assertNull(member.getFamily());
-        verify(familyRepository).findByInviteCode(inviteCode);
+        verify(familyRepository).findByInviteCodeForUpdate(inviteCode);
     }
 
     @Test
@@ -881,7 +881,7 @@ class FamilyServiceTest {
         FamilyReqDTO.Join request = new FamilyReqDTO.Join(inviteCode);
 
         when(memberRepository.findByIdForUpdate(memberId)).thenReturn(Optional.of(member));
-        when(familyRepository.findByInviteCode(inviteCode)).thenReturn(Optional.of(family));
+        when(familyRepository.findByInviteCodeForUpdate(inviteCode)).thenReturn(Optional.of(family));
 
         assertThrows(FamilyException.class, () -> familyService.joinFamily(memberId, request));
 
@@ -913,6 +913,38 @@ class FamilyServiceTest {
 
         assertSame(existingFamily, member.getFamily());
 
+        verify(familyRepository, never()).findByInviteCodeForUpdate(anyString());
+    }
+
+    @Test
+    @DisplayName("잠금 후 종료된 것으로 확인된 가족에는 초대 코드로 가입할 수 없다.")
+    void joinFamilyRejectsClosedFamily() {
+        Long memberId = 1L;
+        String inviteCode = "ABC123";
+
+        Member member = Member.builder()
+                .id(memberId)
+                .build();
+
+        Family family = Family.builder()
+                .id(10L)
+                .name("우리 가족")
+                .inviteCode(inviteCode)
+                .inviteExpiresAt(LocalDateTime.now().plusDays(7))
+                .deletedAt(LocalDateTime.now())
+                .build();
+
+        FamilyReqDTO.Join request = new FamilyReqDTO.Join(inviteCode);
+
+        when(memberRepository.findByIdForUpdate(memberId)).thenReturn(Optional.of(member));
+        when(familyRepository.findByInviteCodeForUpdate(inviteCode)).thenReturn(Optional.of(family));
+
+        assertThatThrownBy(() -> familyService.joinFamily(memberId, request))
+                .isInstanceOf(FamilyException.class)
+                .extracting("errorCode")
+                .isEqualTo(FamilyErrorCode.INVALID_INVITE_CODE);
+
+        assertNull(member.getFamily());
         verify(familyRepository, never()).findByInviteCode(anyString());
     }
 
@@ -987,7 +1019,7 @@ class FamilyServiceTest {
                 .build();
 
         when(memberRepository.findByIdForUpdate(memberId)).thenReturn(Optional.of(member));
-        when(familyRepository.findByInviteToken(inviteToken)).thenReturn(Optional.of(family));
+        when(familyRepository.findByInviteTokenForUpdate(inviteToken)).thenReturn(Optional.of(family));
 
         FamilyResDTO.Join response = familyService.joinFamilyByToken(memberId, inviteToken);
 
@@ -998,7 +1030,7 @@ class FamilyServiceTest {
         assertNotNull(member.getFamilyJoinedAt());
 
         verify(memberRepository).findByIdForUpdate(memberId);
-        verify(familyRepository).findByInviteToken(inviteToken);
+        verify(familyRepository).findByInviteTokenForUpdate(inviteToken);
     }
 
     @Test
@@ -1012,7 +1044,7 @@ class FamilyServiceTest {
                 .build();
 
         when(memberRepository.findByIdForUpdate(memberId)).thenReturn(Optional.of(member));
-        when(familyRepository.findByInviteToken(inviteToken)).thenReturn(Optional.empty());
+        when(familyRepository.findByInviteTokenForUpdate(inviteToken)).thenReturn(Optional.empty());
 
         assertThrows(FamilyException.class, () -> familyService.joinFamilyByToken(memberId, inviteToken));
 
@@ -1038,7 +1070,7 @@ class FamilyServiceTest {
                 .build();
 
         when(memberRepository.findByIdForUpdate(memberId)).thenReturn(Optional.of(member));
-        when(familyRepository.findByInviteToken(inviteToken)).thenReturn(Optional.of(family));
+        when(familyRepository.findByInviteTokenForUpdate(inviteToken)).thenReturn(Optional.of(family));
 
         assertThrows(FamilyException.class, () -> familyService.joinFamilyByToken(memberId, inviteToken));
 
@@ -1068,6 +1100,36 @@ class FamilyServiceTest {
 
         assertSame(existingFamily, member.getFamily());
 
+        verify(familyRepository, never()).findByInviteTokenForUpdate(anyString());
+    }
+
+    @Test
+    @DisplayName("잠금 후 종료된 것으로 확인된 가족에는 초대 토큰으로 가입할 수 없다.")
+    void joinFamilyByTokenRejectsClosedFamily() {
+        Long memberId = 1L;
+        String inviteToken = "a1b2c3d4e5f678901234567890abcdef";
+
+        Member member = Member.builder()
+                .id(memberId)
+                .build();
+
+        Family family = Family.builder()
+                .id(10L)
+                .name("우리 가족")
+                .inviteToken(inviteToken)
+                .inviteExpiresAt(LocalDateTime.now().plusDays(7))
+                .deletedAt(LocalDateTime.now())
+                .build();
+
+        when(memberRepository.findByIdForUpdate(memberId)).thenReturn(Optional.of(member));
+        when(familyRepository.findByInviteTokenForUpdate(inviteToken)).thenReturn(Optional.of(family));
+
+        assertThatThrownBy(() -> familyService.joinFamilyByToken(memberId, inviteToken))
+                .isInstanceOf(FamilyException.class)
+                .extracting("errorCode")
+                .isEqualTo(FamilyErrorCode.INVALID_INVITE_TOKEN);
+
+        assertNull(member.getFamily());
         verify(familyRepository, never()).findByInviteToken(anyString());
     }
 

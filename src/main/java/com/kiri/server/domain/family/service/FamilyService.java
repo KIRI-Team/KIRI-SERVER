@@ -230,7 +230,9 @@ public class FamilyService {
             throw new FamilyException(FamilyErrorCode.ALREADY_JOINED);
         }
 
-        Family family = familyRepository.findByInviteCode(request.inviteCode()).orElseThrow(() -> new FamilyException(FamilyErrorCode.INVALID_INVITE_CODE));
+        Family family = familyRepository.findByInviteCodeForUpdate(request.inviteCode())
+                .filter(f -> f.getDeletedAt() == null)
+                .orElseThrow(() -> new FamilyException(FamilyErrorCode.INVALID_INVITE_CODE));
 
         if (family.getInviteExpiresAt() == null || !LocalDateTime.now().isBefore(family.getInviteExpiresAt())) {
             throw new FamilyException(FamilyErrorCode.EXPIRED_INVITE_CODE);
@@ -260,7 +262,9 @@ public class FamilyService {
             throw new FamilyException(FamilyErrorCode.ALREADY_JOINED);
         }
 
-        Family family = familyRepository.findByInviteToken(inviteToken).orElseThrow(() -> new FamilyException(FamilyErrorCode.INVALID_INVITE_TOKEN));
+        Family family = familyRepository.findByInviteTokenForUpdate(inviteToken)
+                .filter(f -> f.getDeletedAt() == null)
+                .orElseThrow(() -> new FamilyException(FamilyErrorCode.INVALID_INVITE_TOKEN));
 
         if (family.getInviteExpiresAt() == null || !LocalDateTime.now().isBefore(family.getInviteExpiresAt())) {
             throw new FamilyException(FamilyErrorCode.EXPIRED_INVITE_TOKEN);

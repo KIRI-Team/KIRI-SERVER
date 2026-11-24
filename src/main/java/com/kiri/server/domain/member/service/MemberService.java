@@ -3,6 +3,9 @@ package com.kiri.server.domain.member.service;
 import com.kiri.server.domain.character.entity.Character;
 import com.kiri.server.domain.character.repository.CharacterRepository;
 import com.kiri.server.domain.family.entity.Family;
+import com.kiri.server.domain.family.exception.FamilyException;
+import com.kiri.server.domain.family.exception.code.FamilyErrorCode;
+import com.kiri.server.domain.family.repository.FamilyRepository;
 import com.kiri.server.domain.member.converter.MemberConverter;
 import com.kiri.server.domain.member.enums.FamilyRole;
 import com.kiri.server.domain.member.dto.MemberReqDTO;
@@ -34,6 +37,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class MemberService {
 
     private final MemberRepository memberRepository;
+    private final FamilyRepository familyRepository;
     private final MemberTermRepository memberTermRepository;
     private final CharacterRepository characterRepository;
     private final OidcProviderFactory oidcProviderFactory;
@@ -136,7 +140,10 @@ public class MemberService {
             throw new ProjectException(MemberErrorCode.ALREADY_WITHDRAWN);
         }
 
-        Family family = member.getFamily();
+        // 가족 행을 잠근 뒤 소유자·잔여 구성원을 판단해야 동시 탈퇴·참여와 엇갈리지 않는다.
+        Family family = member.getFamily() == null ? null
+                : familyRepository.findByIdForUpdate(member.getFamily().getId())
+                        .orElseThrow(() -> new FamilyException(FamilyErrorCode.NOT_FOUND));
 
         if (family != null && family.isOwner(member)) {
 
