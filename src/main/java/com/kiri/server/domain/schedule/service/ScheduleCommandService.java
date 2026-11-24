@@ -176,16 +176,60 @@ public class ScheduleCommandService {
             throw new ScheduleException(ScheduleErrorCode.NOT_CANCELABLE);
         }
 
+        cancelSchedule(schedule);
+
+        return ScheduleConverter.toCancelled(schedule);
+    }
+
+    // MY-08: 탈퇴 회원을 아직 시작하지 않은 진행 중 일정에서 빼고, 남은 초대 대상이 없으면 취소한다.
+    // 탈퇴자가 제안자여도 취소하지 않고 남은 초대 대상의 수락 여부로 상태를 다시 계산한다.
+    @Transactional
+    public void cleanUpWithdrawnMember(Long memberId) {
+        LocalDateTime now = LocalDateTime.now(clock);
+        List<Long> scheduleIds = scheduleRepository.findUpcomingIdsInvolvingMember(
+                memberId, ScheduleStatus.ACTIVE_STATUSES, now.toLocalDate());
+
+        for (Long scheduleId : scheduleIds) {
+            Schedule schedule = scheduleRepository.findByIdForUpdate(scheduleId).orElse(null);
+            if (schedule == null || !schedule.isCancelable() || schedule.hasStarted(now)) {
+                continue;
+            }
+
+            List<ScheduleParticipant> participants = scheduleParticipantRepository.findBySchedule_Id(scheduleId);
+            List<ScheduleParticipant> withdrawn = participants.stream()
+                    .filter(p -> p.getMember() != null && p.getMember().getId().equals(memberId))
+                    .toList();
+            List<ScheduleParticipant> remainingInvitees = participants.stream()
+                    .filter(p -> p.getMember() != null)
+                    .filter(p -> !p.getMember().getId().equals(memberId))
+                    .filter(p -> !schedule.isProposer(p.getMember().getId()))
+                    .toList();
+
+            scheduleParticipantRepository.deleteAll(withdrawn);
+
+            if (remainingInvitees.isEmpty()) {
+                cancelSchedule(schedule);
+                continue;
+            }
+
+            long acceptedExcludingProposer = remainingInvitees.stream()
+                    .filter(p -> p.getStatus() == ParticipantStatus.ACCEPTED)
+                    .filter(p -> !Boolean.TRUE.equals(p.getReconfirmRequired()))
+                    .count();
+            schedule.recalculateStatus(acceptedExcludingProposer, now);
+        }
+    }
+
+    // 일정을 취소하고 참여자에게 알린 뒤, 후기가 없으면 버킷을 다시 저장 상태로 돌린다.
+    private void cancelSchedule(Schedule schedule) {
         schedule.cancel();
 
         notificationService.createScheduleCancelledNotifications(schedule);
 
         BucketItem bucketItem = schedule.getBucketItem();
-        if (bucketItem != null && !reviewRepository.existsBySchedule_Id(scheduleId)) {
+        if (bucketItem != null && !reviewRepository.existsBySchedule_Id(schedule.getId())) {
             bucketItem.markSaved();
         }
-
-        return ScheduleConverter.toCancelled(schedule);
     }
 
     @Transactional

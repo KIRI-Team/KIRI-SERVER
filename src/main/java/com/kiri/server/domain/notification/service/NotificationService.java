@@ -377,6 +377,7 @@ public class NotificationService {
                 .filter(participant -> participant.getMember() != null)
                 .map(ScheduleParticipant::getMember)
                 .filter(member -> !member.getId().equals(proposerId))
+                .filter(member -> !member.isWithdrawn())
                 .forEach(member -> receivers.putIfAbsent(member.getId(), member));
 
         List<Notification> notifications = receivers.values().stream()
