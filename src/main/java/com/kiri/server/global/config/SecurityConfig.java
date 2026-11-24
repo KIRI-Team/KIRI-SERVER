@@ -1,5 +1,6 @@
 package com.kiri.server.global.config;
 
+import com.kiri.server.domain.member.repository.MemberRepository;
 import com.kiri.server.global.security.handler.CustomAccessDeniedHandler;
 import com.kiri.server.global.security.handler.CustomAuthenticationEntryPoint;
 import com.kiri.server.global.security.jwt.JwtAuthFilter;
@@ -23,6 +24,7 @@ public class SecurityConfig {
     private final CustomAuthenticationEntryPoint authenticationEntryPoint;
     private final CustomAccessDeniedHandler accessDeniedHandler;
     private final JwtProvider jwtProvider;
+    private final MemberRepository memberRepository;
 
     // 인증 없이 접근 가능한 경로
     private final static String[] PUBLIC_URLS = {
@@ -59,7 +61,7 @@ public class SecurityConfig {
                         .anyRequest().authenticated())
                 .exceptionHandling(ex -> ex.authenticationEntryPoint(authenticationEntryPoint)
                         .accessDeniedHandler(accessDeniedHandler))
-                .addFilterBefore(new JwtAuthFilter(jwtProvider), UsernamePasswordAuthenticationFilter.class);
+                .addFilterBefore(new JwtAuthFilter(jwtProvider, memberRepository), UsernamePasswordAuthenticationFilter.class);
         return http.build();
     }
 }

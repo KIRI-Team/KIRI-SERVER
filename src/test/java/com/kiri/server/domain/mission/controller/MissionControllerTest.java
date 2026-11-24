@@ -1,5 +1,6 @@
 package com.kiri.server.domain.mission.controller;
 
+import com.kiri.server.domain.member.repository.MemberRepository;
 import com.kiri.server.domain.bucket.enums.BucketSaveState;
 import com.kiri.server.domain.mission.dto.MissionReqDTO;
 import com.kiri.server.domain.mission.dto.MissionResDTO;
@@ -58,6 +59,9 @@ class MissionControllerTest {
     private JwtProvider jwtProvider;
 
     @MockitoBean
+    private MemberRepository memberRepository;
+
+    @MockitoBean
     private MissionQueryService missionQueryService;
 
     @MockitoBean
@@ -68,6 +72,7 @@ class MissionControllerTest {
     @BeforeEach
     void setUp() {
         bearerToken = "Bearer " + jwtProvider.createAccessToken(MEMBER_ID);
+        given(memberRepository.existsByIdAndDeletedAtIsNull(MEMBER_ID)).willReturn(true);
     }
 
     @Test

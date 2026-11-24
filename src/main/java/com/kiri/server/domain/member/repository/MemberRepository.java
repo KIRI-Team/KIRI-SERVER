@@ -45,6 +45,8 @@ public interface MemberRepository extends JpaRepository<Member, Long> {
     """)
     Optional<Member> findByIdAndDeletedAtIsNull(@Param("id") Long id);
 
+    boolean existsByIdAndDeletedAtIsNull(Long id);
+
     List<Member> findAllByFamily(Family family);
 
     @EntityGraph(attributePaths = {"character"})

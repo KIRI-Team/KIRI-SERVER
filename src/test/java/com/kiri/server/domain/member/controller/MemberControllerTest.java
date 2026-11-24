@@ -1,6 +1,7 @@
 package com.kiri.server.domain.member.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.kiri.server.domain.member.repository.MemberRepository;
 import com.kiri.server.domain.member.dto.MemberReqDTO;
 import com.kiri.server.domain.member.dto.MemberResDTO;
 import com.kiri.server.domain.member.enums.FamilyRole;
@@ -50,6 +51,9 @@ class MemberControllerTest {
 
     @Autowired
     private ObjectMapper objectMapper;
+
+    @MockitoBean
+    private MemberRepository memberRepository;
 
     @MockitoBean
     private MemberService memberService;
