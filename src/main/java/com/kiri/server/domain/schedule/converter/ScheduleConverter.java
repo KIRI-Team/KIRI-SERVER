@@ -170,7 +170,7 @@ public class ScheduleConverter {
                                                                     Map<FamilyRole, String> characterImageUrls) {
         Member member = participant.getMember();
         return ScheduleResDTO.ParticipantItem.builder()
-                .nickname(member == null ? "탈퇴한 사용자" : member.getDisplayName())
+                .nickname(member == null ? Member.WITHDRAWN_DISPLAY_NAME : member.getDisplayName())
                 .status(toMyStatus(participant))
                 .characterImageUrl(member == null ? null : characterImageUrls.get(member.getFamilyRole()))
                 .build();
