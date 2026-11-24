@@ -559,6 +559,22 @@ class QuestionServiceTest {
     }
 
     @Test
+    @DisplayName("같은 가족이었던 탈퇴 회원을 찌르면 없는 회원과 같은 QUESTION404_3 예외가 발생하고 저장하지 않는다.")
+    void poke_receiverWithdrawn() {
+        Member withdrawnReceiver = Member.builder().id(RECEIVER_ID).family(family).build();
+        withdrawnReceiver.withdraw();
+        given(memberRepository.findById(MEMBER_ID)).willReturn(Optional.of(member));
+        given(memberRepository.findById(RECEIVER_ID)).willReturn(Optional.of(withdrawnReceiver));
+
+        assertThatThrownBy(() -> questionService.poke(MEMBER_ID, RECEIVER_ID))
+                .isInstanceOf(QuestionException.class)
+                .extracting("errorCode")
+                .isEqualTo(QuestionErrorCode.POKE_RECEIVER_NOT_FOUND);
+        verify(pokeRepository, never()).save(any());
+        verify(notificationService, never()).createPokeNotification(any(), any(), any());
+    }
+
+    @Test
     @DisplayName("가족이 없는 회원을 찌르면 QUESTION404_3 예외가 발생한다.")
     void poke_receiverNoFamily() {
         Member receiverWithoutFamily = Member.builder().id(RECEIVER_ID).build();
