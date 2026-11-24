@@ -41,7 +41,7 @@ class QuestionAssignSchedulerTest {
     @Test
     @DisplayName("밤 배정은 모든 가족에게 다음 날 질문을 배정한다.")
     void assignTomorrow() {
-        given(familyRepository.findAllIds()).willReturn(List.of(1L, 2L));
+        given(familyRepository.findActiveIds()).willReturn(List.of(1L, 2L));
 
         scheduler.assignTomorrow();
 
@@ -52,7 +52,7 @@ class QuestionAssignSchedulerTest {
     @Test
     @DisplayName("보정 배정은 모든 가족에게 오늘 질문을 배정한다.")
     void assignTodayIfMissing() {
-        given(familyRepository.findAllIds()).willReturn(List.of(1L, 2L));
+        given(familyRepository.findActiveIds()).willReturn(List.of(1L, 2L));
 
         scheduler.assignTodayIfMissing();
 
@@ -63,7 +63,7 @@ class QuestionAssignSchedulerTest {
     @Test
     @DisplayName("한 가족의 배정이 실패해도 나머지 가족은 계속 배정한다.")
     void assignTomorrow_continueOnFailure() {
-        given(familyRepository.findAllIds()).willReturn(List.of(1L, 2L));
+        given(familyRepository.findActiveIds()).willReturn(List.of(1L, 2L));
         willThrow(new RuntimeException("배정 실패")).given(questionService).assign(1L, today.plusDays(1));
 
         scheduler.assignTomorrow();

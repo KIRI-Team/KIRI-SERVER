@@ -33,7 +33,7 @@ public class QuestionAssignScheduler {
 
     // 한 가족이 실패해도 나머지 가족은 계속 배정
     private void assignAll(LocalDate date) {
-        for (Long familyId : familyRepository.findAllIds()) {
+        for (Long familyId : familyRepository.findActiveIds()) {
             try {
                 questionService.assign(familyId, date);
             } catch (Exception e) {

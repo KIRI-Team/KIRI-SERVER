@@ -143,11 +143,9 @@ public class MemberService {
             Member nextOwner = memberRepository.findFirstByFamilyAndDeletedAtIsNullAndIdNotOrderByFamilyJoinedAtAsc(family, memberId).orElse(null);
 
             if (nextOwner != null) {
-                // 다른 활성 구성원이 있으면 owner 승계
                 family.changeOwner(nextOwner);
             } else {
-                // 마지막 구성원이면 가족 공간 종료
-                // family.delete();
+                family.delete();
             }
         }
 

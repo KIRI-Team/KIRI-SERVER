@@ -81,6 +81,9 @@ public class Family extends BaseEntity {
     @Column(name = "is_test", nullable = false)
     private Boolean isTest = false;
 
+    @Column(name = "deleted_at")
+    private LocalDateTime deletedAt;
+
     public void markTest(boolean isTest) {
         this.isTest = isTest;
     }
@@ -107,6 +110,12 @@ public class Family extends BaseEntity {
 
     public void changeOwner(Member newOwner) {
         this.owner = newOwner;
+    }
+
+    // 초대 정보를 지워 종료된 가족공간에 초대 코드·링크로 참여할 수 없게 한다.
+    public void delete() {
+        this.deletedAt = LocalDateTime.now();
+        clearInviteInfo();
     }
 
     public void updateAddress(String postalCode, String address, String detailAddress, String regionCode, BigDecimal latitude, BigDecimal longitude) {

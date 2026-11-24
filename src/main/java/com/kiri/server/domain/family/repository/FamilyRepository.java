@@ -13,8 +13,8 @@ import java.util.Optional;
 
 public interface FamilyRepository extends JpaRepository<Family, Long> {
 
-    @Query("select f.id from Family f")
-    List<Long> findAllIds();
+    @Query("select f.id from Family f where f.deletedAt is null")
+    List<Long> findActiveIds();
 
     boolean existsByName(String name);
 
