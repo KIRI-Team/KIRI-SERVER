@@ -181,8 +181,6 @@ public class ScheduleCommandService {
         return ScheduleConverter.toCancelled(schedule);
     }
 
-    // MY-08: 탈퇴 회원을 아직 시작하지 않은 진행 중 일정에서 빼고, 남은 초대 대상이 없으면 취소한다.
-    // 탈퇴자가 제안자여도 취소하지 않고 남은 초대 대상의 수락 여부로 상태를 다시 계산한다.
     @Transactional
     public void cleanUpWithdrawnMember(Long memberId) {
         LocalDateTime now = LocalDateTime.now(clock);
@@ -220,7 +218,6 @@ public class ScheduleCommandService {
         }
     }
 
-    // 일정을 취소하고 참여자에게 알린 뒤, 후기가 없으면 버킷을 다시 저장 상태로 돌린다.
     private void cancelSchedule(Schedule schedule) {
         schedule.cancel();
 

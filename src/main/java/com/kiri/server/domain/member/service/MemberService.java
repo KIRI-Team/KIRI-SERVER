@@ -140,7 +140,6 @@ public class MemberService {
             throw new ProjectException(MemberErrorCode.ALREADY_WITHDRAWN);
         }
 
-        // 가족 행을 잠근 뒤 소유자·잔여 구성원을 판단해야 동시 탈퇴·참여와 엇갈리지 않는다.
         Family family = member.getFamily() == null ? null
                 : familyRepository.findByIdForUpdate(member.getFamily().getId())
                         .orElseThrow(() -> new FamilyException(FamilyErrorCode.NOT_FOUND));

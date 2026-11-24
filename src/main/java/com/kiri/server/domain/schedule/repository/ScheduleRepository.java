@@ -41,7 +41,6 @@ public interface ScheduleRepository extends JpaRepository<Schedule, Long> {
     Optional<Schedule> findWithMissionByIdAndFamilyId(@Param("scheduleId") Long scheduleId,
                                                       @Param("familyId") Long familyId);
 
-    // 회원이 참여 행을 가진(제안자 포함), 오늘 이후의 진행 중 일정 (시작 여부는 호출하는 쪽에서 시각으로 다시 확인)
     @Query("""
             SELECT s.id FROM Schedule s
             WHERE s.status IN :statuses

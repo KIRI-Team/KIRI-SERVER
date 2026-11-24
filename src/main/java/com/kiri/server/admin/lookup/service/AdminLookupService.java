@@ -183,7 +183,6 @@ public class AdminLookupService {
                 .forEach(row -> scheduleCounts.put((ScheduleStatus) row[0], (Long) row[1]));
         long reviewCount = count("SELECT COUNT(r) FROM Review r WHERE r.schedule.family.id = :id", familyId);
 
-        // 구성원 목록은 탈퇴자도 보여 주되, 구성원 수는 활성 회원만 센다
         long activeMemberCount = members.stream().filter(m -> !m.isWithdrawn()).count();
         return new LookupDTO.FamilyDetail(toFamilyItem(family, activeMemberCount), memberItems, invite,
                 bucketCounts, scheduleCounts, reviewCount);
@@ -343,7 +342,6 @@ public class AdminLookupService {
         return em.createQuery(jpql, Long.class).setParameter("id", id).getSingleResult();
     }
 
-    // 탈퇴한 회원은 구성원 수에서 제외한다
     private Map<Long, Long> memberCounts(List<Long> familyIds) {
         Map<Long, Long> counts = new HashMap<>();
         if (familyIds.isEmpty()) {

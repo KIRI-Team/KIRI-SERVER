@@ -215,7 +215,6 @@ public class NotificationConverter {
 
     public static Notification toScheduleCancelled(Member receiver, Schedule schedule) {
         String missionTitle = schedule.getBucketItem().getMission().getTitle();
-        // 제안자 탈퇴로 취소되면 닉네임이 지워져 있으므로 표시 이름을 쓴다
         String proposerNickname = schedule.getProposer().getDisplayName();
         String scheduleDate = schedule.getScheduleDate().format(DateTimeFormatter.ofPattern("M월 d일"));
 
