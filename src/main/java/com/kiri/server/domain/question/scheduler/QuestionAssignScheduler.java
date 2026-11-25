@@ -4,6 +4,8 @@ import com.kiri.server.domain.family.repository.FamilyRepository;
 import com.kiri.server.domain.question.service.QuestionService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
@@ -28,6 +30,11 @@ public class QuestionAssignScheduler {
     // 전날 밤 배정이 누락된 가족 보정
     @Scheduled(cron = "${question.assign.today-cron:0 5 0 * * *}", zone = "Asia/Seoul")
     public void assignTodayIfMissing() {
+        assignAll(LocalDate.now(clock));
+    }
+
+    @EventListener(ApplicationReadyEvent.class)
+    public void assignTodayOnStartup() {
         assignAll(LocalDate.now(clock));
     }
 
