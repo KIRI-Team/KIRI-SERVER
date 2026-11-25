@@ -966,6 +966,8 @@ class ScheduleCommandServiceTest {
         service.cancel(PROPOSER_ID, SCHEDULE_ID);
 
         assertThat(bucket.getStatus()).isEqualTo(BucketStatus.SAVED);
+        verify(notificationService).createScheduleCancelledNotifications(schedule);
+        verify(notificationService, never()).createScheduleCancelledByWithdrawalNotifications(any());
     }
 
     @Test
@@ -1009,6 +1011,9 @@ class ScheduleCommandServiceTest {
         verify(scheduleParticipantRepository).deleteAll(List.of(withdrawnP));
         assertThat(schedule.getStatus()).isEqualTo(ScheduleStatus.PENDING_RESPONSE);
         verify(notificationService, never()).createScheduleCancelledNotifications(any());
+        verify(notificationService).cancelScheduleD1Reminders(SCHEDULE_ID);
+        verify(notificationService).cancelScheduleD0Reminders(SCHEDULE_ID);
+        verify(notificationService).createScheduleParticipantWithdrawnNotifications(schedule, List.of(proposerP, otherP), true);
     }
 
     @Test
@@ -1025,6 +1030,9 @@ class ScheduleCommandServiceTest {
 
         verify(scheduleParticipantRepository).deleteAll(List.of(withdrawnP));
         assertThat(schedule.getStatus()).isEqualTo(ScheduleStatus.CONFIRMED);
+        verify(notificationService, never()).cancelScheduleD1Reminders(anyLong());
+        verify(notificationService, never()).cancelScheduleD0Reminders(anyLong());
+        verify(notificationService).createScheduleParticipantWithdrawnNotifications(schedule, List.of(proposerP, otherP), false);
     }
 
     @Test
@@ -1042,7 +1050,9 @@ class ScheduleCommandServiceTest {
         verify(scheduleParticipantRepository).deleteAll(List.of(withdrawnP));
         assertThat(schedule.getStatus()).isEqualTo(ScheduleStatus.CANCELLED);
         assertThat(schedule.getBucketItem().getStatus()).isEqualTo(BucketStatus.SAVED);
-        verify(notificationService).createScheduleCancelledNotifications(schedule);
+        verify(notificationService).createScheduleCancelledByWithdrawalNotifications(schedule);
+        verify(notificationService, never()).createScheduleCancelledNotifications(any());
+        verify(notificationService, never()).createScheduleParticipantWithdrawnNotifications(any(), anyList(), anyBoolean());
     }
 
     @Test
@@ -1060,6 +1070,7 @@ class ScheduleCommandServiceTest {
         verify(scheduleParticipantRepository).deleteAll(List.of(proposerP));
         assertThat(schedule.getStatus()).isEqualTo(ScheduleStatus.CONFIRMED);
         verify(notificationService, never()).createScheduleCancelledNotifications(any());
+        verify(notificationService).createScheduleParticipantWithdrawnNotifications(schedule, List.of(acceptedP, pendingP), false);
     }
 
     @Test
@@ -1076,6 +1087,7 @@ class ScheduleCommandServiceTest {
         verify(scheduleParticipantRepository).deleteAll(List.of(proposerP));
         assertThat(schedule.getStatus()).isEqualTo(ScheduleStatus.PENDING_RESPONSE);
         verify(notificationService, never()).createScheduleCancelledNotifications(any());
+        verify(notificationService).createScheduleParticipantWithdrawnNotifications(schedule, List.of(pendingP), false);
     }
 
     @Test
@@ -1091,7 +1103,8 @@ class ScheduleCommandServiceTest {
 
         verify(scheduleParticipantRepository).deleteAll(List.of(proposerP));
         assertThat(schedule.getStatus()).isEqualTo(ScheduleStatus.CANCELLED);
-        verify(notificationService).createScheduleCancelledNotifications(schedule);
+        verify(notificationService).createScheduleCancelledByWithdrawalNotifications(schedule);
+        verify(notificationService, never()).createScheduleCancelledNotifications(any());
     }
 
     @Test

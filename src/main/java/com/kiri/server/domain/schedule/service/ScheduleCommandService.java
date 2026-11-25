@@ -177,6 +177,7 @@ public class ScheduleCommandService {
         }
 
         cancelSchedule(schedule);
+        notificationService.createScheduleCancelledNotifications(schedule);
 
         return ScheduleConverter.toCancelled(schedule);
     }
@@ -207,6 +208,7 @@ public class ScheduleCommandService {
 
             if (remainingInvitees.isEmpty()) {
                 cancelSchedule(schedule);
+                notificationService.createScheduleCancelledByWithdrawalNotifications(schedule);
                 continue;
             }
 
@@ -214,14 +216,25 @@ public class ScheduleCommandService {
                     .filter(p -> p.getStatus() == ParticipantStatus.ACCEPTED)
                     .filter(p -> !Boolean.TRUE.equals(p.getReconfirmRequired()))
                     .count();
+            ScheduleStatus previousStatus = schedule.getStatus();
             schedule.recalculateStatus(acceptedExcludingProposer, now);
+
+            boolean confirmationLost = previousStatus == ScheduleStatus.CONFIRMED
+                    && schedule.getStatus() != ScheduleStatus.CONFIRMED;
+            if (confirmationLost) {
+                notificationService.cancelScheduleD1Reminders(scheduleId);
+                notificationService.cancelScheduleD0Reminders(scheduleId);
+            }
+
+            List<ScheduleParticipant> remaining = participants.stream()
+                    .filter(p -> !withdrawn.contains(p))
+                    .toList();
+            notificationService.createScheduleParticipantWithdrawnNotifications(schedule, remaining, confirmationLost);
         }
     }
 
     private void cancelSchedule(Schedule schedule) {
         schedule.cancel();
-
-        notificationService.createScheduleCancelledNotifications(schedule);
 
         BucketItem bucketItem = schedule.getBucketItem();
         if (bucketItem != null && !reviewRepository.existsBySchedule_Id(schedule.getId())) {

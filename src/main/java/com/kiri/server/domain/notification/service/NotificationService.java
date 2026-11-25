@@ -363,11 +363,7 @@ public class NotificationService {
         Long scheduleId = schedule.getId();
         Long proposerId = schedule.getProposer().getId();
 
-        List<NotificationType> scheduleNotificationTypes = List.of(NotificationType.SCHEDULE, NotificationType.SCHEDULE_INVITATION, NotificationType.SCHEDULE_INVITATION_REMINDER, NotificationType.SCHEDULE_RESPONSE, NotificationType.SCHEDULE_CHANGED, NotificationType.SCHEDULE_REMOVED, NotificationType.SCHEDULE_RECONFIRM_REMINDER, NotificationType.SCHEDULE_D1_REMINDER, NotificationType.SCHEDULE_D0_REMINDER);
-
-        List<Notification> pendingNotifications = notificationRepository.findAllByNotificationTypeInAndReferenceIdAndStatus(scheduleNotificationTypes, scheduleId, NotificationStatus.PENDING);
-
-        pendingNotifications.forEach(Notification::cancel);
+        cancelPendingScheduleNotifications(scheduleId);
 
         List<ScheduleParticipant> participants = scheduleParticipantRepository.findAllWithMemberByScheduleId(scheduleId);
 
@@ -388,6 +384,73 @@ public class NotificationService {
         if (!notifications.isEmpty()) {
             notificationRepository.saveAll(notifications);
         }
+    }
+
+    @Transactional
+    public void createScheduleCancelledByWithdrawalNotifications(Schedule schedule) {
+        Long scheduleId = schedule.getId();
+
+        cancelPendingScheduleNotifications(scheduleId);
+
+        Map<Long, Member> receivers = new LinkedHashMap<>();
+
+        Member proposer = schedule.getProposer();
+
+        if (proposer != null) {
+            receivers.put(proposer.getId(), proposer);
+        }
+
+        scheduleParticipantRepository.findAllWithMemberByScheduleId(scheduleId).stream()
+                .map(ScheduleParticipant::getMember)
+                .filter(Objects::nonNull)
+                .forEach(member -> receivers.putIfAbsent(member.getId(), member));
+
+        List<Notification> notifications = receivers.values().stream()
+                .filter(member -> !member.isWithdrawn())
+                .filter(member -> !notificationRepository.existsByMemberAndNotificationTypeAndReferenceId(member, NotificationType.SCHEDULE_CANCELLED, scheduleId))
+                .map(member -> NotificationConverter.toScheduleCancelledByWithdrawal(member, schedule))
+                .toList();
+
+        if (!notifications.isEmpty()) {
+            notificationRepository.saveAll(notifications);
+        }
+
+        log.info("탈퇴로 인한 일정 취소 알림 생성 완료 scheduleId={}, notificationCount={}", scheduleId, notifications.size());
+    }
+
+    @Transactional
+    public void createScheduleParticipantWithdrawnNotifications(Schedule schedule, List<ScheduleParticipant> remainingParticipants, boolean confirmationLost) {
+        Map<Long, Member> receivers = new LinkedHashMap<>();
+
+        Member proposer = schedule.getProposer();
+
+        if (proposer != null) {
+            receivers.put(proposer.getId(), proposer);
+        }
+
+        remainingParticipants.stream()
+                .map(ScheduleParticipant::getMember)
+                .filter(Objects::nonNull)
+                .forEach(member -> receivers.putIfAbsent(member.getId(), member));
+
+        List<Notification> notifications = receivers.values().stream()
+                .filter(member -> !member.isWithdrawn())
+                .map(member -> NotificationConverter.toScheduleParticipantWithdrawn(member, schedule, confirmationLost))
+                .toList();
+
+        if (!notifications.isEmpty()) {
+            notificationRepository.saveAll(notifications);
+        }
+
+        log.info("탈퇴로 인한 일정 참여 인원 변경 알림 생성 완료 scheduleId={}, confirmationLost={}, notificationCount={}", schedule.getId(), confirmationLost, notifications.size());
+    }
+
+    private void cancelPendingScheduleNotifications(Long scheduleId) {
+        List<NotificationType> scheduleNotificationTypes = List.of(NotificationType.SCHEDULE, NotificationType.SCHEDULE_INVITATION, NotificationType.SCHEDULE_INVITATION_REMINDER, NotificationType.SCHEDULE_RESPONSE, NotificationType.SCHEDULE_CHANGED, NotificationType.SCHEDULE_REMOVED, NotificationType.SCHEDULE_RECONFIRM_REMINDER, NotificationType.SCHEDULE_D1_REMINDER, NotificationType.SCHEDULE_D0_REMINDER);
+
+        List<Notification> pendingNotifications = notificationRepository.findAllByNotificationTypeInAndReferenceIdAndStatus(scheduleNotificationTypes, scheduleId, NotificationStatus.PENDING);
+
+        pendingNotifications.forEach(Notification::cancel);
     }
 
     @Transactional

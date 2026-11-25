@@ -1283,6 +1283,122 @@ class NotificationServiceTest {
     }
 
     @Test
+    @DisplayName("탈퇴로 일정이 자동 취소되면 남은 제안자에게 누가 취소했다고 하지 않는 취소 알림을 생성한다.")
+    void createScheduleCancelledByWithdrawalNotificationsNotifyProposer() {
+        Schedule schedule = createSchedule();
+
+        ScheduleParticipant proposer = createParticipant(schedule, member, ParticipantStatus.ACCEPTED);
+
+        Notification pendingD1 = Notification.builder()
+                .member(member)
+                .notificationType(NotificationType.SCHEDULE_D1_REMINDER)
+                .title("D-1")
+                .body("D-1 알림")
+                .status(NotificationStatus.PENDING)
+                .referenceId(schedule.getId())
+                .build();
+
+        given(notificationRepository.findAllByNotificationTypeInAndReferenceIdAndStatus(anyCollection(), eq(schedule.getId()), eq(NotificationStatus.PENDING))).willReturn(List.of(pendingD1));
+
+        given(scheduleParticipantRepository.findAllWithMemberByScheduleId(schedule.getId())).willReturn(List.of(proposer));
+
+        given(notificationRepository.existsByMemberAndNotificationTypeAndReferenceId(member, NotificationType.SCHEDULE_CANCELLED, schedule.getId())).willReturn(false);
+
+        notificationService.createScheduleCancelledByWithdrawalNotifications(schedule);
+
+        assertThat(pendingD1.getStatus()).isEqualTo(NotificationStatus.CANCELLED);
+
+        ArgumentCaptor<Iterable<Notification>> captor = ArgumentCaptor.forClass(Iterable.class);
+
+        verify(notificationRepository).saveAll(captor.capture());
+
+        List<Notification> saved = StreamSupport.stream(captor.getValue().spliterator(), false).toList();
+
+        assertThat(saved).hasSize(1);
+
+        Notification notification = saved.get(0);
+
+        assertThat(notification.getMember()).isEqualTo(member);
+        assertThat(notification.getNotificationType()).isEqualTo(NotificationType.SCHEDULE_CANCELLED);
+        assertThat(notification.getTitle()).isEqualTo("'공원 산책' 일정이 취소됐어요.");
+        assertThat(notification.getBody()).isEqualTo("함께할 가족이 없어 11월 15일 일정이 취소됐어요. 변경된 내용을 확인해 주세요.");
+        assertThat(notification.getReferenceId()).isEqualTo(schedule.getId());
+        assertThat(notification.getReferenceDate()).isEqualTo(TODAY);
+    }
+
+    @Test
+    @DisplayName("탈퇴로 일정이 자동 취소될 때 탈퇴한 제안자에게는 알림을 만들지 않는다.")
+    void createScheduleCancelledByWithdrawalNotificationsSkipWithdrawnProposer() {
+        Schedule schedule = createSchedule();
+        member.withdraw();
+
+        given(notificationRepository.findAllByNotificationTypeInAndReferenceIdAndStatus(anyCollection(), eq(schedule.getId()), eq(NotificationStatus.PENDING))).willReturn(List.of());
+
+        given(scheduleParticipantRepository.findAllWithMemberByScheduleId(schedule.getId())).willReturn(List.of());
+
+        notificationService.createScheduleCancelledByWithdrawalNotifications(schedule);
+
+        verify(notificationRepository, never()).saveAll(anyList());
+    }
+
+    @Test
+    @DisplayName("탈퇴로 확정 일정이 확정 전으로 돌아가면 제안자와 남은 참여자에게 알림을 생성하고 탈퇴 회원은 제외한다.")
+    void createScheduleParticipantWithdrawnNotificationsConfirmationLost() {
+        Schedule schedule = createSchedule();
+
+        ScheduleParticipant proposer = createParticipant(schedule, member, ParticipantStatus.ACCEPTED);
+        ScheduleParticipant pending = createParticipant(schedule, member2, ParticipantStatus.PENDING);
+        ScheduleParticipant withdrawn = createParticipant(schedule, member3, ParticipantStatus.ACCEPTED);
+        member3.withdraw();
+
+        notificationService.createScheduleParticipantWithdrawnNotifications(schedule, List.of(proposer, pending, withdrawn), true);
+
+        ArgumentCaptor<Iterable<Notification>> captor = ArgumentCaptor.forClass(Iterable.class);
+
+        verify(notificationRepository).saveAll(captor.capture());
+
+        List<Notification> saved = StreamSupport.stream(captor.getValue().spliterator(), false).toList();
+
+        assertThat(saved)
+                .extracting(Notification::getMember)
+                .containsExactly(member, member2);
+
+        assertThat(saved).allSatisfy(notification -> {
+            assertThat(notification.getNotificationType()).isEqualTo(NotificationType.SCHEDULE_CHANGED);
+            assertThat(notification.getTitle()).isEqualTo("'공원 산책' 일정이 확정 전으로 돌아갔어요.");
+            assertThat(notification.getBody()).isEqualTo("참여를 수락한 가족이 탈퇴해 11월 15일 일정의 확정이 풀렸어요. 일정 내용을 확인해 주세요.");
+            assertThat(notification.getReferenceId()).isEqualTo(schedule.getId());
+            assertThat(notification.getReferenceVersion()).isEqualTo(1);
+        });
+    }
+
+    @Test
+    @DisplayName("탈퇴로 참여 인원만 바뀌면 참여 인원 변경 알림을 생성하고, 탈퇴한 제안자에게는 보내지 않는다.")
+    void createScheduleParticipantWithdrawnNotificationsParticipantsChanged() {
+        Schedule schedule = createSchedule();
+        member.withdraw();
+
+        ScheduleParticipant accepted = createParticipant(schedule, member2, ParticipantStatus.ACCEPTED);
+
+        notificationService.createScheduleParticipantWithdrawnNotifications(schedule, List.of(accepted), false);
+
+        ArgumentCaptor<Iterable<Notification>> captor = ArgumentCaptor.forClass(Iterable.class);
+
+        verify(notificationRepository).saveAll(captor.capture());
+
+        List<Notification> saved = StreamSupport.stream(captor.getValue().spliterator(), false).toList();
+
+        assertThat(saved).hasSize(1);
+
+        Notification notification = saved.get(0);
+
+        assertThat(notification.getMember()).isEqualTo(member2);
+        assertThat(notification.getNotificationType()).isEqualTo(NotificationType.SCHEDULE_CHANGED);
+        assertThat(notification.getTitle()).isEqualTo("일정 참여 인원이 바뀌었어요.");
+        assertThat(notification.getBody()).isEqualTo("'공원 산책' 일정에 함께하던 가족이 탈퇴해 참여 인원이 바뀌었어요. 일정 내용을 확인해 주세요.");
+    }
+
+    @Test
     @DisplayName("SC-08 일정이 확정되지 않으면 제안자에게 알림을 생성한다")
     void createScheduleNotConfirmedNotificationSuccess() {
         Schedule schedule = createSchedule();
