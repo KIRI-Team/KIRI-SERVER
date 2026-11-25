@@ -3,6 +3,8 @@ package com.kiri.server.domain.member.service;
 import com.kiri.server.domain.character.entity.Character;
 import com.kiri.server.domain.character.repository.CharacterRepository;
 import com.kiri.server.domain.family.entity.Family;
+import com.kiri.server.domain.family.exception.FamilyException;
+import com.kiri.server.domain.family.exception.code.FamilyErrorCode;
 import com.kiri.server.domain.family.repository.FamilyRepository;
 import com.kiri.server.domain.member.dto.MemberReqDTO;
 import com.kiri.server.domain.member.dto.MemberResDTO;
@@ -438,6 +440,91 @@ class MemberServiceTest {
         assertThat(exception.getErrorCode()).isEqualTo(MemberErrorCode.NOT_FOUND);
 
         verify(memberRepository).findByIdForUpdate(memberId);
+    }
+
+    @Test
+    @DisplayName("가족 역할 설정 실패 - 가족 내에 이미 같은 엄마·아빠 역할 구성원이 있음")
+    void updateFamilyRoleDuplicateInFamily() {
+        Long memberId = 1L;
+        Long familyId = 10L;
+
+        MemberReqDTO.SelectFamilyRole dto =
+                new MemberReqDTO.SelectFamilyRole(FamilyRole.FATHER);
+
+        Family family = Family.builder().id(familyId).build();
+        Member member = Member.builder()
+                .id(memberId)
+                .family(family)
+                .familyRole(FamilyRole.SON)
+                .build();
+
+        when(memberRepository.findByIdForUpdate(memberId))
+                .thenReturn(Optional.of(member));
+        when(familyRepository.findByIdForUpdate(familyId))
+                .thenReturn(Optional.of(family));
+        when(memberRepository.existsByFamilyAndFamilyRoleAndDeletedAtIsNullAndIdNot(family, FamilyRole.FATHER, memberId))
+                .thenReturn(true);
+
+        assertThatThrownBy(() -> memberService.selectFamilyRole(memberId, dto))
+                .isInstanceOf(FamilyException.class)
+                .extracting("errorCode")
+                .isEqualTo(FamilyErrorCode.DUPLICATE_FAMILY_ROLE);
+
+        assertThat(member.getFamilyRole()).isEqualTo(FamilyRole.SON);
+        verify(familyRepository).findByIdForUpdate(familyId);
+    }
+
+    @Test
+    @DisplayName("가족 역할 설정 성공 - 가족 내에 같은 엄마·아빠 역할 구성원이 없음")
+    void updateFamilyRoleAvailableInFamily() {
+        Long memberId = 1L;
+        Long familyId = 10L;
+
+        MemberReqDTO.SelectFamilyRole dto =
+                new MemberReqDTO.SelectFamilyRole(FamilyRole.MOTHER);
+
+        Family family = Family.builder().id(familyId).build();
+        Member member = Member.builder()
+                .id(memberId)
+                .family(family)
+                .build();
+
+        when(memberRepository.findByIdForUpdate(memberId))
+                .thenReturn(Optional.of(member));
+        when(familyRepository.findByIdForUpdate(familyId))
+                .thenReturn(Optional.of(family));
+        when(memberRepository.existsByFamilyAndFamilyRoleAndDeletedAtIsNullAndIdNot(family, FamilyRole.MOTHER, memberId))
+                .thenReturn(false);
+
+        MemberResDTO.SelectFamilyRole response = memberService.selectFamilyRole(memberId, dto);
+
+        assertThat(response.familyRole()).isEqualTo(FamilyRole.MOTHER);
+        assertThat(member.getFamilyRole()).isEqualTo(FamilyRole.MOTHER);
+        verify(familyRepository).findByIdForUpdate(familyId);
+    }
+
+    @Test
+    @DisplayName("가족 역할 설정 성공 - 딸·아들 역할은 가족 내 중복을 검사하지 않음")
+    void updateFamilyRoleChildRoleSkipsDuplicateCheck() {
+        Long memberId = 1L;
+
+        MemberReqDTO.SelectFamilyRole dto =
+                new MemberReqDTO.SelectFamilyRole(FamilyRole.DAUGHTER);
+
+        Family family = Family.builder().id(10L).build();
+        Member member = Member.builder()
+                .id(memberId)
+                .family(family)
+                .build();
+
+        when(memberRepository.findByIdForUpdate(memberId))
+                .thenReturn(Optional.of(member));
+
+        memberService.selectFamilyRole(memberId, dto);
+
+        assertThat(member.getFamilyRole()).isEqualTo(FamilyRole.DAUGHTER);
+        verify(familyRepository, never()).findByIdForUpdate(anyLong());
+        verify(memberRepository, never()).existsByFamilyAndFamilyRoleAndDeletedAtIsNullAndIdNot(any(), any(), anyLong());
     }
 
     @Test

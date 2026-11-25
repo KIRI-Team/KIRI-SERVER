@@ -38,14 +38,15 @@ public interface FamilyControllerDocs {
 
                     ## 동작 방식
                     1. Access Token을 통해 인증된 사용자를 확인합니다.
-                    2. 가족명이 입력값 정책을 충족하는지 확인합니다.
-                    3. 금칙어 및 운영자 사칭 표현이 포함되어 있는지 확인합니다.
-                    4. 가족명이 이미 존재하는지 확인합니다.
-                    5. 중복되지 않은 경우 가족 공간을 생성하고, 인증된 사용자를 해당 가족 공간의 첫 번째 구성원이자 소유자로 등록합니다.
-                    6. 가족 공간에 사용할 6자리 초대 코드와 초대 토큰을 생성합니다.
-                    7. 초대 토큰의 유효 기간을 설정하고, 초대 링크를 생성합니다.
-                    8. 생성된 가족 공간 정보를 저장하고, 가족명, 가족 ID, 초대 코드 및 초대 링크를 반환합니다.
-                    9. 가족명 중복 또는 유효하지 않은 요청인 경우 해당 오류를 반환합니다.
+                    2. 사용자가 이미 다른 가족에 가입되어 있는지 확인합니다.
+                    3. 가족명이 입력값 정책을 충족하는지 확인합니다.
+                    4. 금칙어 및 운영자 사칭 표현이 포함되어 있는지 확인합니다.
+                    5. 가족명이 이미 존재하는지 확인합니다.
+                    6. 중복되지 않은 경우 가족 공간을 생성하고, 인증된 사용자를 해당 가족 공간의 첫 번째 구성원이자 소유자로 등록합니다.
+                    7. 가족 공간에 사용할 6자리 초대 코드와 초대 토큰을 생성합니다.
+                    8. 초대 토큰의 유효 기간을 설정하고, 초대 링크를 생성합니다.
+                    9. 생성된 가족 공간 정보를 저장하고, 가족명, 가족 ID, 초대 코드 및 초대 링크를 반환합니다.
+                    10. 이미 가족에 소속된 사용자, 가족명 중복 또는 유효하지 않은 요청인 경우 해당 오류를 반환합니다.
                     """
     )
     @ApiResponses(value = {
@@ -190,18 +191,33 @@ public interface FamilyControllerDocs {
             ),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
                     responseCode = "409",
-                    description = "동일한 가족 이름이 이미 존재하는 경우",
+                    description = "동일한 가족 이름이 이미 존재하거나 이미 소속된 가족이 있는 사용자인 경우",
                     content = @Content(
                             mediaType = "application/json",
-                            examples = @ExampleObject(value = """
-                                    {
-                                        "isSuccess": false,
-                                        "code": "FAMILY409_1",
-                                        "message": "이미 존재하는 가족 이름입니다.",
-                                        "result": null
-                                    }
-                                    """
-                            )
+                            examples = {
+                                    @ExampleObject(
+                                            name = "동일한 가족 이름이 이미 존재하는 경우",
+                                            value = """
+                                                    {
+                                                        "isSuccess": false,
+                                                        "code": "FAMILY409_1",
+                                                        "message": "이미 존재하는 가족 이름입니다.",
+                                                        "result": null
+                                                    }
+                                                    """
+                                    ),
+                                    @ExampleObject(
+                                            name = "이미 소속된 가족이 있는 사용자인 경우",
+                                            value = """
+                                                    {
+                                                        "isSuccess": false,
+                                                        "code": "FAMILY409_2",
+                                                        "message": "이미 다른 가족에 가입되어 있습니다.",
+                                                        "result": null
+                                                    }
+                                                    """
+                                    )
+                            }
                     )
             ),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
@@ -1337,8 +1353,9 @@ public interface FamilyControllerDocs {
                     2. 입력받은 초대 코드에 해당하는 가족을 조회합니다.
                     3. 초대 코드의 존재 여부와 만료 여부를 검증합니다.
                     4. 사용자가 이미 다른 가족에 가입되어 있는지 확인합니다.
-                    5. 검증이 완료되면 해당 가족에 사용자를 등록합니다.
-                    6. 가족 ID와 가족 이름을 반환합니다.
+                    5. 사용자의 역할이 아빠·엄마인 경우, 가족 내에 이미 같은 역할의 구성원이 있는지 확인합니다.
+                    6. 검증이 완료되면 해당 가족에 사용자를 등록합니다.
+                    7. 가족 ID와 가족 이름을 반환합니다.
                     """
     )
     @ApiResponses(value = {
@@ -1498,18 +1515,33 @@ public interface FamilyControllerDocs {
             ),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
                     responseCode = "409",
-                    description = "이미 소속된 가족이 있는 사용자인 경우",
+                    description = "이미 소속된 가족이 있거나 가족 내에 이미 같은 역할(아빠·엄마)의 구성원이 있는 경우",
                     content = @Content(
                             mediaType = "application/json",
-                            examples = @ExampleObject(value = """
-                                    {
-                                        "isSuccess": false,
-                                        "code": "FAMILY409_2",
-                                        "message": "이미 다른 가족에 가입되어 있습니다.",
-                                        "result": null
-                                    }
-                                    """
-                            )
+                            examples = {
+                                    @ExampleObject(
+                                            name = "이미 소속된 가족이 있는 사용자인 경우",
+                                            value = """
+                                                    {
+                                                        "isSuccess": false,
+                                                        "code": "FAMILY409_2",
+                                                        "message": "이미 다른 가족에 가입되어 있습니다.",
+                                                        "result": null
+                                                    }
+                                                    """
+                                    ),
+                                    @ExampleObject(
+                                            name = "가족 내에 이미 같은 역할(아빠·엄마)의 구성원이 있는 경우",
+                                            value = """
+                                                    {
+                                                        "isSuccess": false,
+                                                        "code": "FAMILY409_3",
+                                                        "message": "가족 내에 이미 같은 역할의 구성원이 있습니다.",
+                                                        "result": null
+                                                    }
+                                                    """
+                                    )
+                            }
                     )
             ),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
@@ -1738,8 +1770,9 @@ public interface FamilyControllerDocs {
                     2. 전달받은 초대 토큰으로 가족 정보를 조회합니다.
                     3. 초대 토큰의 유효 여부와 만료 여부를 확인합니다.
                     4. 사용자가 이미 다른 가족에 가입되어 있는지 확인합니다.
-                    5. 초대 토큰이 유효하고 가입 이력이 없는 경우 해당 가족에 가입시킵니다.
-                    6. 가족 ID와 가족 이름을 반환합니다.
+                    5. 사용자의 역할이 아빠·엄마인 경우, 가족 내에 이미 같은 역할의 구성원이 있는지 확인합니다.
+                    6. 초대 토큰이 유효하고 가입 이력이 없는 경우 해당 가족에 가입시킵니다.
+                    7. 가족 ID와 가족 이름을 반환합니다.
                     """
     )
     @ApiResponses(value = {
@@ -1864,18 +1897,33 @@ public interface FamilyControllerDocs {
             ),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
                     responseCode = "409",
-                    description = "이미 소속된 가족이 있는 사용자인 경우",
+                    description = "이미 소속된 가족이 있거나 가족 내에 이미 같은 역할(아빠·엄마)의 구성원이 있는 경우",
                     content = @Content(
                             mediaType = "application/json",
-                            examples = @ExampleObject(value = """
-                                    {
-                                        "isSuccess": false,
-                                        "code": "FAMILY409_2",
-                                        "message": "이미 다른 가족에 가입되어 있습니다.",
-                                        "result": null
-                                    }
-                                    """
-                            )
+                            examples = {
+                                    @ExampleObject(
+                                            name = "이미 소속된 가족이 있는 사용자인 경우",
+                                            value = """
+                                                    {
+                                                        "isSuccess": false,
+                                                        "code": "FAMILY409_2",
+                                                        "message": "이미 다른 가족에 가입되어 있습니다.",
+                                                        "result": null
+                                                    }
+                                                    """
+                                    ),
+                                    @ExampleObject(
+                                            name = "가족 내에 이미 같은 역할(아빠·엄마)의 구성원이 있는 경우",
+                                            value = """
+                                                    {
+                                                        "isSuccess": false,
+                                                        "code": "FAMILY409_3",
+                                                        "message": "가족 내에 이미 같은 역할의 구성원이 있습니다.",
+                                                        "result": null
+                                                    }
+                                                    """
+                                    )
+                            }
                     )
             ),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
