@@ -61,6 +61,17 @@ class QuestionAssignSchedulerTest {
     }
 
     @Test
+    @DisplayName("서버 시작 시 모든 가족에게 오늘 질문을 보충 배정한다.")
+    void assignTodayOnStartup() {
+        given(familyRepository.findActiveIds()).willReturn(List.of(1L, 2L));
+
+        scheduler.assignTodayOnStartup();
+
+        verify(questionService).assign(1L, today);
+        verify(questionService).assign(2L, today);
+    }
+
+    @Test
     @DisplayName("한 가족의 배정이 실패해도 나머지 가족은 계속 배정한다.")
     void assignTomorrow_continueOnFailure() {
         given(familyRepository.findActiveIds()).willReturn(List.of(1L, 2L));
