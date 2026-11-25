@@ -278,7 +278,7 @@ class FamilyServiceTest {
 
         when(memberRepository.findById(memberId)).thenReturn(Optional.of(member));
 
-        when(familyRepository.findById(familyId)).thenReturn(Optional.of(family));
+        when(familyRepository.findByIdForUpdate(familyId)).thenReturn(Optional.of(family));
 
         when(member.getFamily()).thenReturn(family);
 
@@ -308,7 +308,7 @@ class FamilyServiceTest {
 
         when(memberRepository.findById(memberId)).thenReturn(Optional.of(member));
 
-        when(familyRepository.findById(familyId)).thenReturn(Optional.of(family));
+        when(familyRepository.findByIdForUpdate(familyId)).thenReturn(Optional.of(family));
 
         when(member.getFamily()).thenReturn(family);
 
@@ -341,7 +341,7 @@ class FamilyServiceTest {
 
         when(memberRepository.findById(memberId)).thenReturn(Optional.of(member));
 
-        when(familyRepository.findById(familyId)).thenReturn(Optional.empty());
+        when(familyRepository.findByIdForUpdate(familyId)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> familyService.regenerateInvite(memberId, familyId))
                 .isInstanceOf(ProjectException.class)
@@ -360,7 +360,7 @@ class FamilyServiceTest {
 
         when(memberRepository.findById(memberId)).thenReturn(Optional.of(member));
 
-        when(familyRepository.findById(familyId)).thenReturn(Optional.of(family));
+        when(familyRepository.findByIdForUpdate(familyId)).thenReturn(Optional.of(family));
 
         when(member.getFamily()).thenReturn(anotherFamily);
 
@@ -382,7 +382,7 @@ class FamilyServiceTest {
 
         when(memberRepository.findById(memberId)).thenReturn(Optional.of(member));
 
-        when(familyRepository.findById(familyId)).thenReturn(Optional.of(family));
+        when(familyRepository.findByIdForUpdate(familyId)).thenReturn(Optional.of(family));
 
         when(member.getFamily()).thenReturn(family);
 
@@ -401,7 +401,7 @@ class FamilyServiceTest {
 
         when(memberRepository.findById(memberId)).thenReturn(Optional.of(member));
 
-        when(familyRepository.findById(familyId)).thenReturn(Optional.empty());
+        when(familyRepository.findByIdForUpdate(familyId)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> familyService.deleteInvite(memberId, familyId))
                 .isInstanceOf(FamilyException.class)
@@ -421,7 +421,7 @@ class FamilyServiceTest {
 
         when(memberRepository.findById(memberId)).thenReturn(Optional.of(member));
 
-        when(familyRepository.findById(familyId)).thenReturn(Optional.of(family));
+        when(familyRepository.findByIdForUpdate(familyId)).thenReturn(Optional.of(family));
 
         when(member.getFamily()).thenReturn(anotherFamily);
 
@@ -433,6 +433,48 @@ class FamilyServiceTest {
                 .isInstanceOf(ProjectException.class)
                 .extracting("errorCode")
                 .isEqualTo(FamilyErrorCode.FORBIDDEN);
+        verify(family, never()).clearInviteInfo();
+    }
+
+    @Test
+    @DisplayName("잠금 후 종료된 것으로 확인된 가족에는 초대 정보를 재생성할 수 없다.")
+    void regenerateInviteRejectsClosedFamily() {
+        Long memberId = 1L;
+        Long familyId = 10L;
+
+        when(memberRepository.findById(memberId)).thenReturn(Optional.of(member));
+
+        when(familyRepository.findByIdForUpdate(familyId)).thenReturn(Optional.of(family));
+
+        when(family.getDeletedAt()).thenReturn(LocalDateTime.now());
+
+        assertThatThrownBy(() -> familyService.regenerateInvite(memberId, familyId))
+                .isInstanceOf(FamilyException.class)
+                .extracting("errorCode")
+                .isEqualTo(FamilyErrorCode.NOT_FOUND);
+
+        verify(familyRepository, never()).findById(anyLong());
+        verify(family, never()).renewInvite(anyString(), anyString(), any(LocalDateTime.class));
+    }
+
+    @Test
+    @DisplayName("잠금 후 종료된 것으로 확인된 가족의 초대 정보는 삭제할 수 없다.")
+    void deleteInviteRejectsClosedFamily() {
+        Long memberId = 1L;
+        Long familyId = 10L;
+
+        when(memberRepository.findById(memberId)).thenReturn(Optional.of(member));
+
+        when(familyRepository.findByIdForUpdate(familyId)).thenReturn(Optional.of(family));
+
+        when(family.getDeletedAt()).thenReturn(LocalDateTime.now());
+
+        assertThatThrownBy(() -> familyService.deleteInvite(memberId, familyId))
+                .isInstanceOf(FamilyException.class)
+                .extracting("errorCode")
+                .isEqualTo(FamilyErrorCode.NOT_FOUND);
+
+        verify(familyRepository, never()).findById(anyLong());
         verify(family, never()).clearInviteInfo();
     }
 

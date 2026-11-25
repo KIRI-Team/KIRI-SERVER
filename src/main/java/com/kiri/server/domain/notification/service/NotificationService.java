@@ -237,7 +237,7 @@ public class NotificationService {
 
         Member proposer = schedule.getProposer();
 
-        if (proposer != null) {
+        if (proposer != null && !proposer.isWithdrawn()) {
             receivers.put(proposer.getId(), proposer);
         }
 
@@ -265,7 +265,7 @@ public class NotificationService {
         Member proposer = schedule.getProposer();
         Member responder = participant.getMember();
 
-        if (proposer == null || responder == null) {
+        if (proposer == null || proposer.isWithdrawn() || responder == null) {
             return;
         }
 
@@ -457,7 +457,7 @@ public class NotificationService {
     public void createScheduleNotConfirmedNotification(Schedule schedule) {
         Member proposer = schedule.getProposer();
 
-        if (proposer == null) {
+        if (proposer == null || proposer.isWithdrawn()) {
             return;
         }
 
@@ -480,7 +480,7 @@ public class NotificationService {
             Map<Long, Member> receivers = new LinkedHashMap<>();
 
             Member proposer = schedule.getProposer();
-            if (proposer != null) {
+            if (proposer != null && !proposer.isWithdrawn()) {
                 receivers.put(proposer.getId(), proposer);
             }
 
@@ -528,7 +528,7 @@ public class NotificationService {
         Map<Long, Member> receivers = new LinkedHashMap<>();
 
         Member proposer = schedule.getProposer();
-        if (proposer != null) {
+        if (proposer != null && !proposer.isWithdrawn()) {
             receivers.put(proposer.getId(), proposer);
         }
 
@@ -566,7 +566,7 @@ public class NotificationService {
 
             Member proposer = schedule.getProposer();
 
-            if (proposer != null) {
+            if (proposer != null && !proposer.isWithdrawn()) {
                 receivers.put(proposer.getId(), proposer);
             }
 
@@ -682,7 +682,7 @@ public class NotificationService {
 
         for (Schedule schedule : schedules) {
             Member proposer = schedule.getProposer();
-            if (proposer != null) {
+            if (proposer != null && !proposer.isWithdrawn()) {
                 recipients.put(proposer.getId(), proposer);
             }
 

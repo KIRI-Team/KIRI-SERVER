@@ -5,6 +5,7 @@ import com.kiri.server.domain.bucket.entity.BucketItem;
 import com.kiri.server.domain.bucket.enums.BucketStatus;
 import com.kiri.server.domain.bucket.repository.BucketItemRepository;
 import com.kiri.server.domain.family.entity.Family;
+import com.kiri.server.domain.family.repository.FamilyRepository;
 import com.kiri.server.domain.member.entity.Member;
 import com.kiri.server.domain.member.exception.MemberException;
 import com.kiri.server.domain.member.exception.code.MemberErrorCode;
@@ -51,6 +52,7 @@ public class ScheduleCommandService {
     private static final long RESPONSE_DEADLINE_HOURS = 24;
 
     private final MemberRepository memberRepository;
+    private final FamilyRepository familyRepository;
     private final BucketItemRepository bucketItemRepository;
     private final ScheduleRepository scheduleRepository;
     private final ScheduleParticipantRepository scheduleParticipantRepository;
@@ -64,10 +66,7 @@ public class ScheduleCommandService {
     public ScheduleResDTO.Created create(Long memberId, Long bucketItemId, ScheduleReqDTO.Create request) {
         Member proposer = memberRepository.findById(memberId)
                 .orElseThrow(() -> new MemberException(MemberErrorCode.NOT_FOUND));
-        Family family = proposer.getFamily();
-        if (family == null) {
-            throw new ScheduleException(ScheduleErrorCode.FAMILY_REQUIRED);
-        }
+        Family family = lockActiveFamily(proposer);
 
         BucketItem bucketItem = bucketItemRepository.findByIdForUpdate(bucketItemId)
                 .orElseThrow(() -> new ScheduleException(ScheduleErrorCode.BUCKET_NOT_FOUND));
@@ -82,10 +81,7 @@ public class ScheduleCommandService {
     public ScheduleResDTO.Created createFromWeeklyMission(Long memberId, Long missionId, ScheduleReqDTO.Create request) {
         Member proposer = memberRepository.findById(memberId)
                 .orElseThrow(() -> new MemberException(MemberErrorCode.NOT_FOUND));
-        Family family = proposer.getFamily();
-        if (family == null) {
-            throw new ScheduleException(ScheduleErrorCode.FAMILY_REQUIRED);
-        }
+        Family family = lockActiveFamily(proposer);
 
         LocalDateTime now = LocalDateTime.now(ZoneId.of("Asia/Seoul"));
 
@@ -184,12 +180,12 @@ public class ScheduleCommandService {
 
     @Transactional
     public void cleanUpWithdrawnMember(Long memberId) {
-        LocalDateTime now = LocalDateTime.now(clock);
         List<Long> scheduleIds = scheduleRepository.findUpcomingIdsInvolvingMember(
-                memberId, ScheduleStatus.ACTIVE_STATUSES, now.toLocalDate());
+                memberId, ScheduleStatus.ACTIVE_STATUSES, LocalDate.now(clock));
 
         for (Long scheduleId : scheduleIds) {
             Schedule schedule = scheduleRepository.findByIdForUpdate(scheduleId).orElse(null);
+            LocalDateTime now = LocalDateTime.now(clock);
             if (schedule == null || !schedule.isCancelable() || schedule.hasStarted(now)) {
                 continue;
             }
@@ -288,10 +284,7 @@ public class ScheduleCommandService {
     public ScheduleResDTO.Updated update(Long memberId, Long scheduleId, ScheduleReqDTO.Update request) {
         Member proposer = memberRepository.findById(memberId)
                 .orElseThrow(() -> new MemberException(MemberErrorCode.NOT_FOUND));
-        Family family = proposer.getFamily();
-        if (family == null) {
-            throw new ScheduleException(ScheduleErrorCode.FAMILY_REQUIRED);
-        }
+        Family family = lockActiveFamily(proposer);
 
         Schedule schedule = scheduleRepository.findByIdForUpdate(scheduleId)
                 .orElseThrow(() -> new ScheduleException(ScheduleErrorCode.SCHEDULE_NOT_FOUND));
@@ -417,10 +410,22 @@ public class ScheduleCommandService {
         return startAt;
     }
 
+    private Family lockActiveFamily(Member proposer) {
+        if (proposer.getFamily() == null) {
+            throw new ScheduleException(ScheduleErrorCode.FAMILY_REQUIRED);
+        }
+        return familyRepository.findByIdForUpdate(proposer.getFamily().getId())
+                .filter(found -> found.getDeletedAt() == null)
+                .orElseThrow(() -> new ScheduleException(ScheduleErrorCode.FAMILY_REQUIRED));
+    }
+
     private List<Long> resolveParticipants(List<Long> requested, Member proposer, Family family) {
         Set<Long> familyMemberIds = memberRepository.findAllByFamilyAndDeletedAtIsNull(family).stream()
                 .map(Member::getId)
                 .collect(Collectors.toSet());
+        if (!familyMemberIds.contains(proposer.getId())) {
+            throw new MemberException(MemberErrorCode.NOT_FOUND);
+        }
         Set<Long> unique = new LinkedHashSet<>(requested);
         for (Long id : unique) {
             if (id.equals(proposer.getId()) || !familyMemberIds.contains(id)) {
