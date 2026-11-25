@@ -171,7 +171,8 @@ public class FamilyService {
         Member member = memberRepository.findById(memberId)
                 .orElseThrow(() -> new MemberException(MemberErrorCode.NOT_FOUND));
 
-        Family family = familyRepository.findById(familyId)
+        Family family = familyRepository.findByIdForUpdate(familyId)
+                .filter(found -> found.getDeletedAt() == null)
                 .orElseThrow(() -> new FamilyException(FamilyErrorCode.NOT_FOUND));
 
         if (family.getOwner() == null || !family.getOwner().getId().equals(member.getId())) {
@@ -203,7 +204,8 @@ public class FamilyService {
         Member member = memberRepository.findById(memberId)
                 .orElseThrow(() -> new MemberException(MemberErrorCode.NOT_FOUND));
 
-        Family family = familyRepository.findById(familyId)
+        Family family = familyRepository.findByIdForUpdate(familyId)
+                .filter(found -> found.getDeletedAt() == null)
                 .orElseThrow(() -> new FamilyException(FamilyErrorCode.NOT_FOUND));
 
         if (member.getFamily() == null || !family.getId().equals(member.getFamily().getId())) {
