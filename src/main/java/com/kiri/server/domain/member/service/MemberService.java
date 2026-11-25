@@ -3,6 +3,9 @@ package com.kiri.server.domain.member.service;
 import com.kiri.server.domain.character.entity.Character;
 import com.kiri.server.domain.character.repository.CharacterRepository;
 import com.kiri.server.domain.family.entity.Family;
+import com.kiri.server.domain.family.exception.FamilyException;
+import com.kiri.server.domain.family.exception.code.FamilyErrorCode;
+import com.kiri.server.domain.family.repository.FamilyRepository;
 import com.kiri.server.domain.member.converter.MemberConverter;
 import com.kiri.server.domain.member.enums.FamilyRole;
 import com.kiri.server.domain.member.dto.MemberReqDTO;
@@ -34,6 +37,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class MemberService {
 
     private final MemberRepository memberRepository;
+    private final FamilyRepository familyRepository;
     private final MemberTermRepository memberTermRepository;
     private final CharacterRepository characterRepository;
     private final OidcProviderFactory oidcProviderFactory;
@@ -136,18 +140,18 @@ public class MemberService {
             throw new ProjectException(MemberErrorCode.ALREADY_WITHDRAWN);
         }
 
-        Family family = member.getFamily();
+        Family family = member.getFamily() == null ? null
+                : familyRepository.findByIdForUpdate(member.getFamily().getId())
+                        .orElseThrow(() -> new FamilyException(FamilyErrorCode.NOT_FOUND));
 
         if (family != null && family.isOwner(member)) {
 
             Member nextOwner = memberRepository.findFirstByFamilyAndDeletedAtIsNullAndIdNotOrderByFamilyJoinedAtAsc(family, memberId).orElse(null);
 
             if (nextOwner != null) {
-                // 다른 활성 구성원이 있으면 owner 승계
                 family.changeOwner(nextOwner);
             } else {
-                // 마지막 구성원이면 가족 공간 종료
-                // family.delete();
+                family.delete();
             }
         }
 

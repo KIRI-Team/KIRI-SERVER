@@ -39,6 +39,8 @@ import java.time.LocalDateTime;
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
 public class Member extends BaseEntity {
 
+    public static final String WITHDRAWN_DISPLAY_NAME = "탈퇴한 멤버";
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "member_id")
@@ -123,6 +125,6 @@ public class Member extends BaseEntity {
     }
 
     public String getDisplayName() {
-        return isWithdrawn() ? "탈퇴한 사용자" : nickname;
+        return isWithdrawn() ? WITHDRAWN_DISPLAY_NAME : nickname;
     }
 }

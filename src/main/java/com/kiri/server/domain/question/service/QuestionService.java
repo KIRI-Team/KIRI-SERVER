@@ -191,9 +191,8 @@ public class QuestionService {
         Member receiver = memberRepository.findById(receiverId)
                 .orElseThrow(() -> new QuestionException(QuestionErrorCode.POKE_RECEIVER_NOT_FOUND));
 
-        // 대상이 다른 가족
         Family receiverFamily = receiver.getFamily();
-        if (receiverFamily == null || !family.getId().equals(receiverFamily.getId())) {
+        if (receiver.isWithdrawn() || receiverFamily == null || !family.getId().equals(receiverFamily.getId())) {
             throw new QuestionException(QuestionErrorCode.POKE_RECEIVER_NOT_FOUND);
         }
 

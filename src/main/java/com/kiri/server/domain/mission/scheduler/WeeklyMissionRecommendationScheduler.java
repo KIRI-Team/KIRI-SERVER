@@ -23,7 +23,7 @@ public class WeeklyMissionRecommendationScheduler {
     @Scheduled(cron = "0 5 0 * * MON", zone = "Asia/Seoul")
     public void refreshWeeklyRecommendations() {
 
-        List<Long> familyIds = familyRepository.findAllIds();
+        List<Long> familyIds = familyRepository.findActiveIds();
 
         log.info("주간 미션 추천 갱신 시작. 대상 가족 수: {}", familyIds.size());
 

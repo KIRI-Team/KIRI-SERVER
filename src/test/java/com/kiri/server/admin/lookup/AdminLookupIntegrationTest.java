@@ -129,6 +129,25 @@ class AdminLookupIntegrationTest {
     }
 
     @Test
+    @DisplayName("가족 상세·목록의 구성원 수는 탈퇴자를 빼고 세지만 구성원 목록에는 탈퇴자를 표시한다.")
+    void getFamily_excludesWithdrawnFromMemberCount() throws Exception {
+        em.find(Member.class, son.getId()).withdraw();
+        em.flush();
+        em.clear();
+
+        mockMvc.perform(get("/api/admin/families/" + family.getId()).header(HttpHeaders.AUTHORIZATION, token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.result.family.memberCount").value(1))
+                .andExpect(jsonPath("$.result.members.length()").value(2))
+                .andExpect(jsonPath("$.result.members[1].withdrawn").value(true));
+
+        mockMvc.perform(get("/api/admin/families").param("keyword", family.getName())
+                        .header(HttpHeaders.AUTHORIZATION, token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.result.content[0].memberCount").value(1));
+    }
+
+    @Test
     @DisplayName("리뷰가 있는데 완료되지 않은 일정은 불일치 경고를 준다.")
     void getSchedule_warning() throws Exception {
         mockMvc.perform(get("/api/admin/schedules/" + schedule.getId()).header(HttpHeaders.AUTHORIZATION, token))

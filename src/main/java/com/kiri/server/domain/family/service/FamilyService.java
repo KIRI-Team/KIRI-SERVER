@@ -79,7 +79,8 @@ public class FamilyService {
         Member member = memberRepository.findById(memberId)
                 .orElseThrow(() -> new MemberException(MemberErrorCode.NOT_FOUND));
 
-        Family family = familyRepository.findById(familyId)
+        Family family = familyRepository.findByIdForUpdate(familyId)
+                .filter(found -> found.getDeletedAt() == null)
                 .orElseThrow(() -> new FamilyException(FamilyErrorCode.NOT_FOUND));
 
         if (member.getFamily() == null || !family.getId().equals(member.getFamily().getId())) {
@@ -103,7 +104,8 @@ public class FamilyService {
         Member member = memberRepository.findById(memberId)
                 .orElseThrow(() -> new MemberException(MemberErrorCode.NOT_FOUND));
 
-        Family family = familyRepository.findById(familyId)
+        Family family = familyRepository.findByIdForUpdate(familyId)
+                .filter(found -> found.getDeletedAt() == null)
                 .orElseThrow(() -> new FamilyException(FamilyErrorCode.NOT_FOUND));
 
         if (member.getFamily() == null || !family.getId().equals(member.getFamily().getId())) {
@@ -169,7 +171,8 @@ public class FamilyService {
         Member member = memberRepository.findById(memberId)
                 .orElseThrow(() -> new MemberException(MemberErrorCode.NOT_FOUND));
 
-        Family family = familyRepository.findById(familyId)
+        Family family = familyRepository.findByIdForUpdate(familyId)
+                .filter(found -> found.getDeletedAt() == null)
                 .orElseThrow(() -> new FamilyException(FamilyErrorCode.NOT_FOUND));
 
         if (family.getOwner() == null || !family.getOwner().getId().equals(member.getId())) {
@@ -201,7 +204,8 @@ public class FamilyService {
         Member member = memberRepository.findById(memberId)
                 .orElseThrow(() -> new MemberException(MemberErrorCode.NOT_FOUND));
 
-        Family family = familyRepository.findById(familyId)
+        Family family = familyRepository.findByIdForUpdate(familyId)
+                .filter(found -> found.getDeletedAt() == null)
                 .orElseThrow(() -> new FamilyException(FamilyErrorCode.NOT_FOUND));
 
         if (member.getFamily() == null || !family.getId().equals(member.getFamily().getId())) {
@@ -230,7 +234,9 @@ public class FamilyService {
             throw new FamilyException(FamilyErrorCode.ALREADY_JOINED);
         }
 
-        Family family = familyRepository.findByInviteCode(request.inviteCode()).orElseThrow(() -> new FamilyException(FamilyErrorCode.INVALID_INVITE_CODE));
+        Family family = familyRepository.findByInviteCodeForUpdate(request.inviteCode())
+                .filter(f -> f.getDeletedAt() == null)
+                .orElseThrow(() -> new FamilyException(FamilyErrorCode.INVALID_INVITE_CODE));
 
         if (family.getInviteExpiresAt() == null || !LocalDateTime.now().isBefore(family.getInviteExpiresAt())) {
             throw new FamilyException(FamilyErrorCode.EXPIRED_INVITE_CODE);
@@ -260,7 +266,9 @@ public class FamilyService {
             throw new FamilyException(FamilyErrorCode.ALREADY_JOINED);
         }
 
-        Family family = familyRepository.findByInviteToken(inviteToken).orElseThrow(() -> new FamilyException(FamilyErrorCode.INVALID_INVITE_TOKEN));
+        Family family = familyRepository.findByInviteTokenForUpdate(inviteToken)
+                .filter(f -> f.getDeletedAt() == null)
+                .orElseThrow(() -> new FamilyException(FamilyErrorCode.INVALID_INVITE_TOKEN));
 
         if (family.getInviteExpiresAt() == null || !LocalDateTime.now().isBefore(family.getInviteExpiresAt())) {
             throw new FamilyException(FamilyErrorCode.EXPIRED_INVITE_TOKEN);

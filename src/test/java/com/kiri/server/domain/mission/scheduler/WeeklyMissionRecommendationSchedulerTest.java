@@ -38,7 +38,7 @@ class WeeklyMissionRecommendationSchedulerTest {
         List<Long> familyIds = List.of(1L, 2L, 3L);
         List<MissionResDTO.Recommendation> recommendations = List.of();
 
-        when(familyRepository.findAllIds()).thenReturn(familyIds);
+        when(familyRepository.findActiveIds()).thenReturn(familyIds);
 
         when(missionRecommendationService.recommendByFamilyId(anyLong())).thenReturn(recommendations);
 
@@ -57,7 +57,7 @@ class WeeklyMissionRecommendationSchedulerTest {
         List<Long> familyIds = List.of(1L, 2L);
         List<MissionResDTO.Recommendation> recommendations = List.of();
 
-        when(familyRepository.findAllIds()).thenReturn(familyIds);
+        when(familyRepository.findActiveIds()).thenReturn(familyIds);
 
         when(missionRecommendationService.recommendByFamilyId(1L)).thenThrow(new RuntimeException("추천 계산 실패"));
 
@@ -79,7 +79,7 @@ class WeeklyMissionRecommendationSchedulerTest {
         List<Long> familyIds = List.of(1L, 2L);
         List<MissionResDTO.Recommendation> recommendations = List.of();
 
-        when(familyRepository.findAllIds()).thenReturn(familyIds);
+        when(familyRepository.findActiveIds()).thenReturn(familyIds);
 
         when(missionRecommendationService.recommendByFamilyId(anyLong())).thenReturn(recommendations);
 
@@ -97,7 +97,7 @@ class WeeklyMissionRecommendationSchedulerTest {
     @Test
     @DisplayName("가족이 없으면 추천 갱신을 수행하지 않는다.")
     void refreshWeeklyRecommendationsDoesNothingWhenNoFamiliesExist() {
-        when(familyRepository.findAllIds()).thenReturn(List.of());
+        when(familyRepository.findActiveIds()).thenReturn(List.of());
 
         scheduler.refreshWeeklyRecommendations();
 

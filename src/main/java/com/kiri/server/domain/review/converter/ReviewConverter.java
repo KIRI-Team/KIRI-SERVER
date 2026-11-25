@@ -32,7 +32,7 @@ public class ReviewConverter {
     public static ReviewResDTO.Writer toWriter(Member member) {
         if (member == null) {
             return ReviewResDTO.Writer.builder()
-                    .nickname("탈퇴한 사용자")
+                    .nickname(Member.WITHDRAWN_DISPLAY_NAME)
                     .build();
         }
         return ReviewResDTO.Writer.builder()

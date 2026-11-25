@@ -3,11 +3,13 @@ package com.kiri.server.domain.member.service;
 import com.kiri.server.domain.character.entity.Character;
 import com.kiri.server.domain.character.repository.CharacterRepository;
 import com.kiri.server.domain.family.entity.Family;
+import com.kiri.server.domain.family.repository.FamilyRepository;
 import com.kiri.server.domain.member.dto.MemberReqDTO;
 import com.kiri.server.domain.member.dto.MemberResDTO;
 import com.kiri.server.domain.member.entity.Member;
 import com.kiri.server.domain.member.enums.FamilyRole;
 import com.kiri.server.domain.member.enums.SocialProvider;
+import com.kiri.server.domain.member.event.MemberWithdrawnEvent;
 import com.kiri.server.domain.member.exception.code.MemberErrorCode;
 import com.kiri.server.domain.member.exception.MemberException;
 import com.kiri.server.domain.member.oauth.AbstractOidcProvider;
@@ -28,6 +30,7 @@ import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 
 import java.util.Optional;
 import java.util.stream.Stream;
@@ -60,6 +63,9 @@ class MemberServiceTest {
     private MemberTermRepository memberTermRepository;
 
     @Mock
+    private FamilyRepository familyRepository;
+
+    @Mock
     private HashUtil hashUtil;
 
     @Mock
@@ -67,6 +73,9 @@ class MemberServiceTest {
 
     @Mock
     private ProfanityFilter profanityFilter;
+
+    @Mock
+    private ApplicationEventPublisher applicationEventPublisher;
 
     @InjectMocks
     private MemberService memberService;
@@ -546,5 +555,107 @@ class MemberServiceTest {
 
         verify(memberRepository).findByIdAndDeletedAtIsNull(memberId);
         verify(characterRepository, never()).findByRole(any());
+    }
+
+    @Test
+    @DisplayName("가족공간 생성자가 탈퇴하면 가장 먼저 참여한 활성 구성원에게 소유권을 넘기고 가족공간은 유지한다.")
+    void withdrawOwnerTransfersOwnership() {
+        Member owner = Member.builder().id(1L).nickname("아빠").build();
+        Member next = Member.builder().id(2L).nickname("엄마").build();
+        Family family = Family.builder().id(10L).name("우리집").owner(owner).inviteCode("ABC123").build();
+        owner.joinFamily(family);
+        next.joinFamily(family);
+
+        given(memberRepository.findByIdForUpdate(1L)).willReturn(Optional.of(owner));
+        given(familyRepository.findByIdForUpdate(10L)).willReturn(Optional.of(family));
+        given(memberRepository.findFirstByFamilyAndDeletedAtIsNullAndIdNotOrderByFamilyJoinedAtAsc(family, 1L))
+                .willReturn(Optional.of(next));
+
+        memberService.withdraw(1L);
+
+        assertThat(family.getOwner()).isSameAs(next);
+        assertThat(family.getDeletedAt()).isNull();
+        assertThat(family.getInviteCode()).isEqualTo("ABC123");
+        assertThat(owner.isWithdrawn()).isTrue();
+        verify(applicationEventPublisher).publishEvent(new MemberWithdrawnEvent(1L));
+    }
+
+    @Test
+    @DisplayName("마지막 구성원이 탈퇴하면 가족공간을 종료하고 초대 정보를 지운다.")
+    void withdrawLastMemberClosesFamily() {
+        Member owner = Member.builder().id(1L).nickname("아빠").build();
+        Family family = Family.builder().id(10L).name("우리집").owner(owner)
+                .inviteCode("ABC123").inviteToken("token").build();
+        owner.joinFamily(family);
+
+        given(memberRepository.findByIdForUpdate(1L)).willReturn(Optional.of(owner));
+        given(familyRepository.findByIdForUpdate(10L)).willReturn(Optional.of(family));
+        given(memberRepository.findFirstByFamilyAndDeletedAtIsNullAndIdNotOrderByFamilyJoinedAtAsc(family, 1L))
+                .willReturn(Optional.empty());
+
+        memberService.withdraw(1L);
+
+        assertThat(family.getDeletedAt()).isNotNull();
+        assertThat(family.getInviteCode()).isNull();
+        assertThat(family.getInviteToken()).isNull();
+        assertThat(family.getOwner()).isSameAs(owner);
+        assertThat(owner.isWithdrawn()).isTrue();
+        verify(applicationEventPublisher).publishEvent(new MemberWithdrawnEvent(1L));
+    }
+
+    @Test
+    @DisplayName("생성자가 아닌 구성원이 탈퇴하면 소유권과 가족공간을 바꾸지 않는다.")
+    void withdrawNonOwnerKeepsFamily() {
+        Member owner = Member.builder().id(1L).nickname("아빠").build();
+        Member member = Member.builder().id(2L).nickname("엄마").build();
+        Family family = Family.builder().id(10L).name("우리집").owner(owner).build();
+        owner.joinFamily(family);
+        member.joinFamily(family);
+
+        given(memberRepository.findByIdForUpdate(2L)).willReturn(Optional.of(member));
+        given(familyRepository.findByIdForUpdate(10L)).willReturn(Optional.of(family));
+
+        memberService.withdraw(2L);
+
+        assertThat(family.getOwner()).isSameAs(owner);
+        assertThat(family.getDeletedAt()).isNull();
+        assertThat(member.isWithdrawn()).isTrue();
+        verify(familyRepository).findByIdForUpdate(10L);
+        verify(memberRepository, never()).findFirstByFamilyAndDeletedAtIsNullAndIdNotOrderByFamilyJoinedAtAsc(any(), any());
+    }
+
+    @Test
+    @DisplayName("가족 행 잠금 후 다시 읽은 상태에서 자신이 소유자가 되었다면 남은 구성원이 없을 때 가족공간을 종료한다.")
+    void withdrawUsesLockedFamilyState() {
+        Member formerOwner = Member.builder().id(1L).nickname("아빠").build();
+        Member member = Member.builder().id(2L).nickname("엄마").build();
+        Family staleFamily = Family.builder().id(10L).name("우리집").owner(formerOwner).build();
+        Family lockedFamily = Family.builder().id(10L).name("우리집").owner(member)
+                .inviteCode("ABC123").inviteToken("token").build();
+        member.joinFamily(staleFamily);
+
+        given(memberRepository.findByIdForUpdate(2L)).willReturn(Optional.of(member));
+        given(familyRepository.findByIdForUpdate(10L)).willReturn(Optional.of(lockedFamily));
+        given(memberRepository.findFirstByFamilyAndDeletedAtIsNullAndIdNotOrderByFamilyJoinedAtAsc(lockedFamily, 2L))
+                .willReturn(Optional.empty());
+
+        memberService.withdraw(2L);
+
+        assertThat(lockedFamily.getDeletedAt()).isNotNull();
+        assertThat(lockedFamily.getInviteCode()).isNull();
+        assertThat(member.isWithdrawn()).isTrue();
+    }
+
+    @Test
+    @DisplayName("가족이 없는 회원은 가족 행을 잠그지 않고 탈퇴한다.")
+    void withdrawWithoutFamilySkipsFamilyLock() {
+        Member member = Member.builder().id(1L).nickname("아빠").build();
+
+        given(memberRepository.findByIdForUpdate(1L)).willReturn(Optional.of(member));
+
+        memberService.withdraw(1L);
+
+        assertThat(member.isWithdrawn()).isTrue();
+        verifyNoInteractions(familyRepository);
     }
 }

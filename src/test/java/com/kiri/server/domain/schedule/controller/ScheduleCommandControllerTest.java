@@ -3,6 +3,7 @@ package com.kiri.server.domain.schedule.controller;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import com.kiri.server.domain.member.repository.MemberRepository;
 import com.kiri.server.domain.schedule.dto.ScheduleReqDTO;
 import com.kiri.server.domain.schedule.dto.ScheduleResDTO;
 import com.kiri.server.domain.schedule.enums.ConditionType;
@@ -69,6 +70,9 @@ class ScheduleCommandControllerTest {
     private ObjectMapper objectMapper;
 
     @MockitoBean
+    private MemberRepository memberRepository;
+
+    @MockitoBean
     private ScheduleCommandService scheduleCommandService;
 
     @MockitoBean
@@ -90,6 +94,7 @@ class ScheduleCommandControllerTest {
     @BeforeEach
     void setUp() {
         bearerToken = "Bearer " + jwtProvider.createAccessToken(MEMBER_ID);
+        given(memberRepository.existsByIdAndDeletedAtIsNull(MEMBER_ID)).willReturn(true);
     }
 
     private String body(Object value) throws Exception {

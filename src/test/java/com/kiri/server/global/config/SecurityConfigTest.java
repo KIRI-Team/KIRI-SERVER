@@ -1,5 +1,6 @@
 package com.kiri.server.global.config;
 
+import com.kiri.server.domain.member.repository.MemberRepository;
 import com.kiri.server.global.security.handler.CustomAccessDeniedHandler;
 import com.kiri.server.global.security.handler.CustomAuthenticationEntryPoint;
 import com.kiri.server.global.security.jwt.JwtProvider;
@@ -13,11 +14,13 @@ import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpHeaders;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.TestPropertySource;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Date;
 
+import static org.mockito.BDDMockito.given;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -36,6 +39,9 @@ class SecurityConfigTest {
     @Autowired
     private JwtProvider jwtProvider;
 
+    @MockitoBean
+    private MemberRepository memberRepository;
+
     @Test
     @DisplayName("토큰 없이 보호된 경로에 접근하면 COMMON401_1로 응답한다.")
     void noToken() throws Exception {
@@ -50,11 +56,24 @@ class SecurityConfigTest {
     @Test
     @DisplayName("유효한 토큰이면 보호된 경로에 접근할 수 있다.")
     void validToken() throws Exception {
+        given(memberRepository.existsByIdAndDeletedAtIsNull(1L)).willReturn(true);
         String token = jwtProvider.createAccessToken(1L);
 
         mockMvc.perform(get("/test/security")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
                 .andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("탈퇴한 회원의 토큰이면 만료 전이어도 AUTH401_1로 응답한다.")
+    void withdrawnMemberToken() throws Exception {
+        given(memberRepository.existsByIdAndDeletedAtIsNull(2L)).willReturn(false);
+        String token = jwtProvider.createAccessToken(2L);
+
+        mockMvc.perform(get("/test/security")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("AUTH401_1"));
     }
 
     @Test

@@ -198,7 +198,7 @@ class BucketQueryServiceTest {
     }
 
     @Test
-    @DisplayName("저장한 회원이 탈퇴했으면 탈퇴로 표시하고 닉네임은 '탈퇴한 사용자', 역할은 null로 내려준다.")
+    @DisplayName("저장한 회원이 탈퇴했으면 탈퇴로 표시하고 닉네임은 '탈퇴한 멤버', 역할은 null로 내려준다.")
     void getFamilyBuckets_withdrawnSaver() {
         Member withdrawn = Member.builder()
                 .id(4L)
@@ -214,7 +214,7 @@ class BucketQueryServiceTest {
         assertThat(result.bucketItems().getFirst().saver())
                 .extracting(BucketResDTO.Saver::memberId, BucketResDTO.Saver::nickname,
                         BucketResDTO.Saver::familyRole, BucketResDTO.Saver::withdrawn)
-                .containsExactly(4L, "탈퇴한 사용자", null, true);
+                .containsExactly(4L, "탈퇴한 멤버", null, true);
     }
 
     @Test

@@ -1,5 +1,6 @@
 package com.kiri.server.global.security.jwt;
 
+import com.kiri.server.domain.member.repository.MemberRepository;
 import com.kiri.server.global.apiPayload.code.AuthErrorCode;
 import io.jsonwebtoken.ExpiredJwtException;
 import io.jsonwebtoken.JwtException;
@@ -26,6 +27,7 @@ public class JwtAuthFilter extends OncePerRequestFilter {
     private static final String BEARER_PREFIX = "Bearer ";
 
     private final JwtProvider jwtProvider;
+    private final MemberRepository memberRepository;
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
@@ -35,9 +37,14 @@ public class JwtAuthFilter extends OncePerRequestFilter {
         if (token != null) {
             try {
                 Long memberId = jwtProvider.getMemberIdFromAccessToken(token);
-                Authentication authentication = UsernamePasswordAuthenticationToken.authenticated(memberId, null, List.of());
+                if (memberRepository.existsByIdAndDeletedAtIsNull(memberId)) {
+                    Authentication authentication = UsernamePasswordAuthenticationToken.authenticated(memberId, null, List.of());
 
-                SecurityContextHolder.getContext().setAuthentication(authentication);
+                    SecurityContextHolder.getContext().setAuthentication(authentication);
+                } else {
+                    log.debug("[JwtAuthFilter] 유효하지 않은 회원의 토큰: uri={}", request.getRequestURI());
+                    request.setAttribute(EXCEPTION_ATTRIBUTE, AuthErrorCode.INVALID_TOKEN);
+                }
             } catch (ExpiredJwtException e) {
                 log.debug("[JwtAuthFilter] 만료된 토큰: uri={}", request.getRequestURI());
                 request.setAttribute(EXCEPTION_ATTRIBUTE, AuthErrorCode.EXPIRED_TOKEN);

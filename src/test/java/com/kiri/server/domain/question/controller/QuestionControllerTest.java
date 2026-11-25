@@ -1,5 +1,6 @@
 package com.kiri.server.domain.question.controller;
 
+import com.kiri.server.domain.member.repository.MemberRepository;
 import com.kiri.server.domain.question.dto.QuestionReqDTO;
 import com.kiri.server.domain.question.dto.QuestionResDTO;
 import com.kiri.server.domain.question.exception.QuestionException;
@@ -54,6 +55,9 @@ class QuestionControllerTest {
     private JwtProvider jwtProvider;
 
     @MockitoBean
+    private MemberRepository memberRepository;
+
+    @MockitoBean
     private QuestionService questionService;
 
     private String bearerToken;
@@ -61,6 +65,7 @@ class QuestionControllerTest {
     @BeforeEach
     void setUp() {
         bearerToken = "Bearer " + jwtProvider.createAccessToken(MEMBER_ID);
+        given(memberRepository.existsByIdAndDeletedAtIsNull(MEMBER_ID)).willReturn(true);
     }
 
     @Test
