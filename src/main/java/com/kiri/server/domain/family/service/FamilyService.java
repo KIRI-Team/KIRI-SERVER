@@ -47,6 +47,10 @@ public class FamilyService {
         Member member = memberRepository.findByIdForUpdate(memberId)
                 .orElseThrow(() -> new ProjectException(MemberErrorCode.NOT_FOUND));
 
+        if (member.getFamily() != null) {
+            throw new FamilyException(FamilyErrorCode.ALREADY_JOINED);
+        }
+
         // 금칙어·운영자 사칭 표현 검증
         if (profanityFilter.containsBannedWord(dto.name())) {
             throw new FamilyException(FamilyErrorCode.BANNED_NAME);

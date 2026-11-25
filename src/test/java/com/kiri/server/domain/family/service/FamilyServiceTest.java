@@ -136,6 +136,38 @@ class FamilyServiceTest {
     }
 
     @Test
+    @DisplayName("이미 가족에 소속된 회원은 가족 공간을 생성할 수 없다.")
+    void createFamilyWhenAlreadyJoined() {
+        Long memberId = 1L;
+        FamilyReqDTO.Name dto = new FamilyReqDTO.Name("끼리네 가족");
+
+        Family existingFamily = Family.builder()
+                .id(5L)
+                .name("기존 가족")
+                .build();
+
+        Member member = Member.builder()
+                .id(memberId)
+                .family(existingFamily)
+                .build();
+
+        when(memberRepository.findByIdForUpdate(memberId))
+                .thenReturn(Optional.of(member));
+
+        assertThatThrownBy(() -> familyService.createFamily(memberId, dto))
+                .isInstanceOf(FamilyException.class)
+                .extracting("errorCode")
+                .isEqualTo(FamilyErrorCode.ALREADY_JOINED);
+
+        assertSame(existingFamily, member.getFamily());
+
+        verify(profanityFilter, never()).containsBannedWord(anyString());
+        verify(familyRepository, never()).existsByName(anyString());
+        verify(familyRepository, never()).save(any(Family.class));
+        verify(eventPublisher, never()).publishEvent(any());
+    }
+
+    @Test
     @DisplayName("이미 존재하는 가족명이면 가족 공간 생성 실패")
     void createFamilyDuplicateName() {
         Long memberId = 1L;
