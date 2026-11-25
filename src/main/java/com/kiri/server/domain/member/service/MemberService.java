@@ -119,9 +119,20 @@ public class MemberService {
         Member member = memberRepository.findByIdForUpdate(memberId)
                 .orElseThrow(() -> new MemberException(MemberErrorCode.NOT_FOUND));
 
-        member.updateFamilyRole(dto.familyRole());
+        FamilyRole familyRole = dto.familyRole();
 
-        return MemberConverter.toFamilyRoleResponse(dto.familyRole());
+        if (member.getFamily() != null && familyRole.isUniqueInFamily()) {
+            Family family = familyRepository.findByIdForUpdate(member.getFamily().getId())
+                    .orElseThrow(() -> new FamilyException(FamilyErrorCode.NOT_FOUND));
+
+            if (memberRepository.existsByFamilyAndFamilyRoleAndDeletedAtIsNullAndIdNot(family, familyRole, member.getId())) {
+                throw new FamilyException(FamilyErrorCode.DUPLICATE_FAMILY_ROLE);
+            }
+        }
+
+        member.updateFamilyRole(familyRole);
+
+        return MemberConverter.toFamilyRoleResponse(familyRole);
     }
 
     @Transactional

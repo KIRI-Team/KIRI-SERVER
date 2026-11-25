@@ -246,6 +246,8 @@ public class FamilyService {
             throw new FamilyException(FamilyErrorCode.EXPIRED_INVITE_CODE);
         }
 
+        validateFamilyRoleAvailable(family, member);
+
         member.joinFamily(family);
 
         return FamilyConverter.toJoinResponse(family);
@@ -278,9 +280,23 @@ public class FamilyService {
             throw new FamilyException(FamilyErrorCode.EXPIRED_INVITE_TOKEN);
         }
 
+        validateFamilyRoleAvailable(family, member);
+
         member.joinFamily(family);
 
         return FamilyConverter.toJoinResponse(family);
+    }
+
+    private void validateFamilyRoleAvailable(Family family, Member member) {
+        FamilyRole familyRole = member.getFamilyRole();
+
+        if (familyRole == null || !familyRole.isUniqueInFamily()) {
+            return;
+        }
+
+        if (memberRepository.existsByFamilyAndFamilyRoleAndDeletedAtIsNullAndIdNot(family, familyRole, member.getId())) {
+            throw new FamilyException(FamilyErrorCode.DUPLICATE_FAMILY_ROLE);
+        }
     }
 
     @Transactional(readOnly = true)

@@ -480,8 +480,9 @@ public interface MemberControllerDocs {
                     1. Access Token을 검증하여 로그인 회원의 memberId를 확인합니다.
                     2. 요청받은 familyRole이 허용된 가족 역할인지 검증합니다.
                     3. memberId로 회원을 조회합니다.
-                    4. 회원의 가족 역할을 요청받은 역할로 변경합니다.
-                    5. 변경된 가족 역할을 응답합니다.
+                    4. 회원이 가족에 소속되어 있고 요청받은 역할이 아빠·엄마인 경우, 가족 내에 이미 같은 역할의 구성원이 있는지 확인합니다. 아빠·엄마 역할은 가족 내에서 중복될 수 없습니다.
+                    5. 회원의 가족 역할을 요청받은 역할로 변경합니다.
+                    6. 변경된 가족 역할을 응답합니다.
                     """
     )
     @ApiResponses(value = {
@@ -591,6 +592,23 @@ public interface MemberControllerDocs {
                                         "isSuccess": false,
                                         "code": "MEMBER404_1",
                                         "message": "존재하지 않는 회원입니다.",
+                                        "result": null
+                                    }
+                                    """
+                            )
+                    )
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "409",
+                    description = "가족 내에 이미 같은 역할(아빠·엄마)의 구성원이 있는 경우",
+                    content = @Content(
+                            mediaType = "application/json",
+                            examples = @ExampleObject(
+                                    value = """
+                                    {
+                                        "isSuccess": false,
+                                        "code": "FAMILY409_3",
+                                        "message": "가족 내에 이미 같은 역할의 구성원이 있습니다.",
                                         "result": null
                                     }
                                     """

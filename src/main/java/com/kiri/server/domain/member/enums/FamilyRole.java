@@ -1,5 +1,9 @@
 package com.kiri.server.domain.member.enums;
 
 public enum FamilyRole {
-    MOTHER, FATHER, DAUGHTER, SON
+    MOTHER, FATHER, DAUGHTER, SON;
+
+    public boolean isUniqueInFamily() {
+        return this == MOTHER || this == FATHER;
+    }
 }

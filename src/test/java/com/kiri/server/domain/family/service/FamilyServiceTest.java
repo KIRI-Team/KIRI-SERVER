@@ -1039,6 +1039,99 @@ class FamilyServiceTest {
     }
 
     @Test
+    @DisplayName("가족에 이미 엄마 역할 구성원이 있으면 초대 코드로 가입할 수 없다.")
+    void joinFamilyRejectsDuplicateMotherRole() {
+        Long memberId = 1L;
+        String inviteCode = "ABC123";
+
+        Member member = Member.builder()
+                .id(memberId)
+                .familyRole(FamilyRole.MOTHER)
+                .build();
+
+        Family family = Family.builder()
+                .id(10L)
+                .name("우리 가족")
+                .inviteCode(inviteCode)
+                .inviteExpiresAt(LocalDateTime.now().plusDays(7))
+                .build();
+
+        FamilyReqDTO.Join request = new FamilyReqDTO.Join(inviteCode);
+
+        when(memberRepository.findByIdForUpdate(memberId)).thenReturn(Optional.of(member));
+        when(familyRepository.findByInviteCodeForUpdate(inviteCode)).thenReturn(Optional.of(family));
+        when(memberRepository.existsByFamilyAndFamilyRoleAndDeletedAtIsNullAndIdNot(family, FamilyRole.MOTHER, memberId))
+                .thenReturn(true);
+
+        assertThatThrownBy(() -> familyService.joinFamily(memberId, request))
+                .isInstanceOf(FamilyException.class)
+                .extracting("errorCode")
+                .isEqualTo(FamilyErrorCode.DUPLICATE_FAMILY_ROLE);
+
+        assertNull(member.getFamily());
+        assertNull(member.getFamilyJoinedAt());
+    }
+
+    @Test
+    @DisplayName("가족에 엄마 역할 구성원이 없으면 엄마 역할로 초대 코드 가입에 성공한다.")
+    void joinFamilyWithAvailableMotherRole() {
+        Long memberId = 1L;
+        String inviteCode = "ABC123";
+
+        Member member = Member.builder()
+                .id(memberId)
+                .familyRole(FamilyRole.MOTHER)
+                .build();
+
+        Family family = Family.builder()
+                .id(10L)
+                .name("우리 가족")
+                .inviteCode(inviteCode)
+                .inviteExpiresAt(LocalDateTime.now().plusDays(7))
+                .build();
+
+        FamilyReqDTO.Join request = new FamilyReqDTO.Join(inviteCode);
+
+        when(memberRepository.findByIdForUpdate(memberId)).thenReturn(Optional.of(member));
+        when(familyRepository.findByInviteCodeForUpdate(inviteCode)).thenReturn(Optional.of(family));
+        when(memberRepository.existsByFamilyAndFamilyRoleAndDeletedAtIsNullAndIdNot(family, FamilyRole.MOTHER, memberId))
+                .thenReturn(false);
+
+        familyService.joinFamily(memberId, request);
+
+        assertSame(family, member.getFamily());
+    }
+
+    @Test
+    @DisplayName("딸·아들 역할은 가족 내 중복 여부와 관계없이 초대 코드로 가입할 수 있다.")
+    void joinFamilyAllowsDuplicateChildRole() {
+        Long memberId = 1L;
+        String inviteCode = "ABC123";
+
+        Member member = Member.builder()
+                .id(memberId)
+                .familyRole(FamilyRole.DAUGHTER)
+                .build();
+
+        Family family = Family.builder()
+                .id(10L)
+                .name("우리 가족")
+                .inviteCode(inviteCode)
+                .inviteExpiresAt(LocalDateTime.now().plusDays(7))
+                .build();
+
+        FamilyReqDTO.Join request = new FamilyReqDTO.Join(inviteCode);
+
+        when(memberRepository.findByIdForUpdate(memberId)).thenReturn(Optional.of(member));
+        when(familyRepository.findByInviteCodeForUpdate(inviteCode)).thenReturn(Optional.of(family));
+
+        familyService.joinFamily(memberId, request);
+
+        assertSame(family, member.getFamily());
+        verify(memberRepository, never()).existsByFamilyAndFamilyRoleAndDeletedAtIsNullAndIdNot(any(), any(), anyLong());
+    }
+
+    @Test
     @DisplayName("잠금 후 종료된 것으로 확인된 가족에는 초대 코드로 가입할 수 없다.")
     void joinFamilyRejectsClosedFamily() {
         Long memberId = 1L;
@@ -1153,6 +1246,38 @@ class FamilyServiceTest {
 
         verify(memberRepository).findByIdForUpdate(memberId);
         verify(familyRepository).findByInviteTokenForUpdate(inviteToken);
+    }
+
+    @Test
+    @DisplayName("가족에 이미 아빠 역할 구성원이 있으면 초대 토큰으로 가입할 수 없다.")
+    void joinFamilyByTokenRejectsDuplicateFatherRole() {
+        Long memberId = 1L;
+        String inviteToken = "a1b2c3d4e5f678901234567890abcdef";
+
+        Member member = Member.builder()
+                .id(memberId)
+                .familyRole(FamilyRole.FATHER)
+                .build();
+
+        Family family = Family.builder()
+                .id(10L)
+                .name("우리 가족")
+                .inviteToken(inviteToken)
+                .inviteExpiresAt(LocalDateTime.now().plusDays(7))
+                .build();
+
+        when(memberRepository.findByIdForUpdate(memberId)).thenReturn(Optional.of(member));
+        when(familyRepository.findByInviteTokenForUpdate(inviteToken)).thenReturn(Optional.of(family));
+        when(memberRepository.existsByFamilyAndFamilyRoleAndDeletedAtIsNullAndIdNot(family, FamilyRole.FATHER, memberId))
+                .thenReturn(true);
+
+        assertThatThrownBy(() -> familyService.joinFamilyByToken(memberId, inviteToken))
+                .isInstanceOf(FamilyException.class)
+                .extracting("errorCode")
+                .isEqualTo(FamilyErrorCode.DUPLICATE_FAMILY_ROLE);
+
+        assertNull(member.getFamily());
+        assertNull(member.getFamilyJoinedAt());
     }
 
     @Test

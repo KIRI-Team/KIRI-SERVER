@@ -2,6 +2,7 @@ package com.kiri.server.domain.member.repository;
 
 import com.kiri.server.domain.family.entity.Family;
 import com.kiri.server.domain.member.entity.Member;
+import com.kiri.server.domain.member.enums.FamilyRole;
 import com.kiri.server.domain.member.enums.SocialProvider;
 import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.EntityGraph;
@@ -53,6 +54,8 @@ public interface MemberRepository extends JpaRepository<Member, Long> {
     List<Member> findAllByFamilyAndDeletedAtIsNull(Family family);
 
     boolean existsByNickname(String nickname);
+
+    boolean existsByFamilyAndFamilyRoleAndDeletedAtIsNullAndIdNot(Family family, FamilyRole familyRole, Long id);
 
     Optional<Member> findFirstByFamilyAndDeletedAtIsNullAndIdNotOrderByFamilyJoinedAtAsc(Family family, Long memberId);
 }
