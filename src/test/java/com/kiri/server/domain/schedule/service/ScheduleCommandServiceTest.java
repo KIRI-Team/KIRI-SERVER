@@ -4,6 +4,7 @@ import com.kiri.server.domain.bucket.entity.BucketItem;
 import com.kiri.server.domain.bucket.enums.BucketStatus;
 import com.kiri.server.domain.bucket.repository.BucketItemRepository;
 import com.kiri.server.domain.family.entity.Family;
+import com.kiri.server.domain.family.repository.FamilyRepository;
 import com.kiri.server.domain.member.entity.Member;
 import com.kiri.server.domain.member.exception.MemberException;
 import com.kiri.server.domain.member.repository.MemberRepository;
@@ -33,6 +34,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -49,7 +51,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -65,6 +69,7 @@ class ScheduleCommandServiceTest {
     private static final Clock CLOCK = Clock.fixed(Instant.parse("2026-11-01T00:00:00Z"), ZoneId.of("Asia/Seoul"));
 
     @Mock private MemberRepository memberRepository;
+    @Mock private FamilyRepository familyRepository;
     @Mock private BucketItemRepository bucketItemRepository;
     @Mock private ScheduleRepository scheduleRepository;
     @Mock private ScheduleParticipantRepository scheduleParticipantRepository;
@@ -82,13 +87,14 @@ class ScheduleCommandServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new ScheduleCommandService(memberRepository, bucketItemRepository,
+        service = new ScheduleCommandService(memberRepository, familyRepository, bucketItemRepository,
                 scheduleRepository, scheduleParticipantRepository, scheduleConditionRepository,
                 familyMissionRecommendationRepository, CLOCK, notificationService, reviewRepository);
         family = Family.builder().id(10L).name("가족").build();
         proposer = Member.builder().id(PROPOSER_ID).family(family).nickname("제안자").build();
         m2 = Member.builder().id(2L).family(family).nickname("엄마").build();
         m3 = Member.builder().id(3L).family(family).nickname("딸").build();
+        lenient().when(familyRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(family));
     }
 
     private ScheduleReqDTO.Create request(LocalDate date, LocalTime time, List<Long> ids) {
@@ -262,6 +268,70 @@ class ScheduleCommandServiceTest {
                 .isEqualTo(ScheduleErrorCode.INVALID_PARTICIPANT);
     }
 
+    @Test
+    @DisplayName("일정을 만들 때 버킷 잠금보다 가족 잠금을 먼저 잡고 구성원을 조회한다.")
+    void create_locksFamilyBeforeBucket() {
+        BucketItem bucket = bucket(BucketStatus.SAVED, null);
+        stubCommon(bucket);
+        given(scheduleRepository.existsByBucketItem_IdAndStatusIn(eq(BUCKET_ID), any())).willReturn(false);
+
+        service.create(PROPOSER_ID, BUCKET_ID, request(LocalDate.of(2026, 11, 15), LocalTime.of(14, 0), List.of(2L)));
+
+        InOrder order = inOrder(familyRepository, bucketItemRepository, memberRepository);
+        order.verify(familyRepository).findByIdForUpdate(10L);
+        order.verify(bucketItemRepository).findByIdForUpdate(BUCKET_ID);
+        order.verify(memberRepository).findAllByFamilyAndDeletedAtIsNull(family);
+    }
+
+    @Test
+    @DisplayName("가족공간이 종료됐으면 일정을 만들지 않고 SCHEDULE403_1로 예외를 던진다.")
+    void create_closedFamily() {
+        Family closed = Family.builder().id(10L).name("가족").build();
+        closed.delete();
+        given(memberRepository.findById(PROPOSER_ID)).willReturn(Optional.of(proposer));
+        given(familyRepository.findByIdForUpdate(10L)).willReturn(Optional.of(closed));
+
+        assertThatThrownBy(() -> service.create(PROPOSER_ID, BUCKET_ID,
+                request(LocalDate.of(2026, 11, 15), LocalTime.of(14, 0), List.of(2L))))
+                .isInstanceOf(ScheduleException.class)
+                .extracting(e -> ((ScheduleException) e).getErrorCode())
+                .isEqualTo(ScheduleErrorCode.FAMILY_REQUIRED);
+
+        verify(bucketItemRepository, never()).findByIdForUpdate(anyLong());
+    }
+
+    @Test
+    @DisplayName("가족 잠금 후 조회한 활성 구성원에 없는 탈퇴 회원을 초대하면 SCHEDULE400_4로 예외를 던진다.")
+    void create_withdrawnParticipantRejected() {
+        BucketItem bucket = bucket(BucketStatus.SAVED, null);
+        stubCommon(bucket);
+        given(scheduleRepository.existsByBucketItem_IdAndStatusIn(eq(BUCKET_ID), any())).willReturn(false);
+        given(memberRepository.findAllByFamilyAndDeletedAtIsNull(family)).willReturn(List.of(proposer, m3));
+
+        assertThatThrownBy(() -> service.create(PROPOSER_ID, BUCKET_ID,
+                request(LocalDate.of(2026, 11, 15), LocalTime.of(14, 0), List.of(2L, 3L))))
+                .isInstanceOf(ScheduleException.class)
+                .extracting(e -> ((ScheduleException) e).getErrorCode())
+                .isEqualTo(ScheduleErrorCode.INVALID_PARTICIPANT);
+
+        verify(scheduleRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("가족 잠금 후 제안자가 활성 구성원에 없으면 MEMBER404_1로 예외를 던진다.")
+    void create_withdrawnProposerRejected() {
+        BucketItem bucket = bucket(BucketStatus.SAVED, null);
+        stubCommon(bucket);
+        given(scheduleRepository.existsByBucketItem_IdAndStatusIn(eq(BUCKET_ID), any())).willReturn(false);
+        given(memberRepository.findAllByFamilyAndDeletedAtIsNull(family)).willReturn(List.of(m2, m3));
+
+        assertThatThrownBy(() -> service.create(PROPOSER_ID, BUCKET_ID,
+                request(LocalDate.of(2026, 11, 15), LocalTime.of(14, 0), List.of(2L))))
+                .isInstanceOf(MemberException.class);
+
+        verify(scheduleRepository, never()).save(any());
+    }
+
     private static final Long SCHEDULE_ID = 100L;
 
     private Schedule schedule(ScheduleStatus status, BucketItem bucket) {
@@ -384,6 +454,42 @@ class ScheduleCommandServiceTest {
         verify(notificationService).createScheduleUpdateNotifications(eq(schedule), anyList(), anyList(), anyList());
         assertThat(schedule.getInviteVersion()).isEqualTo(2);
         assertThat(schedule.getReconfirmReminderAt()).isEqualTo(LocalDateTime.of(2026, 12, 20, 11, 0));
+    }
+
+    @Test
+    @DisplayName("일정을 수정할 때 일정 잠금보다 가족 잠금을 먼저 잡는다.")
+    void update_locksFamilyBeforeSchedule() {
+        Schedule schedule = updatableSchedule(ScheduleStatus.PENDING_RESPONSE, LocalDate.of(2026, 12, 20), LocalTime.of(14, 0));
+        given(memberRepository.findById(PROPOSER_ID)).willReturn(Optional.of(proposer));
+        given(scheduleRepository.findByIdForUpdate(SCHEDULE_ID)).willReturn(Optional.of(schedule));
+        given(memberRepository.findAllByFamilyAndDeletedAtIsNull(family)).willReturn(List.of(proposer, m2, m3));
+        given(scheduleParticipantRepository.findBySchedule_Id(SCHEDULE_ID))
+                .willReturn(List.of(participant(schedule, proposer, ParticipantStatus.ACCEPTED),
+                        participant(schedule, m2, ParticipantStatus.PENDING)));
+
+        service.update(PROPOSER_ID, SCHEDULE_ID, updateReq(LocalDate.of(2026, 12, 20), LocalTime.of(14, 0), List.of(2L)));
+
+        InOrder order = inOrder(familyRepository, scheduleRepository, memberRepository);
+        order.verify(familyRepository).findByIdForUpdate(10L);
+        order.verify(scheduleRepository).findByIdForUpdate(SCHEDULE_ID);
+        order.verify(memberRepository).findAllByFamilyAndDeletedAtIsNull(family);
+    }
+
+    @Test
+    @DisplayName("일정을 수정할 때 탈퇴한 회원을 참여 대상에 넣으면 SCHEDULE400_4로 예외를 던진다.")
+    void update_withdrawnParticipantRejected() {
+        Schedule schedule = updatableSchedule(ScheduleStatus.PENDING_RESPONSE, LocalDate.of(2026, 12, 20), LocalTime.of(14, 0));
+        given(memberRepository.findById(PROPOSER_ID)).willReturn(Optional.of(proposer));
+        given(scheduleRepository.findByIdForUpdate(SCHEDULE_ID)).willReturn(Optional.of(schedule));
+        given(memberRepository.findAllByFamilyAndDeletedAtIsNull(family)).willReturn(List.of(proposer, m3));
+
+        assertThatThrownBy(() -> service.update(PROPOSER_ID, SCHEDULE_ID,
+                updateReq(LocalDate.of(2026, 12, 21), LocalTime.of(14, 0), List.of(2L, 3L))))
+                .isInstanceOf(ScheduleException.class)
+                .extracting(e -> ((ScheduleException) e).getErrorCode())
+                .isEqualTo(ScheduleErrorCode.INVALID_PARTICIPANT);
+
+        verify(scheduleParticipantRepository, never()).saveAll(any());
     }
 
     @Test
@@ -843,6 +949,11 @@ class ScheduleCommandServiceTest {
         assertThat(result.bucketItemId()).isEqualTo(EXISTING_BUCKET_ID);
         assertThat(existing.getStatus()).isEqualTo(BucketStatus.SCHEDULED);
         verify(bucketItemRepository, never()).save(any(BucketItem.class));
+
+        InOrder order = inOrder(familyRepository, bucketItemRepository, memberRepository);
+        order.verify(familyRepository).findByIdForUpdate(10L);
+        order.verify(bucketItemRepository).findByIdForUpdate(EXISTING_BUCKET_ID);
+        order.verify(memberRepository).findAllByFamilyAndDeletedAtIsNull(family);
     }
 
     @Test
@@ -966,6 +1077,8 @@ class ScheduleCommandServiceTest {
         service.cancel(PROPOSER_ID, SCHEDULE_ID);
 
         assertThat(bucket.getStatus()).isEqualTo(BucketStatus.SAVED);
+        verify(notificationService).createScheduleCancelledNotifications(schedule);
+        verify(notificationService, never()).createScheduleCancelledByWithdrawalNotifications(any());
     }
 
     @Test
@@ -984,5 +1097,170 @@ class ScheduleCommandServiceTest {
         assertThat(bucket.getStatus()).isEqualTo(BucketStatus.SCHEDULED);
 
         verify(notificationService).createScheduleCancelledNotifications(schedule);
+    }
+
+    private static final LocalDate TODAY = LocalDate.of(2026, 11, 1);
+
+    private void stubUpcoming(Long memberId, Schedule schedule) {
+        given(scheduleRepository.findUpcomingIdsInvolvingMember(memberId, ScheduleStatus.ACTIVE_STATUSES, TODAY))
+                .willReturn(List.of(schedule.getId()));
+        given(scheduleRepository.findByIdForUpdate(schedule.getId())).willReturn(Optional.of(schedule));
+    }
+
+    @Test
+    @DisplayName("탈퇴 회원이 미래 일정의 참여 대상이면 참여에서 빠지고, 남은 수락자가 없으면 응답 대기로 돌아간다.")
+    void cleanUpWithdrawnMember_removeParticipant() {
+        Schedule schedule = updatableSchedule(ScheduleStatus.CONFIRMED, LocalDate.of(2026, 11, 20), LocalTime.of(14, 0));
+        ScheduleParticipant proposerP = participant(schedule, proposer, ParticipantStatus.ACCEPTED);
+        ScheduleParticipant withdrawnP = participant(schedule, m2, ParticipantStatus.ACCEPTED);
+        ScheduleParticipant otherP = participant(schedule, m3, ParticipantStatus.PENDING);
+        stubUpcoming(2L, schedule);
+        given(scheduleParticipantRepository.findBySchedule_Id(SCHEDULE_ID)).willReturn(List.of(proposerP, withdrawnP, otherP));
+
+        service.cleanUpWithdrawnMember(2L);
+
+        verify(scheduleParticipantRepository).deleteAll(List.of(withdrawnP));
+        assertThat(schedule.getStatus()).isEqualTo(ScheduleStatus.PENDING_RESPONSE);
+        verify(notificationService, never()).createScheduleCancelledNotifications(any());
+        verify(notificationService).cancelScheduleD1Reminders(SCHEDULE_ID);
+        verify(notificationService).cancelScheduleD0Reminders(SCHEDULE_ID);
+        verify(notificationService).createScheduleParticipantWithdrawnNotifications(schedule, List.of(proposerP, otherP), true);
+    }
+
+    @Test
+    @DisplayName("다른 수락자가 남아 있으면 탈퇴 회원만 빠지고 확정 상태를 유지한다.")
+    void cleanUpWithdrawnMember_keepConfirmed() {
+        Schedule schedule = updatableSchedule(ScheduleStatus.CONFIRMED, LocalDate.of(2026, 11, 20), LocalTime.of(14, 0));
+        ScheduleParticipant proposerP = participant(schedule, proposer, ParticipantStatus.ACCEPTED);
+        ScheduleParticipant withdrawnP = participant(schedule, m2, ParticipantStatus.PENDING);
+        ScheduleParticipant otherP = participant(schedule, m3, ParticipantStatus.ACCEPTED);
+        stubUpcoming(2L, schedule);
+        given(scheduleParticipantRepository.findBySchedule_Id(SCHEDULE_ID)).willReturn(List.of(proposerP, withdrawnP, otherP));
+
+        service.cleanUpWithdrawnMember(2L);
+
+        verify(scheduleParticipantRepository).deleteAll(List.of(withdrawnP));
+        assertThat(schedule.getStatus()).isEqualTo(ScheduleStatus.CONFIRMED);
+        verify(notificationService, never()).cancelScheduleD1Reminders(anyLong());
+        verify(notificationService, never()).cancelScheduleD0Reminders(anyLong());
+        verify(notificationService).createScheduleParticipantWithdrawnNotifications(schedule, List.of(proposerP, otherP), false);
+    }
+
+    @Test
+    @DisplayName("탈퇴 회원이 제안자 외 유일한 참여 대상이면 일정을 취소하고 버킷을 저장 상태로 돌린다.")
+    void cleanUpWithdrawnMember_soleParticipantCancelsSchedule() {
+        Schedule schedule = updatableSchedule(ScheduleStatus.PENDING_RESPONSE, LocalDate.of(2026, 11, 20), LocalTime.of(14, 0));
+        ScheduleParticipant proposerP = participant(schedule, proposer, ParticipantStatus.ACCEPTED);
+        ScheduleParticipant withdrawnP = participant(schedule, m2, ParticipantStatus.PENDING);
+        stubUpcoming(2L, schedule);
+        given(scheduleParticipantRepository.findBySchedule_Id(SCHEDULE_ID)).willReturn(List.of(proposerP, withdrawnP));
+        given(reviewRepository.existsBySchedule_Id(SCHEDULE_ID)).willReturn(false);
+
+        service.cleanUpWithdrawnMember(2L);
+
+        verify(scheduleParticipantRepository).deleteAll(List.of(withdrawnP));
+        assertThat(schedule.getStatus()).isEqualTo(ScheduleStatus.CANCELLED);
+        assertThat(schedule.getBucketItem().getStatus()).isEqualTo(BucketStatus.SAVED);
+        verify(notificationService).createScheduleCancelledByWithdrawalNotifications(schedule);
+        verify(notificationService, never()).createScheduleCancelledNotifications(any());
+        verify(notificationService, never()).createScheduleParticipantWithdrawnNotifications(any(), anyList(), anyBoolean());
+    }
+
+    @Test
+    @DisplayName("탈퇴 회원이 제안한 일정은 취소하지 않고, 남은 초대 대상 중 수락자가 있으면 확정 상태를 유지한다.")
+    void cleanUpWithdrawnMember_proposerKeepsConfirmed() {
+        Schedule schedule = updatableSchedule(ScheduleStatus.CONFIRMED, LocalDate.of(2026, 11, 20), LocalTime.of(14, 0));
+        ScheduleParticipant proposerP = participant(schedule, proposer, ParticipantStatus.ACCEPTED);
+        ScheduleParticipant acceptedP = participant(schedule, m2, ParticipantStatus.ACCEPTED);
+        ScheduleParticipant pendingP = participant(schedule, m3, ParticipantStatus.PENDING);
+        stubUpcoming(PROPOSER_ID, schedule);
+        given(scheduleParticipantRepository.findBySchedule_Id(SCHEDULE_ID)).willReturn(List.of(proposerP, acceptedP, pendingP));
+
+        service.cleanUpWithdrawnMember(PROPOSER_ID);
+
+        verify(scheduleParticipantRepository).deleteAll(List.of(proposerP));
+        assertThat(schedule.getStatus()).isEqualTo(ScheduleStatus.CONFIRMED);
+        verify(notificationService, never()).createScheduleCancelledNotifications(any());
+        verify(notificationService).createScheduleParticipantWithdrawnNotifications(schedule, List.of(acceptedP, pendingP), false);
+    }
+
+    @Test
+    @DisplayName("탈퇴 회원이 제안한 일정에 수락한 초대 대상이 없으면 응답 대기 상태가 된다.")
+    void cleanUpWithdrawnMember_proposerWithoutAccepterPending() {
+        Schedule schedule = updatableSchedule(ScheduleStatus.PENDING_RESPONSE, LocalDate.of(2026, 11, 20), LocalTime.of(14, 0));
+        ScheduleParticipant proposerP = participant(schedule, proposer, ParticipantStatus.ACCEPTED);
+        ScheduleParticipant pendingP = participant(schedule, m2, ParticipantStatus.PENDING);
+        stubUpcoming(PROPOSER_ID, schedule);
+        given(scheduleParticipantRepository.findBySchedule_Id(SCHEDULE_ID)).willReturn(List.of(proposerP, pendingP));
+
+        service.cleanUpWithdrawnMember(PROPOSER_ID);
+
+        verify(scheduleParticipantRepository).deleteAll(List.of(proposerP));
+        assertThat(schedule.getStatus()).isEqualTo(ScheduleStatus.PENDING_RESPONSE);
+        verify(notificationService, never()).createScheduleCancelledNotifications(any());
+        verify(notificationService).createScheduleParticipantWithdrawnNotifications(schedule, List.of(pendingP), false);
+    }
+
+    @Test
+    @DisplayName("탈퇴 회원이 제안한 일정에 남은 초대 대상이 없으면 취소한다.")
+    void cleanUpWithdrawnMember_proposerWithoutInviteesCancels() {
+        Schedule schedule = updatableSchedule(ScheduleStatus.PENDING_RESPONSE, LocalDate.of(2026, 11, 20), LocalTime.of(14, 0));
+        ScheduleParticipant proposerP = participant(schedule, proposer, ParticipantStatus.ACCEPTED);
+        stubUpcoming(PROPOSER_ID, schedule);
+        given(scheduleParticipantRepository.findBySchedule_Id(SCHEDULE_ID)).willReturn(List.of(proposerP));
+        given(reviewRepository.existsBySchedule_Id(SCHEDULE_ID)).willReturn(false);
+
+        service.cleanUpWithdrawnMember(PROPOSER_ID);
+
+        verify(scheduleParticipantRepository).deleteAll(List.of(proposerP));
+        assertThat(schedule.getStatus()).isEqualTo(ScheduleStatus.CANCELLED);
+        verify(notificationService).createScheduleCancelledByWithdrawalNotifications(schedule);
+        verify(notificationService, never()).createScheduleCancelledNotifications(any());
+    }
+
+    @Test
+    @DisplayName("오늘 이미 시작 시각이 지난 일정은 건드리지 않는다.")
+    void cleanUpWithdrawnMember_startedScheduleUntouched() {
+        Schedule schedule = updatableSchedule(ScheduleStatus.CONFIRMED, TODAY, LocalTime.of(8, 0));
+        stubUpcoming(2L, schedule);
+
+        service.cleanUpWithdrawnMember(2L);
+
+        assertThat(schedule.getStatus()).isEqualTo(ScheduleStatus.CONFIRMED);
+        verify(scheduleParticipantRepository, never()).findBySchedule_Id(anyLong());
+        verify(scheduleParticipantRepository, never()).deleteAll(anyList());
+        verify(notificationService, never()).createScheduleCancelledNotifications(any());
+    }
+
+    @Test
+    @DisplayName("일정 잠금을 기다리는 사이 시작 시각이 지나면 잠금 후 시각 기준으로 건드리지 않는다.")
+    void cleanUpWithdrawnMember_startedWhileWaitingForLock() {
+        Clock clock = mock(Clock.class);
+        given(clock.getZone()).willReturn(ZoneId.of("Asia/Seoul"));
+        given(clock.instant()).willReturn(Instant.parse("2026-11-01T00:00:00Z"), Instant.parse("2026-11-01T01:30:00Z"));
+        ScheduleCommandService lockedService = new ScheduleCommandService(memberRepository, familyRepository,
+                bucketItemRepository, scheduleRepository, scheduleParticipantRepository, scheduleConditionRepository,
+                familyMissionRecommendationRepository, clock, notificationService, reviewRepository);
+        Schedule schedule = updatableSchedule(ScheduleStatus.CONFIRMED, TODAY, LocalTime.of(10, 0));
+        stubUpcoming(2L, schedule);
+
+        lockedService.cleanUpWithdrawnMember(2L);
+
+        assertThat(schedule.getStatus()).isEqualTo(ScheduleStatus.CONFIRMED);
+        verify(scheduleParticipantRepository, never()).findBySchedule_Id(anyLong());
+        verify(scheduleParticipantRepository, never()).deleteAll(anyList());
+        verifyNoInteractions(notificationService);
+    }
+
+    @Test
+    @DisplayName("오늘 이후의 진행 중 일정이 없으면 아무것도 바꾸지 않는다.")
+    void cleanUpWithdrawnMember_noUpcoming() {
+        given(scheduleRepository.findUpcomingIdsInvolvingMember(2L, ScheduleStatus.ACTIVE_STATUSES, TODAY))
+                .willReturn(List.of());
+
+        service.cleanUpWithdrawnMember(2L);
+
+        verify(scheduleRepository, never()).findByIdForUpdate(anyLong());
+        verifyNoInteractions(notificationService);
     }
 }

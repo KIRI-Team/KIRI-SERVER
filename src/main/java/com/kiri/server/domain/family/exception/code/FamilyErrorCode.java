@@ -23,6 +23,7 @@ public enum FamilyErrorCode implements BaseErrorCode {
     // 409
     DUPLICATE_NAME(HttpStatus.CONFLICT, "FAMILY409_1", "이미 존재하는 가족 이름입니다."),
     ALREADY_JOINED(HttpStatus.CONFLICT, "FAMILY409_2", "이미 다른 가족에 가입되어 있습니다."),
+    DUPLICATE_FAMILY_ROLE(HttpStatus.CONFLICT, "FAMILY409_3", "가족 내에 이미 같은 역할의 구성원이 있습니다."),
 
     // 410
     EXPIRED_INVITE_CODE(HttpStatus.GONE, "FAMILY410_1", "초대 코드가 만료되었습니다."),

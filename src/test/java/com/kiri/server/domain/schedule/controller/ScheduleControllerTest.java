@@ -1,5 +1,6 @@
 package com.kiri.server.domain.schedule.controller;
 
+import com.kiri.server.domain.member.repository.MemberRepository;
 import com.kiri.server.domain.mission.enums.WalkingLevel;
 import com.kiri.server.domain.schedule.dto.ScheduleReqDTO;
 import com.kiri.server.domain.mission.dto.MissionResDTO;
@@ -56,6 +57,9 @@ class ScheduleControllerTest {
     private JwtProvider jwtProvider;
 
     @MockitoBean
+    private MemberRepository memberRepository;
+
+    @MockitoBean
     private ScheduleQueryService scheduleQueryService;
 
     private String bearerToken;
@@ -63,6 +67,7 @@ class ScheduleControllerTest {
     @BeforeEach
     void setUp() {
         bearerToken = "Bearer " + jwtProvider.createAccessToken(MEMBER_ID);
+        given(memberRepository.existsByIdAndDeletedAtIsNull(MEMBER_ID)).willReturn(true);
     }
 
     @Test

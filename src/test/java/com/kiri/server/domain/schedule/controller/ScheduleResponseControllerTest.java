@@ -1,6 +1,7 @@
 package com.kiri.server.domain.schedule.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.kiri.server.domain.member.repository.MemberRepository;
 import com.kiri.server.domain.schedule.dto.ScheduleResDTO;
 import com.kiri.server.domain.schedule.enums.ParticipantStatus;
 import com.kiri.server.domain.schedule.enums.ScheduleStatus;
@@ -54,6 +55,9 @@ class ScheduleResponseControllerTest {
     private ObjectMapper objectMapper;
 
     @MockitoBean
+    private MemberRepository memberRepository;
+
+    @MockitoBean
     private ScheduleCommandService scheduleCommandService;
 
     @MockitoBean
@@ -73,6 +77,7 @@ class ScheduleResponseControllerTest {
     @BeforeEach
     void setUp() {
         bearerToken = "Bearer " + jwtProvider.createAccessToken(MEMBER_ID);
+        given(memberRepository.existsByIdAndDeletedAtIsNull(MEMBER_ID)).willReturn(true);
     }
 
     private String body(Object value) throws Exception {

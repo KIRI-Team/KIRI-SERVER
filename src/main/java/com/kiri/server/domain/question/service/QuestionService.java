@@ -7,21 +7,18 @@ import com.kiri.server.domain.member.exception.MemberException;
 import com.kiri.server.domain.member.exception.code.MemberErrorCode;
 import com.kiri.server.domain.member.repository.MemberRepository;
 import com.kiri.server.domain.notification.service.NotificationService;
-import com.kiri.server.domain.question.converter.MemberAnswerConverter;
 import com.kiri.server.domain.question.converter.QuestionConverter;
-import com.kiri.server.domain.question.dto.PreferenceClassification;
 import com.kiri.server.domain.question.dto.QuestionReqDTO;
 import com.kiri.server.domain.question.dto.QuestionResDTO;
 import com.kiri.server.domain.question.entity.FamilyQuestion;
 import com.kiri.server.domain.question.entity.MemberAnswer;
-import com.kiri.server.domain.question.entity.MemberAnswerCategory;
 import com.kiri.server.domain.question.entity.Question;
 import com.kiri.server.domain.question.enums.TasteType;
+import com.kiri.server.domain.question.event.AnswerSubmittedEvent;
 import com.kiri.server.domain.question.event.PokeEvent;
 import com.kiri.server.domain.question.exception.QuestionException;
 import com.kiri.server.domain.question.exception.code.QuestionErrorCode;
 import com.kiri.server.domain.question.repository.*;
-import com.kiri.server.global.ai.service.AiService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.postgresql.util.PSQLException;
@@ -55,13 +52,11 @@ public class QuestionService {
     private final MemberRepository memberRepository;
     private final FamilyQuestionRepository familyQuestionRepository;
     private final MemberAnswerRepository memberAnswerRepository;
-    private final MemberAnswerCategoryRepository memberAnswerCategoryRepository;
     private final Clock clock;
     private final PokeRepository pokeRepository;
     private final ApplicationEventPublisher eventPublisher;
     private final FamilyRepository familyRepository;
     private final QuestionRepository questionRepository;
-    private final AiService aiService;
     private final NotificationService notificationService;
 
     @Transactional(readOnly = true)
@@ -105,7 +100,13 @@ public class QuestionService {
 
         Optional<MemberAnswer> answer = memberAnswerRepository.findByFamilyQuestionAndMember(familyQuestion, member);
         if (answer.isPresent()) {
+            boolean contentChanged = !answer.get().getContent().equals(request.answer());
             answer.get().updateContent(request.answer());
+
+            // 내용이 바뀌었을 때만 커밋 후 다시 분류
+            if (contentChanged) {
+                eventPublisher.publishEvent(new AnswerSubmittedEvent(answer.get().getId()));
+            }
 
             // 기존 답변 수정 시에도 미발송 알림 취소
             notificationService.cancelQuestionReminder(member, familyQuestion);
@@ -114,7 +115,11 @@ public class QuestionService {
 
         // 동시에 두 번 생성 요청이 오면 uk_member_answer 유니크 제약이 막으므로 409로 변환
         try {
-            memberAnswerRepository.save(QuestionConverter.toMemberAnswer(request.answer(), familyQuestion, member));
+            MemberAnswer saved = QuestionConverter.toMemberAnswer(request.answer(), familyQuestion, member);
+            memberAnswerRepository.save(saved);
+
+            // 커밋 후 취향 분류 (일반 질문이면 리스너 쪽에서 건너뜀)
+            eventPublisher.publishEvent(new AnswerSubmittedEvent(saved.getId()));
 
             // 신규 답변 저장 후 미발송 알림 취소
             notificationService.cancelQuestionReminder(member, familyQuestion);
@@ -186,9 +191,8 @@ public class QuestionService {
         Member receiver = memberRepository.findById(receiverId)
                 .orElseThrow(() -> new QuestionException(QuestionErrorCode.POKE_RECEIVER_NOT_FOUND));
 
-        // 대상이 다른 가족
         Family receiverFamily = receiver.getFamily();
-        if (receiverFamily == null || !family.getId().equals(receiverFamily.getId())) {
+        if (receiver.isWithdrawn() || receiverFamily == null || !family.getId().equals(receiverFamily.getId())) {
             throw new QuestionException(QuestionErrorCode.POKE_RECEIVER_NOT_FOUND);
         }
 
@@ -262,32 +266,6 @@ public class QuestionService {
         }
 
         familyQuestionRepository.save(QuestionConverter.toFamilyQuestion(family, question.get(), date));
-    }
-
-    @Transactional
-    public void saveAnswer(MemberAnswer answer) {
-        TasteType tasteType = answer.getFamilyQuestion().getQuestion().getTasteType();
-
-        if (tasteType == null) {
-            return;
-        }
-
-        String question = answer.getFamilyQuestion().getQuestion().getContent();
-
-        PreferenceClassification classification = aiService.classify(tasteType, question, answer.getContent());
-
-        answer.updateClassification(classification.indoorOutdoor(), classification.durationLevel(), classification.priceLevel(), classification.activityLevel());
-
-        if (tasteType == TasteType.CATEGORY) {
-            memberAnswerCategoryRepository.deleteAllByMemberAnswerId(answer.getId());
-
-            List<MemberAnswerCategory> categories =
-                    classification.categories().stream()
-                            .map(category -> MemberAnswerConverter.toMemberAnswerCategory(answer, category))
-                            .toList();
-
-            memberAnswerCategoryRepository.saveAll(categories);
-        }
     }
 
     // 1~7일차 고정 질문

@@ -118,6 +118,38 @@ class ScheduleRepositoryTest {
                 .containsExactly(tuple(scheduled.getId(), active.getId(), LocalDate.of(2026, 11, 20)));
     }
 
+    @Test
+    @DisplayName("탈퇴 정리 대상은 회원의 참여 행이 있는(제안자 포함) 오늘 이후의 진행 중 일정만 조회한다.")
+    void findUpcomingIdsInvolvingMember() {
+        LocalDate today = LocalDate.of(2026, 11, 1);
+        Member other = persistMember("캘린더엄마");
+
+        Schedule asParticipant = persistSchedule(family, LocalDate.of(2026, 11, 20), LocalTime.of(10, 0));
+        persistParticipant(asParticipant, me, ParticipantStatus.PENDING, false);
+        Schedule todayParticipant = persistSchedule(family, today, LocalTime.of(18, 0));
+        persistParticipant(todayParticipant, me, ParticipantStatus.ACCEPTED, false);
+        Schedule asProposer = em.persist(Schedule.builder().family(family).proposer(me)
+                .scheduleDate(LocalDate.of(2026, 11, 21)).scheduleTime(LocalTime.of(10, 0))
+                .status(ScheduleStatus.CONFIRMED).build());
+        persistParticipant(asProposer, me, ParticipantStatus.ACCEPTED, false);
+
+        Schedule past = persistSchedule(family, LocalDate.of(2026, 10, 31), LocalTime.of(10, 0));
+        persistParticipant(past, me, ParticipantStatus.ACCEPTED, false);
+        Schedule cancelled = em.persist(Schedule.builder().family(family)
+                .scheduleDate(LocalDate.of(2026, 11, 22)).scheduleTime(LocalTime.of(10, 0))
+                .status(ScheduleStatus.CANCELLED).build());
+        persistParticipant(cancelled, me, ParticipantStatus.ACCEPTED, false);
+        Schedule notMine = persistSchedule(family, LocalDate.of(2026, 11, 23), LocalTime.of(10, 0));
+        persistParticipant(notMine, other, ParticipantStatus.PENDING, false);
+        em.flush();
+        em.clear();
+
+        List<Long> result = scheduleRepository.findUpcomingIdsInvolvingMember(
+                me.getId(), ScheduleStatus.ACTIVE_STATUSES, today);
+
+        assertThat(result).containsExactlyInAnyOrder(asParticipant.getId(), todayParticipant.getId(), asProposer.getId());
+    }
+
     private Member persistMember(String nickname) {
         return em.persist(Member.builder().nickname(nickname).build());
     }

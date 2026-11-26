@@ -41,6 +41,18 @@ public interface ScheduleRepository extends JpaRepository<Schedule, Long> {
     Optional<Schedule> findWithMissionByIdAndFamilyId(@Param("scheduleId") Long scheduleId,
                                                       @Param("familyId") Long familyId);
 
+    @Query("""
+            SELECT s.id FROM Schedule s
+            WHERE s.status IN :statuses
+              AND s.scheduleDate >= :today
+              AND EXISTS (SELECT 1 FROM ScheduleParticipant p
+                          WHERE p.schedule = s AND p.member.id = :memberId)
+            ORDER BY s.id
+            """)
+    List<Long> findUpcomingIdsInvolvingMember(@Param("memberId") Long memberId,
+                                              @Param("statuses") Collection<ScheduleStatus> statuses,
+                                              @Param("today") LocalDate today);
+
     @Query("SELECT s.id FROM Schedule s WHERE s.status = :status AND s.responseDeadline < :now")
     List<Long> findIdsByStatusAndDeadlineBefore(@Param("status") ScheduleStatus status, @Param("now") LocalDateTime now);
 

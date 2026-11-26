@@ -93,6 +93,8 @@ dependencies {
 
 tasks.named('test') {
     useJUnitPlatform()
+    // CI 환경변수 없이도 로컬·IDE(Gradle 러너)에서 test 프로필로 실행되도록 고정
+    systemProperty 'spring.profiles.active', 'test'
 }
 
 // /actuator/info에 노출할 빌드 정보, git 정보 생성

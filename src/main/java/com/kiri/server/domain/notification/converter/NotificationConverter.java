@@ -215,7 +215,7 @@ public class NotificationConverter {
 
     public static Notification toScheduleCancelled(Member receiver, Schedule schedule) {
         String missionTitle = schedule.getBucketItem().getMission().getTitle();
-        String proposerNickname = schedule.getProposer().getNickname();
+        String proposerNickname = schedule.getProposer().getDisplayName();
         String scheduleDate = schedule.getScheduleDate().format(DateTimeFormatter.ofPattern("M월 d일"));
 
         return Notification.builder()
@@ -227,6 +227,42 @@ public class NotificationConverter {
                 .isRead(false)
                 .referenceId(schedule.getId())
                 .referenceDate(schedule.getScheduleDate())
+                .build();
+    }
+
+    public static Notification toScheduleCancelledByWithdrawal(Member receiver, Schedule schedule) {
+        String missionTitle = schedule.getBucketItem().getMission().getTitle();
+        String scheduleDate = schedule.getScheduleDate().format(DateTimeFormatter.ofPattern("M월 d일"));
+
+        return Notification.builder()
+                .member(receiver)
+                .notificationType(NotificationType.SCHEDULE_CANCELLED)
+                .title("'" + missionTitle + "' 일정이 취소됐어요.")
+                .body("함께할 가족이 없어 " + scheduleDate + " 일정이 취소됐어요. 변경된 내용을 확인해 주세요.")
+                .status(NotificationStatus.PENDING)
+                .isRead(false)
+                .referenceId(schedule.getId())
+                .referenceDate(schedule.getScheduleDate())
+                .build();
+    }
+
+    public static Notification toScheduleParticipantWithdrawn(Member receiver, Schedule schedule, boolean confirmationLost) {
+        String missionTitle = schedule.getBucketItem().getMission().getTitle();
+        String scheduleDate = schedule.getScheduleDate().format(DateTimeFormatter.ofPattern("M월 d일"));
+
+        String title = confirmationLost ? "'" + missionTitle + "' 일정이 확정 전으로 돌아갔어요." : "일정 참여 인원이 바뀌었어요.";
+        String body = confirmationLost ? "참여를 수락한 가족이 탈퇴해 " + scheduleDate + " 일정의 확정이 풀렸어요. 일정 내용을 확인해 주세요." : "'" + missionTitle + "' 일정에 함께하던 가족이 탈퇴해 참여 인원이 바뀌었어요. 일정 내용을 확인해 주세요.";
+
+        return Notification.builder()
+                .member(receiver)
+                .notificationType(NotificationType.SCHEDULE_CHANGED)
+                .title(title)
+                .body(body)
+                .status(NotificationStatus.PENDING)
+                .isRead(false)
+                .referenceId(schedule.getId())
+                .referenceDate(schedule.getScheduleDate())
+                .referenceVersion(schedule.getInviteVersion())
                 .build();
     }
 

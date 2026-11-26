@@ -4,6 +4,8 @@ import com.kiri.server.domain.family.repository.FamilyRepository;
 import com.kiri.server.domain.question.service.QuestionService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
@@ -31,9 +33,14 @@ public class QuestionAssignScheduler {
         assignAll(LocalDate.now(clock));
     }
 
+    @EventListener(ApplicationReadyEvent.class)
+    public void assignTodayOnStartup() {
+        assignAll(LocalDate.now(clock));
+    }
+
     // 한 가족이 실패해도 나머지 가족은 계속 배정
     private void assignAll(LocalDate date) {
-        for (Long familyId : familyRepository.findAllIds()) {
+        for (Long familyId : familyRepository.findActiveIds()) {
             try {
                 questionService.assign(familyId, date);
             } catch (Exception e) {

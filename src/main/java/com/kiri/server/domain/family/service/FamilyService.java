@@ -43,9 +43,13 @@ public class FamilyService {
     private final ProfanityFilter profanityFilter;
 
     @Transactional
-    public FamilyResDTO.Create createFamily(Long memberId, FamilyReqDTO.Create dto) {
+    public FamilyResDTO.Create createFamily(Long memberId, FamilyReqDTO.Name dto) {
         Member member = memberRepository.findByIdForUpdate(memberId)
                 .orElseThrow(() -> new ProjectException(MemberErrorCode.NOT_FOUND));
+
+        if (member.getFamily() != null) {
+            throw new FamilyException(FamilyErrorCode.ALREADY_JOINED);
+        }
 
         // 금칙어·운영자 사칭 표현 검증
         if (profanityFilter.containsBannedWord(dto.name())) {
@@ -79,7 +83,8 @@ public class FamilyService {
         Member member = memberRepository.findById(memberId)
                 .orElseThrow(() -> new MemberException(MemberErrorCode.NOT_FOUND));
 
-        Family family = familyRepository.findById(familyId)
+        Family family = familyRepository.findByIdForUpdate(familyId)
+                .filter(found -> found.getDeletedAt() == null)
                 .orElseThrow(() -> new FamilyException(FamilyErrorCode.NOT_FOUND));
 
         if (member.getFamily() == null || !family.getId().equals(member.getFamily().getId())) {
@@ -103,7 +108,8 @@ public class FamilyService {
         Member member = memberRepository.findById(memberId)
                 .orElseThrow(() -> new MemberException(MemberErrorCode.NOT_FOUND));
 
-        Family family = familyRepository.findById(familyId)
+        Family family = familyRepository.findByIdForUpdate(familyId)
+                .filter(found -> found.getDeletedAt() == null)
                 .orElseThrow(() -> new FamilyException(FamilyErrorCode.NOT_FOUND));
 
         if (member.getFamily() == null || !family.getId().equals(member.getFamily().getId())) {
@@ -165,18 +171,19 @@ public class FamilyService {
     }
 
     @Transactional
-    public FamilyResDTO.UpdateName updateFamilyName(Long memberId, Long familyId, FamilyReqDTO.UpdateName request) {
+    public FamilyResDTO.UpdateName updateFamilyName(Long memberId, Long familyId, FamilyReqDTO.Name request) {
         Member member = memberRepository.findById(memberId)
                 .orElseThrow(() -> new MemberException(MemberErrorCode.NOT_FOUND));
 
-        Family family = familyRepository.findById(familyId)
+        Family family = familyRepository.findByIdForUpdate(familyId)
+                .filter(found -> found.getDeletedAt() == null)
                 .orElseThrow(() -> new FamilyException(FamilyErrorCode.NOT_FOUND));
 
         if (family.getOwner() == null || !family.getOwner().getId().equals(member.getId())) {
             throw new FamilyException(FamilyErrorCode.FORBIDDEN);
         }
 
-        String normalizedName = normalizeFamilyName(request.name());
+        String normalizedName = request.name();
 
         if (family.getName().equals(normalizedName)) {
             return FamilyConverter.toUpdateNameResponse(family);
@@ -201,7 +208,8 @@ public class FamilyService {
         Member member = memberRepository.findById(memberId)
                 .orElseThrow(() -> new MemberException(MemberErrorCode.NOT_FOUND));
 
-        Family family = familyRepository.findById(familyId)
+        Family family = familyRepository.findByIdForUpdate(familyId)
+                .filter(found -> found.getDeletedAt() == null)
                 .orElseThrow(() -> new FamilyException(FamilyErrorCode.NOT_FOUND));
 
         if (member.getFamily() == null || !family.getId().equals(member.getFamily().getId())) {
@@ -211,10 +219,6 @@ public class FamilyService {
         family.updateAddress(request.postalCode(), request.address(), request.detailAddress(), request.regionCode(), request.latitude(), request.longitude());
 
         return FamilyConverter.toUpdateAddressResponse(family);
-    }
-
-    private String normalizeFamilyName(String name) {
-        return name.trim().replaceAll("\\s+", " ");
     }
 
     @Transactional(readOnly = true)
@@ -234,11 +238,15 @@ public class FamilyService {
             throw new FamilyException(FamilyErrorCode.ALREADY_JOINED);
         }
 
-        Family family = familyRepository.findByInviteCode(request.inviteCode()).orElseThrow(() -> new FamilyException(FamilyErrorCode.INVALID_INVITE_CODE));
+        Family family = familyRepository.findByInviteCodeForUpdate(request.inviteCode())
+                .filter(f -> f.getDeletedAt() == null)
+                .orElseThrow(() -> new FamilyException(FamilyErrorCode.INVALID_INVITE_CODE));
 
         if (family.getInviteExpiresAt() == null || !LocalDateTime.now().isBefore(family.getInviteExpiresAt())) {
             throw new FamilyException(FamilyErrorCode.EXPIRED_INVITE_CODE);
         }
+
+        validateFamilyRoleAvailable(family, member);
 
         member.joinFamily(family);
 
@@ -264,15 +272,31 @@ public class FamilyService {
             throw new FamilyException(FamilyErrorCode.ALREADY_JOINED);
         }
 
-        Family family = familyRepository.findByInviteToken(inviteToken).orElseThrow(() -> new FamilyException(FamilyErrorCode.INVALID_INVITE_TOKEN));
+        Family family = familyRepository.findByInviteTokenForUpdate(inviteToken)
+                .filter(f -> f.getDeletedAt() == null)
+                .orElseThrow(() -> new FamilyException(FamilyErrorCode.INVALID_INVITE_TOKEN));
 
         if (family.getInviteExpiresAt() == null || !LocalDateTime.now().isBefore(family.getInviteExpiresAt())) {
             throw new FamilyException(FamilyErrorCode.EXPIRED_INVITE_TOKEN);
         }
 
+        validateFamilyRoleAvailable(family, member);
+
         member.joinFamily(family);
 
         return FamilyConverter.toJoinResponse(family);
+    }
+
+    private void validateFamilyRoleAvailable(Family family, Member member) {
+        FamilyRole familyRole = member.getFamilyRole();
+
+        if (familyRole == null || !familyRole.isUniqueInFamily()) {
+            return;
+        }
+
+        if (memberRepository.existsByFamilyAndFamilyRoleAndDeletedAtIsNullAndIdNot(family, familyRole, member.getId())) {
+            throw new FamilyException(FamilyErrorCode.DUPLICATE_FAMILY_ROLE);
+        }
     }
 
     @Transactional(readOnly = true)

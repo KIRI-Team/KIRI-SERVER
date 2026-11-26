@@ -1,5 +1,6 @@
 package com.kiri.server.domain.bucket.controller;
 
+import com.kiri.server.domain.member.repository.MemberRepository;
 import com.kiri.server.domain.bucket.dto.BucketReqDTO;
 import com.kiri.server.domain.bucket.dto.BucketResDTO;
 import com.kiri.server.domain.bucket.enums.BucketStatus;
@@ -58,6 +59,9 @@ class BucketControllerTest {
     private JwtProvider jwtProvider;
 
     @MockitoBean
+    private MemberRepository memberRepository;
+
+    @MockitoBean
     private BucketService bucketService;
 
     @MockitoBean
@@ -68,6 +72,7 @@ class BucketControllerTest {
     @BeforeEach
     void setUp() {
         bearerToken = "Bearer " + jwtProvider.createAccessToken(MEMBER_ID);
+        given(memberRepository.existsByIdAndDeletedAtIsNull(MEMBER_ID)).willReturn(true);
     }
 
     @Test

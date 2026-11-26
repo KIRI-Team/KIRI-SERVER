@@ -1,6 +1,7 @@
 package com.kiri.server.domain.member.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.kiri.server.domain.member.repository.MemberRepository;
 import com.kiri.server.domain.member.dto.MemberReqDTO;
 import com.kiri.server.domain.member.dto.MemberResDTO;
 import com.kiri.server.domain.member.enums.FamilyRole;
@@ -50,6 +51,9 @@ class MemberControllerTest {
 
     @Autowired
     private ObjectMapper objectMapper;
+
+    @MockitoBean
+    private MemberRepository memberRepository;
 
     @MockitoBean
     private MemberService memberService;
@@ -163,6 +167,63 @@ class MemberControllerTest {
                         .value("nickname"));
 
         verify(memberService).updateNickname(eq(1L), any(MemberReqDTO.Nickname.class));
+    }
+
+    @Test
+    @DisplayName("닉네임 설정 성공 - 앞뒤 공백은 제거 후 처리")
+    void updateNicknameTrimsSurroundingWhitespace() throws Exception {
+        String request = """
+            {
+                "nickname": "  nickname  "
+            }
+            """;
+
+        MemberResDTO.Nickname response = MemberResDTO.Nickname.builder().nickname("nickname").build();
+
+        given(memberService.updateNickname(eq(1L), any(MemberReqDTO.Nickname.class))).willReturn(response);
+
+        mockMvc.perform(
+                        patch("/api/v1/members/nickname")
+                                .with(authentication(
+                                        new UsernamePasswordAuthenticationToken(
+                                                1L,
+                                                null,
+                                                List.of()
+                                        )
+                                ))
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(request)
+                )
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.isSuccess").value(true))
+                .andExpect(jsonPath("$.result.nickname")
+                        .value("nickname"));
+
+        verify(memberService).updateNickname(eq(1L), eq(new MemberReqDTO.Nickname("nickname")));
+    }
+
+    @Test
+    @DisplayName("닉네임 설정 실패 - 중간 공백 포함")
+    void updateNicknameInnerWhitespace() throws Exception {
+        MemberReqDTO.Nickname request = new MemberReqDTO.Nickname("nick name");
+
+        mockMvc.perform(patch("/api/v1/members/nickname")
+                        .with(authentication(
+                                new UsernamePasswordAuthenticationToken(
+                                        1L,
+                                        null,
+                                        List.of()
+                                )
+                        ))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.isSuccess").value(false))
+                .andExpect(jsonPath("$.code").value("COMMON400_1"))
+                .andExpect(jsonPath("$.result.nickname")
+                        .value("닉네임은 한글, 영문, 숫자만 사용할 수 있습니다."));
+
+        verify(memberService, never()).updateNickname(anyLong(), any(MemberReqDTO.Nickname.class));
     }
 
     @Test

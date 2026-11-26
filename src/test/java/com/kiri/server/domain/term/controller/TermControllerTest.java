@@ -1,5 +1,6 @@
 package com.kiri.server.domain.term.controller;
 
+import com.kiri.server.domain.member.repository.MemberRepository;
 import com.kiri.server.domain.term.dto.TermResDTO;
 import com.kiri.server.domain.term.exception.TermException;
 import com.kiri.server.domain.term.exception.code.TermErrorCode;
@@ -49,6 +50,9 @@ class TermControllerTest {
     private JwtProvider jwtProvider;
 
     @MockitoBean
+    private MemberRepository memberRepository;
+
+    @MockitoBean
     private TermService termService;
 
     private String bearerToken;
@@ -56,6 +60,7 @@ class TermControllerTest {
     @BeforeEach
     void setUp() {
         bearerToken = "Bearer " + jwtProvider.createAccessToken(MEMBER_ID);
+        given(memberRepository.existsByIdAndDeletedAtIsNull(MEMBER_ID)).willReturn(true);
     }
 
     @Test

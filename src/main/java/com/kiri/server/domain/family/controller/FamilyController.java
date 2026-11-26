@@ -23,7 +23,7 @@ public class FamilyController implements FamilyControllerDocs {
     @PostMapping
     public ApiResponse<FamilyResDTO.Create> createFamily(
             @AuthenticationPrincipal Long memberId,
-            @Valid @RequestBody FamilyReqDTO.Create dto
+            @Valid @RequestBody FamilyReqDTO.Name dto
     ) {
         BaseSuccessCode code = FamilySuccessCode.FAMILY_CREATED;
         return ApiResponse.onSuccess(code, familyService.createFamily(memberId, dto));
@@ -65,7 +65,7 @@ public class FamilyController implements FamilyControllerDocs {
     public ApiResponse<FamilyResDTO.UpdateName> updateFamilyName(
             @AuthenticationPrincipal Long memberId,
             @PathVariable Long familyId,
-            @Valid @RequestBody FamilyReqDTO.UpdateName dto
+            @Valid @RequestBody FamilyReqDTO.Name dto
     ) {
         BaseSuccessCode code = FamilySuccessCode.NAME_UPDATED;
         return ApiResponse.onSuccess(code, familyService.updateFamilyName(memberId, familyId, dto));

@@ -842,7 +842,7 @@ public interface ScheduleControllerDocs {
                       - CONFIRMED: 약속 확정 (확정, 일정 당일이 아님)
                       - TODAY: 약속 당일이에요! (확정, 일정 날짜가 오늘)
                       - COMPLETED: 약속 완료
-                    - proposer: 일정을 제안한 구성원. 탈퇴한 회원은 nickname이 "탈퇴한 사용자", familyRole이 null입니다.
+                    - proposer: 일정을 제안한 구성원. 탈퇴한 회원은 nickname이 "탈퇴한 멤버", familyRole이 null입니다.
                     - requestMessage: 가족에게 한 줄. 입력하지 않았으면 null입니다.
                     - myStatus: 조회한 사용자의 응답 상태
                       - NOT_INVITED: 초대받지 않음
@@ -855,7 +855,7 @@ public interface ScheduleControllerDocs {
                     - canEdit: 일정 변경 가능 여부 (제안자이고 시작 전인 응답 대기·확정 일정)
                     - canCancel: 일정 취소 가능 여부 (제안자이고 응답 대기·확정 일정)
                     - participants: 제안자가 맨 앞이며, 이후 초대 순서입니다.
-                      - nickname: 탈퇴한 회원은 "탈퇴한 사용자"로 표시합니다.
+                      - nickname: 탈퇴한 회원은 "탈퇴한 멤버"로 표시합니다.
                       - status: 구성원별 응답 상태 (myStatus와 같은 값, NOT_INVITED는 나오지 않음)
                       - characterImageUrl: 가족 역할별 캐릭터 이미지. 역할이 없거나 탈퇴한 회원은 null입니다.
                     - 같은 가족의 일정이면 초대받지 않은 구성원도 조회할 수 있으며, 다른 가족의 일정은 존재하지 않는 일정과 같이 404로 응답합니다.

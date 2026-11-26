@@ -254,8 +254,9 @@ public interface MemberControllerDocs {
         summary = "닉네임 설정 API",
         description = """
                     # 닉네임 설정
-                    로그인 회원의 닉네임을 설정하거나 변경합니다. 닉네임은 한글·영문·숫자로 구성된 2~12자의 값을 사용합니다.
-                    
+                    로그인 회원의 닉네임을 설정하거나 변경합니다. 닉네임은 한글·영문·숫자로 구성된 2~12자의 값을 사용하며, 공백과 특수문자는 사용할 수 없습니다.
+                    앞뒤 공백은 서버에서 자동으로 제거한 뒤 검증합니다.
+
                     ## 요청 형식
                     - **Header**
                         - Authorization: Bearer {Access_Token}
@@ -265,9 +266,9 @@ public interface MemberControllerDocs {
                     
                     ## 동작 방식
                     1. Access Token을 통해 인증된 회원을 확인합니다.
-                    2. 클라이언트에서 닉네임의 앞뒤 공백을 제거한 후 요청합니다.
+                    2. 닉네임의 앞뒤 공백을 제거합니다.
                     3. 닉네임의 길이가 2~12자인지 검증합니다.
-                    4. 닉네임에 한글, 영문, 숫자 외의 문자가 포함되어 있는지 검증합니다.
+                    4. 닉네임에 한글, 영문, 숫자 외의 문자(중간 공백 포함)가 포함되어 있는지 검증합니다.
                     5. 금칙어 및 운영자 사칭 표현이 포함되어 있는지 검증합니다.
                     6. 동일한 닉네임을 사용 중인 회원이 있는지 확인합니다.
                     7. 모든 검증을 통과하면 해당 회원의 닉네임을 설정하거나 변경합니다.
@@ -479,8 +480,9 @@ public interface MemberControllerDocs {
                     1. Access Token을 검증하여 로그인 회원의 memberId를 확인합니다.
                     2. 요청받은 familyRole이 허용된 가족 역할인지 검증합니다.
                     3. memberId로 회원을 조회합니다.
-                    4. 회원의 가족 역할을 요청받은 역할로 변경합니다.
-                    5. 변경된 가족 역할을 응답합니다.
+                    4. 회원이 가족에 소속되어 있고 요청받은 역할이 아빠·엄마인 경우, 가족 내에 이미 같은 역할의 구성원이 있는지 확인합니다. 아빠·엄마 역할은 가족 내에서 중복될 수 없습니다.
+                    5. 회원의 가족 역할을 요청받은 역할로 변경합니다.
+                    6. 변경된 가족 역할을 응답합니다.
                     """
     )
     @ApiResponses(value = {
@@ -590,6 +592,23 @@ public interface MemberControllerDocs {
                                         "isSuccess": false,
                                         "code": "MEMBER404_1",
                                         "message": "존재하지 않는 회원입니다.",
+                                        "result": null
+                                    }
+                                    """
+                            )
+                    )
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "409",
+                    description = "가족 내에 이미 같은 역할(아빠·엄마)의 구성원이 있는 경우",
+                    content = @Content(
+                            mediaType = "application/json",
+                            examples = @ExampleObject(
+                                    value = """
+                                    {
+                                        "isSuccess": false,
+                                        "code": "FAMILY409_3",
+                                        "message": "가족 내에 이미 같은 역할의 구성원이 있습니다.",
                                         "result": null
                                     }
                                     """
@@ -746,7 +765,7 @@ public interface MemberControllerDocs {
                     2. 회원 정보는 물리적으로 삭제하지 않고 탈퇴 처리(`deletedAt`)합니다.
                     3. 탈퇴한 회원의 개인정보 및 회원 종속 데이터는 삭제합니다.
                     4. 질문 답변, 리뷰, 일정 참여 기록, 버킷리스트 등 기존 서비스 이용 이력은 보존합니다.
-                    5. 기존 이용 이력에서 탈퇴한 회원은 **"탈퇴한 사용자"**로 표시됩니다.
+                    5. 기존 이용 이력에서 탈퇴한 회원은 **"탈퇴한 멤버"**로 표시됩니다.
                     6. 탈퇴한 회원이 가족의 방장인 경우, 가족에 남아 있는 활성 회원 중 가장 먼저 가입한 회원에게 방장 권한을 승계합니다.
                     """
     )

@@ -1,31 +1,28 @@
 package com.kiri.server.global.ai;
 
-import lombok.AllArgsConstructor;
-import lombok.Getter;
+import com.fasterxml.jackson.annotation.JsonProperty;
 
 import java.util.List;
 
-@Getter
-@AllArgsConstructor
-public class AiRequest {
+/**
+ * OpenAI Chat Completions 요청 본문.
+ * 분류 결과를 JSON으로 파싱하므로 JSON 모드(response_format: json_object)로 요청한다.
+ */
+public record AiRequest(
+        String model,
+        List<Message> messages,
+        @JsonProperty("response_format") ResponseFormat responseFormat
+) {
 
-    private List<Content> contents;
-
-    public static AiRequest from(String prompt) {
+    public static AiRequest of(String model, String prompt) {
         return new AiRequest(
-                List.of(new Content(List.of(new Part(prompt))))
+                model,
+                List.of(new Message("user", prompt)),
+                new ResponseFormat("json_object")
         );
     }
 
-    @Getter
-    @AllArgsConstructor
-    static class Content {
-        private List<Part> parts;
-    }
+    public record Message(String role, String content) {}
 
-    @Getter
-    @AllArgsConstructor
-    static class Part {
-        private String text;
-    }
+    public record ResponseFormat(String type) {}
 }

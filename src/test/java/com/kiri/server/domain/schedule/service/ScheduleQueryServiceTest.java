@@ -916,7 +916,7 @@ class ScheduleQueryServiceTest {
     }
 
     @Test
-    @DisplayName("일정 상세 조회: 날짜·시간과 참여자별 닉네임·응답 상태를 조회 순서대로 반환하고, 탈퇴한 참여자는 '탈퇴한 사용자'로 표시한다.")
+    @DisplayName("일정 상세 조회: 날짜·시간과 참여자별 닉네임·응답 상태를 조회 순서대로 반환하고, 탈퇴한 참여자는 '탈퇴한 멤버'로 표시한다.")
     void getDetail_participants() {
         Family family = Family.builder().id(10L).build();
         given(memberRepository.findById(MEMBER_ID)).willReturn(Optional.of(Member.builder().family(family).build()));
@@ -949,7 +949,7 @@ class ScheduleQueryServiceTest {
         assertThat(result.date()).isEqualTo(LocalDate.of(2026, 11, 3));
         assertThat(result.time()).isEqualTo(LocalTime.of(14, 50));
         assertThat(result.participants()).extracting(ScheduleResDTO.ParticipantItem::nickname)
-                .containsExactly("엄마", "첫째", "둘째", "탈퇴한 사용자", "탈퇴한 사용자");
+                .containsExactly("엄마", "첫째", "둘째", "탈퇴한 멤버", "탈퇴한 멤버");
         assertThat(result.participants()).extracting(ScheduleResDTO.ParticipantItem::status)
                 .containsExactly(CalendarMyStatus.ACCEPTED, CalendarMyStatus.PENDING, CalendarMyStatus.DECLINED,
                         CalendarMyStatus.ACCEPTED, CalendarMyStatus.ACCEPTED);
